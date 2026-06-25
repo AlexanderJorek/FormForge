@@ -1,0 +1,356 @@
+<?php
+
+/**
+ * @package   FormForge
+ * @copyright 2026 Alexander Jorek
+ * @license   GPL-2.0-or-later
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ */
+
+namespace ForgeForms\Fields;
+
+defined('ABSPATH') || exit;
+
+class SliderField extends BaseField
+{
+    public function getStyles(): string
+    {
+        return <<<'CSS'
+.forge-slider-wrap { display: flex; align-items: center; gap: 14px; }
+.forge-slider-custom {
+    flex: 1;
+    padding: 9px 0;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+}
+.forge-slider-custom:focus { outline: none; }
+.forge-slider-track {
+    position: relative;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--forge-border-input);
+}
+.forge-slider-fill {
+    position: absolute;
+    left: 0; top: 0;
+    height: 100%;
+    border-radius: 2px;
+    background: var(--forge-accent);
+    pointer-events: none;
+}
+.forge-slider-thumb {
+    position: absolute;
+    top: 50%;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--forge-accent);
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,.3);
+    transform: translate(-50%, -50%);
+    transition: box-shadow .1s;
+    cursor: grab;
+}
+.forge-slider-thumb:active { cursor: grabbing; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+.forge-slider-custom:focus .forge-slider-thumb,
+.forge-slider-thumb:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px
+        color-mix(in srgb, var(--forge-accent) 25%, transparent),
+        0 1px 3px rgba(0,0,0,.3);
+}
+.forge-slider-value {
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 32px;
+    text-align: center;
+    color: var(--forge-text-muted);
+}
+CSS;
+    }
+
+    public function getLabel(): string
+    {
+        return 'Schieberegler';
+    }
+    public function getIcon(): string
+    {
+        return 'fa-solid fa-sliders';
+    }
+
+    public function getClientEmptyCheck(): array
+    {
+        return ['fn' => "function(f){var i=f.querySelector('input[type=\"hidden\"]');return !i||i.value==='';}"];
+    }
+
+    public function getClientInit(): string
+    {
+        return <<<'JS'
+        function (root) {
+            root.querySelectorAll('.forge-slider-wrap').forEach(function (wrap) {
+                var min  = parseFloat(wrap.dataset.min  || 0);
+                var max  = parseFloat(wrap.dataset.max  || 100);
+                var step = parseFloat(wrap.dataset.step || 1);
+                var isRange = wrap.classList.contains('forge-slider-wrap--range');
+                var track = wrap.querySelector('.forge-slider-track');
+                var fill  = wrap.querySelector('.forge-slider-fill');
+                function snap(raw) {
+                    var stepped = Math.round((raw - min) / step) * step + min;
+                    return Math.min(max, Math.max(min, parseFloat(stepped.toFixed(10))));
+                }
+                function pct(val) { return (val - min) / (max - min) * 100; }
+                function valFromX(clientX) {
+                    var rect  = track.getBoundingClientRect();
+                    var ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+                    return snap(min + ratio * (max - min));
+                }
+                if (!isRange) {
+                    var thumb  = wrap.querySelector('.forge-slider-thumb');
+                    var input  = wrap.querySelector('input[type="hidden"]');
+                    var disp   = wrap.querySelector('.forge-slider-value');
+                    var curVal = parseFloat(wrap.dataset.value || min);
+                    function setVal(v, writeInput) {
+                        curVal = v;
+                        var p = pct(v);
+                        thumb.style.left = p + '%';
+                        fill.style.width = p + '%';
+                        if (writeInput && input) input.value = v;
+                        if (disp)  disp.textContent = v;
+                        wrap.querySelector('.forge-slider-custom').setAttribute('aria-valuenow', v);
+                    }
+                    /* Visual-only init — hidden input stays '' until user interacts */
+                    setVal(curVal, false);
+                    function startDrag(clientX) {
+                        setVal(valFromX(clientX), true);
+                        function onMove(e) { setVal(valFromX(e.touches ? e.touches[0].clientX : e.clientX), true); }
+                        function onUp() {
+                            document.removeEventListener('mousemove', onMove);
+                            document.removeEventListener('mouseup', onUp);
+                            document.removeEventListener('touchmove', onMove);
+                            document.removeEventListener('touchend', onUp);
+                        }
+                        document.addEventListener('mousemove', onMove);
+                        document.addEventListener('mouseup', onUp);
+                        document.addEventListener('touchmove', onMove, { passive: true });
+                        document.addEventListener('touchend', onUp);
+                    }
+                    track.addEventListener('mousedown',  function (e) { e.preventDefault(); startDrag(e.clientX); });
+                    track.addEventListener('touchstart', function (e) { startDrag(e.touches[0].clientX); }, { passive: true });
+                    var slider = wrap.querySelector('.forge-slider-custom');
+                    slider.addEventListener('keydown', function (e) {
+                        var delta = 0;
+                        if (e.key === 'ArrowRight' || e.key === 'ArrowUp')   delta =  step;
+                        if (e.key === 'ArrowLeft'  || e.key === 'ArrowDown') delta = -step;
+                        if (e.key === 'Home') { setVal(min, true); return; }
+                        if (e.key === 'End')  { setVal(max, true); return; }
+                        if (delta) { e.preventDefault(); setVal(snap(curVal + delta), true); }
+                    });
+                } else {
+                    var thumbFrom = wrap.querySelector('.forge-slider-thumb--from');
+                    var thumbTo   = wrap.querySelector('.forge-slider-thumb--to');
+                    var inputFrom = wrap.querySelector('.forge-slider-input-from');
+                    var inputTo   = wrap.querySelector('.forge-slider-input-to');
+                    var dispFrom  = wrap.querySelector('.forge-slider-from-display');
+                    var dispTo    = wrap.querySelector('.forge-slider-to-display');
+                    var from = parseFloat(wrap.dataset.from || min);
+                    var to   = parseFloat(wrap.dataset.to   || max);
+                    function setRange(writeInput) {
+                        var pFrom = pct(from), pTo = pct(to);
+                        thumbFrom.style.left = pFrom + '%';
+                        thumbTo.style.left   = pTo   + '%';
+                        fill.style.left  = pFrom + '%';
+                        fill.style.width = (pTo - pFrom) + '%';
+                        if (writeInput && inputFrom) inputFrom.value = from;
+                        if (writeInput && inputTo)   inputTo.value   = to;
+                        if (dispFrom)  dispFrom.textContent = from;
+                        if (dispTo)    dispTo.textContent   = to;
+                        thumbFrom.setAttribute('aria-valuenow', from);
+                        thumbTo.setAttribute('aria-valuenow',   to);
+                    }
+                    /* Visual-only init */
+                    setRange(false);
+                    function dragThumb(isFrom, clientX) {
+                        var v = valFromX(clientX);
+                        if (isFrom) from = Math.min(v, to   - step);
+                        else        to   = Math.max(v, from + step);
+                        setRange(true);
+                        function onMove(e) {
+                            var v2 = valFromX(e.touches ? e.touches[0].clientX : e.clientX);
+                            if (isFrom) from = Math.min(v2, to   - step);
+                            else        to   = Math.max(v2, from + step);
+                            setRange(true);
+                        }
+                        function onUp() {
+                            document.removeEventListener('mousemove', onMove);
+                            document.removeEventListener('mouseup', onUp);
+                            document.removeEventListener('touchmove', onMove);
+                            document.removeEventListener('touchend', onUp);
+                        }
+                        document.addEventListener('mousemove', onMove);
+                        document.addEventListener('mouseup', onUp);
+                        document.addEventListener('touchmove', onMove, { passive: true });
+                        document.addEventListener('touchend', onUp);
+                    }
+                    thumbFrom.addEventListener('mousedown',  function (e) { e.preventDefault(); dragThumb(true,  e.clientX); });
+                    thumbTo.addEventListener('mousedown',    function (e) { e.preventDefault(); dragThumb(false, e.clientX); });
+                    thumbFrom.addEventListener('touchstart', function (e) { dragThumb(true,  e.touches[0].clientX); }, { passive: true });
+                    thumbTo.addEventListener('touchstart',   function (e) { dragThumb(false, e.touches[0].clientX); }, { passive: true });
+                }
+            });
+        }
+        JS;
+    }
+
+    public function render(array $config, string $field_id, mixed $value = null): string
+    {
+        $min    = (float)($config['min']  ?? 0);
+        $max    = (float)($config['max']  ?? 100);
+        $step   = (float)($config['step'] ?? 1);
+        $ranged = !empty($config['ranged']);
+
+        if ($ranged) {
+            $val_from = (float)(is_array($value) ? ($value['from'] ?? $min) : $min);
+            $val_to   = (float)(is_array($value) ? ($value['to']   ?? $max) : $max);
+            $inner = '<div class="forge-slider-wrap forge-slider-wrap--range"'
+                . ' data-min="' . $min . '" data-max="' . $max . '" data-step="' . $step . '"'
+                . ' data-from="' . $val_from . '" data-to="' . $val_to . '">'
+                . '<div class="forge-slider-custom forge-slider-custom--range" role="group">'
+                . '<div class="forge-slider-track">'
+                . '<div class="forge-slider-fill"></div>'
+                . '<div class="forge-slider-thumb forge-slider-thumb--from" tabindex="0" role="slider"'
+                . ' aria-valuemin="' . $min . '" aria-valuemax="' . $max . '" aria-valuenow="' . $val_from . '"></div>'
+                . '<div class="forge-slider-thumb forge-slider-thumb--to" tabindex="0" role="slider"'
+                . ' aria-valuemin="' . $min . '" aria-valuemax="' . $max . '" aria-valuenow="' . $val_to . '"></div>'
+                . '</div></div>'
+                . '<input type="hidden" name="' . esc_attr($field_id)
+                . '[from]" class="forge-slider-input-from" value="">'
+                . '<input type="hidden" name="' . esc_attr($field_id)
+                . '[to]"   class="forge-slider-input-to"   value="">'
+                . '<span class="forge-slider-value">'
+                . '<span class="forge-slider-from-display">' . $val_from . '</span>'
+                . ' – '
+                . '<span class="forge-slider-to-display">' . $val_to . '</span>'
+                . '</span>'
+                . '</div>';
+        } else {
+            $val   = (float)($value ?? $min);
+            $inner = '<div class="forge-slider-wrap"'
+                . ' data-min="' . $min . '" data-max="' . $max . '" data-step="' . $step . '"'
+                . ' data-value="' . $val . '">'
+                . '<div class="forge-slider-custom" role="slider" tabindex="0"'
+                . ' aria-valuemin="' . $min . '" aria-valuemax="' . $max . '" aria-valuenow="' . $val . '">'
+                . '<div class="forge-slider-track">'
+                . '<div class="forge-slider-fill"></div>'
+                . '<div class="forge-slider-thumb"></div>'
+                . '</div></div>'
+                . '<input type="hidden" name="' . esc_attr($field_id)
+                . '" id="' . esc_attr($field_id) . '" value="">'
+                . '<span class="forge-slider-value">' . $val . '</span>'
+                . '</div>';
+        }
+
+        return $this->wrap($field_id, $config, $inner);
+    }
+
+    public function validate(mixed $value, array $config): bool|string
+    {
+        $base = parent::validate($value, $config);
+        if ($base !== true) {
+            return $base;
+        }
+        $min = (float)($config['min'] ?? 0);
+        $max = (float)($config['max'] ?? 100);
+        if (!empty($config['ranged']) && is_array($value)) {
+            foreach (['from' => $value['from'] ?? null, 'to' => $value['to'] ?? null] as $v) {
+                if ($v === null || $v === '') {
+                    continue;
+                }
+                if (!is_numeric($v)) {
+                    return 'Bitte geben Sie einen gültigen Wert ein.';
+                }
+                $n = (float)$v;
+                if ($n < $min) {
+                    return 'Mindestwert: ' . $min;
+                }
+                if ($n > $max) {
+                    return 'Maximalwert: ' . $max;
+                }
+            }
+        } elseif ($value !== '' && $value !== null) {
+            if (!is_numeric($value)) {
+                return 'Bitte geben Sie einen gültigen Wert ein.';
+            }
+            $n = (float)$value;
+            if ($n < $min) {
+                return 'Mindestwert: ' . $min;
+            }
+            if ($n > $max) {
+                return 'Maximalwert: ' . $max;
+            }
+        }
+        return true;
+    }
+
+    public function getClientValidation(): array
+    {
+        return [['rule' => 'slider-range', 'fn' => <<<'JS'
+            function (fieldEl) {
+                var wrap = fieldEl.querySelector('.forge-slider-wrap');
+                if (!wrap) return null;
+                var min = parseFloat(wrap.dataset.min);
+                var max = parseFloat(wrap.dataset.max);
+                if (wrap.classList.contains('forge-slider-wrap--range')) {
+                    var fromInp = fieldEl.querySelector('.forge-slider-input-from');
+                    var toInp   = fieldEl.querySelector('.forge-slider-input-to');
+                    if (!fromInp || !toInp) return null;
+                    var from = parseFloat(fromInp.value);
+                    var to   = parseFloat(toInp.value);
+                    if (isNaN(from) || isNaN(to)) return 'Bitte geben Sie einen gültigen Wert ein.';
+                    if (from < min || to > max)
+                        return 'Wert außerhalb des erlaubten Bereichs (' + min + '–' + max + ').';
+                } else {
+                    var inp = fieldEl.querySelector('input[type="hidden"]');
+                    if (!inp) return null;
+                    var val = parseFloat(inp.value);
+                    if (isNaN(val)) return 'Bitte geben Sie einen gültigen Wert ein.';
+                    if (val < min) return 'Mindestwert: ' + min;
+                    if (val > max) return 'Maximalwert: ' + max;
+                }
+                return null;
+            }
+            JS]];
+    }
+
+    public function map(mixed $value, array $config): string
+    {
+        if (!empty($config['ranged']) && is_array($value)) {
+            return ($value['from'] ?? '') . ' – ' . ($value['to'] ?? '');
+        }
+        return $value !== null && $value !== '' ? (string)$value : '[Kein Eintrag]';
+    }
+
+    public function getDefaultConfig(): array
+    {
+        return array_merge(parent::getDefaultConfig(), [
+            'min'    => 0,
+            'max'    => 100,
+            'step'   => 1,
+            'ranged' => false,
+        ]);
+    }
+
+    public function getGeneralSchema(): array
+    {
+        return array_merge($this->baseGeneralEntries(), [
+            ['key' => 'ranged', 'type' => 'bool_seg', 'label' => 'Modus',
+             'false_label' => 'Einzel', 'true_label' => 'Bereich'],
+            ['key' => 'min',  'type' => 'number', 'label' => 'Mindestwert'],
+            ['key' => 'max',  'type' => 'number', 'label' => 'Maximalwert'],
+            ['key' => 'step', 'type' => 'number', 'label' => 'Schrittweite'],
+        ]);
+    }
+}
