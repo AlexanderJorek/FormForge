@@ -2,13 +2,17 @@
 
 ## Project Goal
 
-Build a custom WordPress form plugin (`form-forge`) to replace Forminator. All work goes in `.new/`. The `.old/` directory is **read-only — never modify anything inside `.old/`**.
+Build a custom WordPress form plugin (`form-forge`) to replace Forminator.
 
 ## Directory Layout
 
 ```
-.old/   — read-only reference: Forminator source, forminator-addons-pdf, forminator-custom-pdf
-.new/   — active development target (the new plugin)
+assets/          — CSS, JS, vendor front-end assets
+includes/        — PHP plugin source (Admin, Fields, Form, PDF, Utils)
+pdf-templates/   — mPDF layout templates
+vendor/          — Composer dependencies
+forge-forms.php  — plugin entry point
+uninstall.php    — cleanup on uninstall
 ```
 
 ## Scope
@@ -33,11 +37,7 @@ No form submission data is ever stored locally. All data goes to email and/or PD
 
 ### PDF System
 
-Port `.old/forminator-custom-pdf` to work with the new plugin. The coupling points are:
-- `SubmissionHook.php` — field-type mapping (replace Forminator field types with new plugin's types)
-- `MailAttachments.php` — hooks into Forminator mail system (replace with new plugin's mail hooks)
-
-Everything else (Generator, HashSeal, Verificationpage, Admin/FormSettings) can be carried over with minimal changes.
+PDF generation lives in `includes/PDF/`. The mPDF-based generator uses `pdf-templates/layout.php` and integrates with the plugin's mail hooks via `SubmissionHook.php` and `MailAttachments.php`.
 
 ### UI / Admin
 
@@ -67,4 +67,4 @@ After all findings: one paragraph of strategic recommendations for long-term NIS
 
 ### JS Assets
 
-Follow the pattern from `.old/forminator-custom-pdf/assets/js/` — static files served directly, no build step unless explicitly added.
+Static files in `assets/js/` served directly — no build step unless explicitly added.

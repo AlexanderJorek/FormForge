@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Example/template field showing the minimal field implementation.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * ════════════════════════════════════════════════════════════
  *  HOW TO ADD A NEW FIELD — read this file top to bottom
@@ -50,19 +58,30 @@ namespace ForgeForms\Fields;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Template/example field demonstrating the full field implementation pattern.
+ */
 class ExampleField extends BaseField
 {
     // ═══════════════════════════════════════════════════════
     //  MANDATORY — these three must always be implemented
     // ═══════════════════════════════════════════════════════
 
-    /** Label shown in the field palette and the builder panel header. */
+    /**
+     * Returns the label shown in the field palette and builder panel header.
+     *
+     * @return string
+     */
     public function getLabel(): string
     {
         return 'Beispielfeld';
     }
 
-    /** Font Awesome 6 class, e.g. 'fa-solid fa-star'. Shown as the palette tile icon. */
+    /**
+     * Returns the Font Awesome 6 class shown as the palette tile icon.
+     *
+     * @return string
+     */
     public function getIcon(): string
     {
         return 'fa-solid fa-star';
@@ -84,6 +103,11 @@ class ExampleField extends BaseField
     //  Include @media blocks inside the same string when needed.
     //  Return '' (default from BaseField) when no custom CSS is required.
 
+    /**
+     * Returns field-specific CSS injected inline on pages that load this form.
+     *
+     * @return string
+     */
     public function getStyles(): string
     {
         return ''; // no custom CSS needed for this field
@@ -112,19 +136,25 @@ class ExampleField extends BaseField
     // ═══════════════════════════════════════════════════════
 
     /**
-     * @param array  $config    Saved field config merged with getDefaultConfig() defaults.
-     * @param string $field_id  Unique element id/name, e.g. "field-3".
-     * @param mixed  $value     Pre-filled value when re-displaying after a server error.
+     * Renders the field HTML for frontend display.
+     *
+     * @param array  $config   Saved field config merged with getDefaultConfig() defaults.
+     * @param string $field_id Unique element id/name, e.g. "field-3".
+     * @param mixed  $value    Pre-filled value when re-displaying after a server error.
+     *
+     * @return string
      */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         // ── Simple single input ──────────────────────────────────────────
         // inputAttrs() builds: id, name, class="forge-input", placeholder,
         // required + aria-required. Pass any extra HTML attributes as the 4th array.
-        $attrs = $this->inputAttrs($config, $field_id, 'text', [
+        $attrs = $this->inputAttrs(
+            $config, $field_id, 'text', [
             'value'     => esc_attr((string)($value ?? '')),
             'maxlength' => (int)($config['maxlength'] ?? 0) ?: false,  // false = attribute omitted
-        ]);
+            ]
+        );
 
         // wrap() adds: outer .forge-field div, label, description, error div,
         // required class/asterisk, and the data-validate attribute automatically.
@@ -171,6 +201,14 @@ class ExampleField extends BaseField
     // Override only to add format rules on top.
     // Return true = OK, return string = user-facing error message.
 
+    /**
+     * Validates the submitted value (required check + five-digit format).
+     *
+     * @param mixed $value  The submitted value.
+     * @param array $config Field configuration array.
+     *
+     * @return bool|string
+     */
     public function validate(mixed $value, array $config): bool|string
     {
         $base = parent::validate($value, $config); // required check
@@ -194,6 +232,14 @@ class ExampleField extends BaseField
     // Default (BaseField): casts to string, returns '[Kein Eintrag]' when empty.
     // Override for composite (array) values or custom formatting.
 
+    /**
+     * Maps the submitted value to a human-readable string for email/PDF.
+     *
+     * @param mixed $value  The submitted value.
+     * @param array $config Field configuration array.
+     *
+     * @return string
+     */
     public function map(mixed $value, array $config): string
     {
         if ($this->isEmpty($value)) {
@@ -220,6 +266,11 @@ class ExampleField extends BaseField
     //
     //  Return '' (default) when no frontend init is needed.
 
+    /**
+     * Returns the client-side initialisation script for this field type.
+     *
+     * @return string
+     */
     public function getClientInit(): string
     {
         return ''; // no frontend interaction needed
@@ -258,6 +309,11 @@ class ExampleField extends BaseField
     // window.ForgeEmptyChecks / window.ForgeValidators before front.js loads.
     // front.js is a pure runner — zero field-specific logic lives there.
 
+    /**
+     * Returns the client-side empty-check function for this field type.
+     *
+     * @return array
+     */
     public function getClientEmptyCheck(): array
     {
         return []; // generic fallback: first visible input non-empty
@@ -266,6 +322,11 @@ class ExampleField extends BaseField
         // return ['fn' => "function(f){ return !f.querySelector('input[type=\"checkbox\"]:checked'); }"];
     }
 
+    /**
+     * Returns client-side format validation rules for this field type.
+     *
+     * @return array
+     */
     public function getClientValidation(): array
     {
         return []; // no format validation needed
@@ -306,13 +367,20 @@ class ExampleField extends BaseField
     // Always merge with parent to inherit: label, required, hide_label,
     // placeholder, description.
 
+    /**
+     * Returns default config values for the builder canvas.
+     *
+     * @return array
+     */
     public function getDefaultConfig(): array
     {
-        return array_merge(parent::getDefaultConfig(), [
+        return array_merge(
+            parent::getDefaultConfig(), [
             'maxlength' => '',
             'my_toggle' => false,
             'my_select' => 'option-a',
-        ]);
+            ]
+        );
     }
 
 
@@ -348,9 +416,15 @@ class ExampleField extends BaseField
     //  IMPORTANT: label / required / hide_label are rendered automatically by
     //  the builder JS and must NOT appear in any schema array.
 
+    /**
+     * Returns the settings schema for the General tab.
+     *
+     * @return array
+     */
     public function getGeneralSchema(): array
     {
-        return array_merge($this->baseGeneralEntries(), [ // placeholder + description
+        return array_merge(
+            $this->baseGeneralEntries(), [ // placeholder + description
 
             ['key' => 'my_toggle', 'type' => 'bool_seg', 'label' => 'Modus',
              'false_label' => 'Einfach', 'true_label' => 'Erweitert', 'rebuild' => true],
@@ -367,10 +441,15 @@ class ExampleField extends BaseField
 
             // Notice (no key — display only, no config value):
             // ['type' => 'notice', 'level' => 'warning', 'text' => 'Hinweis…'],
-        ]);
+            ]
+        );
     }
 
-    // Advanced tab — return [] to hide the tab entirely.
+    /**
+     * Returns the settings schema for the Advanced tab.
+     *
+     * @return array
+     */
     public function getAdvancedSchema(): array
     {
         return [

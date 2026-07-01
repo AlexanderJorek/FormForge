@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Creates and verifies cryptographic hash seals on generated PDFs.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,6 +23,9 @@ namespace ForgeForms\PDF;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Manages PDF seal key generation, encryption, HMAC signing, and verification.
+ */
 class HashSeal
 {
     private const PEPPER     = 'forge_seal_kdf_v1';
@@ -26,6 +37,11 @@ class HashSeal
     /* UUID                                                                 */
     /* ------------------------------------------------------------------ */
 
+    /**
+     * Generates a random UUID v4.
+     *
+     * @return string UUID v4 string.
+     */
     private static function generateUuid(): string
     {
         $data    = random_bytes(16);
@@ -40,6 +56,8 @@ class HashSeal
 
     /**
      * True when the admin has opted in and FORGE_SEAL_MASTER_KEY is defined.
+     *
+     * @return bool True when encryption is active and the master key constant is set.
      */
     public static function isEncryptionEnabled(): bool
     {
@@ -48,6 +66,11 @@ class HashSeal
             && (string) FORGE_SEAL_MASTER_KEY !== '';
     }
 
+    /**
+     * Returns the binary master key from the FORGE_SEAL_MASTER_KEY constant.
+     *
+     * @return string Binary master key.
+     */
     private static function masterKey(): string
     {
         if (!defined('FORGE_SEAL_MASTER_KEY') || (string) FORGE_SEAL_MASTER_KEY === '') {
@@ -63,6 +86,13 @@ class HashSeal
         return $bin;
     }
 
+    /**
+     * Encrypts a key value using AES-256-GCM.
+     *
+     * @param string $plaintext Plaintext key value.
+     *
+     * @return string Encrypted value prefixed with nonce and tag.
+     */
     private static function encryptKey(string $plaintext): string
     {
         $iv  = random_bytes(12);
@@ -81,6 +111,13 @@ class HashSeal
         return self::ENC_PREFIX . base64_encode($iv . $tag . $ct);
     }
 
+    /**
+     * Decrypts an encrypted key value; returns plaintext if not encrypted.
+     *
+     * @param string $value Encrypted or plaintext key value.
+     *
+     * @return string Decrypted plaintext key.
+     */
     private static function decryptKey(string $value): string
     {
         if (strncmp($value, self::ENC_PREFIX, strlen(self::ENC_PREFIX)) !== 0) {
@@ -103,7 +140,11 @@ class HashSeal
     }
 
     /**
-     * Encrypt $value only when encryption is enabled; otherwise return as-is.
+     * Encrypts a value only when encryption is enabled; otherwise returns it as-is.
+     *
+     * @param string $plaintext Plaintext value to conditionally encrypt.
+     *
+     * @return string Encrypted value or original plaintext.
      */
     private static function maybeEncrypt(string $plaintext): string
     {
@@ -113,6 +154,8 @@ class HashSeal
     /**
      * After the admin enables encryption, re-encrypt all existing plaintext keys in-place.
      * Safe to call multiple times — already-encrypted values are left untouched.
+     *
+     * @return void
      */
     public static function encryptExistingKeys(): void
     {
@@ -154,6 +197,8 @@ class HashSeal
     /**
      * Return the active key record as ['uuid' => string, 'key' => plaintext string].
      * Auto-generates and flags pending download when no valid key exists.
+     *
+     * @return array|null Active key record, or null when none can be resolved.
      */
     private static function getActiveKeyRecord(): array
     {
@@ -180,29 +225,56 @@ class HashSeal
         return ['uuid' => $uuid, 'key' => $raw_key];
     }
 
+    /**
+     * Stores a pending key download in the WordPress options table.
+     *
+     * @param string $uuid          UUID of the key.
+     * @param string $plaintext_key Plaintext key value.
+     *
+     * @return void
+     */
     private static function setPendingDownload(string $uuid, string $plaintext_key): void
     {
         update_option(
             'forge_forms_seal_key_pending_download',
-            wp_json_encode([
+            wp_json_encode(
+                [
                 'uuid'       => $uuid,
                 'key'        => $plaintext_key,
                 'created_at' => gmdate('Y-m-d H:i:s') . ' UTC',
-            ]),
+                ]
+            ),
             false
         );
     }
 
+    /**
+     * Returns the active plaintext seal key.
+     *
+     * @return string Active seal key.
+     */
     private static function getKey(): string
     {
         return self::getActiveKeyRecord()['key'];
     }
 
+    /**
+     * Returns the UUID of the currently active seal key.
+     *
+     * @return string UUID of the active key.
+     */
     public static function getCurrentKeyId(): string
     {
         return self::getActiveKeyRecord()['uuid'];
     }
 
+    /**
+     * Derives a key hex string from a password using PBKDF2-SHA256.
+     *
+     * @param string $password The password to derive from.
+     *
+     * @return string Derived key as hex string.
+     */
     private static function deriveKey(string $password): string
     {
         return bin2hex(
@@ -211,7 +283,11 @@ class HashSeal
     }
 
     /**
-     * @return string[]
+     * Validates a password against the active seal key.
+     *
+     * @param string $password The password to validate.
+     *
+     * @return string[] Array of validation error messages; empty when valid.
      */
     public static function validatePassword(string $password): array
     {
@@ -235,6 +311,11 @@ class HashSeal
     }
 
     /**
+     * Rotates the active seal key, optionally protecting it with a password.
+     *
+     * @param string $password    Password used to derive the new key via PBKDF2.
+     * @param bool   $compromised True to flag the retiring key as compromised.
+     *
      * @return array{uuid: string, key: string, created_at: string}
      */
     public static function rotateKey(string $password, bool $compromised): array
@@ -275,7 +356,10 @@ class HashSeal
     }
 
     /**
+     * Claims and removes a pending key download transient.
+     *
      * @return array{uuid: string, key: string, created_at: string}|null
+     *                Key record, or null if none is pending.
      */
     public static function claimPendingDownload(): ?array
     {
@@ -292,6 +376,11 @@ class HashSeal
     }
 
     /**
+     * Verifies an HMAC seal against the given data payload.
+     *
+     * @param array  $data The payload that was originally sealed.
+     * @param string $hmac The HMAC seal to verify.
+     *
      * @return array{valid: bool, key_status: string|null, compromised: bool}
      */
     public static function verify(array $data, string $hmac): array
@@ -352,21 +441,31 @@ class HashSeal
         if (!is_array($history)) {
             return [];
         }
-        return array_map(function (array $entry): array {
-            if (isset($entry['key'])) {
-                try {
-                    $entry['key'] = self::decryptKey($entry['key']);
-                } catch (\Exception $e) {
-                    $entry['key'] = '';
+        return array_map(
+            function (array $entry): array {
+                if (isset($entry['key'])) {
+                    try {
+                        $entry['key'] = self::decryptKey($entry['key']);
+                    } catch (\Exception $e) {
+                        $entry['key'] = '';
+                    }
                 }
-            }
-            return $entry;
-        }, $history);
+                return $entry;
+            }, $history
+        );
     }
 
     /**
-     * Manually import a key into history as 'legacy'.
+     * Manually imports a key into history as a legacy entry.
+     *
      * Used when recovering keys after a server loss.
+     *
+     * @param string $uuid       UUID of the key to import.
+     * @param string $key_value  Raw key value (hex string).
+     * @param string $created_at ISO 8601 creation timestamp, or empty for now.
+     * @param string $status     One of 'rotated-legacy' or 'compromised-legacy'.
+     *
+     * @return void
      */
     public static function addLegacyKey(
         string $uuid,
@@ -399,6 +498,13 @@ class HashSeal
     /* Seal generation (used by Generator.php)                             */
     /* ------------------------------------------------------------------ */
 
+    /**
+     * Generates an HMAC-SHA256 seal over the given data payload.
+     *
+     * @param array $data Payload to seal.
+     *
+     * @return string Hex-encoded HMAC seal.
+     */
     public static function generate(array $data): string
     {
         $json = wp_json_encode($data);

@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Hidden field that captures WordPress post metadata.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,16 +23,36 @@ namespace ForgeForms\Fields;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Read-only field that displays WordPress post metadata.
+ */
 class PostDataField extends BaseField
 {
+    /**
+     * Returns the field type label.
+     *
+     * @return string
+     */
     public function getLabel(): string
     {
         return 'Beitragsdaten';
     }
+
+    /**
+     * Returns the Font Awesome icon class.
+     *
+     * @return string
+     */
     public function getIcon(): string
     {
         return 'fa-solid fa-database';
     }
+
+    /**
+     * Returns false because post-data fields have no required-toggle in the editor.
+     *
+     * @return bool
+     */
     public function hasRequired(): bool
     {
         return false;
@@ -32,6 +60,15 @@ class PostDataField extends BaseField
 
     private const ALLOWED_FIELDS = ['post_title', 'post_url', 'post_id', 'post_author'];
 
+    /**
+     * Renders the field HTML.
+     *
+     * @param array  $config   Field configuration.
+     * @param string $field_id Unique field identifier.
+     * @param mixed  $value    Current field value.
+     *
+     * @return string Rendered HTML.
+     */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         $selected = (array)($config['post_field'] ?? ['post_title']);
@@ -55,11 +92,21 @@ class PostDataField extends BaseField
         return $out;
     }
 
+    /**
+     * Returns the default field configuration.
+     *
+     * @return array
+     */
     public function getDefaultConfig(): array
     {
         return ['label' => 'Beitragsdaten', 'post_field' => ['post_title'], 'description' => ''];
     }
 
+    /**
+     * Returns the general settings schema for the field editor.
+     *
+     * @return array
+     */
     public function getGeneralSchema(): array
     {
         return [

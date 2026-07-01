@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Handles form submission validation and processing.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -18,11 +26,18 @@ defined('ABSPATH') || exit;
 use ForgeForms\Fields\FieldRegistry;
 use ForgeForms\PDF\SubmissionMapper;
 
+/**
+ * Handles forge_form AJAX submissions, validates fields, and fires the
+ * submission action.
+ */
 class FormProcessor
 {
     /**
-     * AJAX handler for forge_forms_submit.
-     * Expects: form_id, nonce, and field values as POST/FILES.
+     * AJAX handler for the forge_forms_submit action.
+     *
+     * Expects form_id, nonce, and field values in POST/FILES.
+     *
+     * @return void
      */
     public static function handle(): void
     {
@@ -132,16 +147,20 @@ class FormProcessor
 
         /* ---- Honeypot check ---- */
         if (!empty($_POST['forge_hp_field'])) {
-            wp_send_json_success([
+            wp_send_json_success(
+                [
                 'message' => $form->settings['success_message'] ?? 'Vielen Dank für Ihre Einsendung!',
-            ]);
+                ]
+            );
         }
 
         if (!empty($errors)) {
-            wp_send_json_error([
+            wp_send_json_error(
+                [
                 'message' => 'Bitte korrigieren Sie die markierten Felder.',
                 'errors'  => $errors,
-            ], 422);
+                ], 422
+            );
         }
 
         /* ---- Map to human-readable for PDF/email ---- */
@@ -156,7 +175,12 @@ class FormProcessor
     }
 
     /**
-     * Extract a field value from POST or FILES.
+     * Extracts a field value from POST or FILES.
+     *
+     * @param string $field_id   The field element ID.
+     * @param string $field_type The field type slug.
+     *
+     * @return mixed
      */
     private static function extractValue(string $field_id, string $field_type): mixed
     {

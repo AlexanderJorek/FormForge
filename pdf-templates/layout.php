@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * MPDF HTML layout template for form submission PDF output.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/form-forge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -13,11 +21,11 @@
 
 defined('ABSPATH') || exit;
 
-$_defaults = \ForgeForms\Admin\PDFLayoutEditor::defaults();
-$_raw      = (array) get_option('forge_forms_pdf_layout', []);
-$o         = array_merge($_defaults, $_raw);
+$_defaults     = \ForgeForms\Admin\PDFLayoutEditor::defaults();
+$_raw          = (array) get_option('forge_forms_pdf_layout', []);
+$o             = array_merge($_defaults, $_raw);
+$_field_layout = get_option('forge_forms_field_layout', 'block');
 
-$_primary   = esc_attr($o['primary_color']);
 $_accent    = esc_attr($o['accent_color']);
 $_sep       = esc_attr($o['separator_color']);
 $_fs        = (int) $o['font_size_body'];
@@ -48,7 +56,7 @@ return [
     'section_order'  => $_section_order,
     'section_hidden' => $_section_hidden,
 
-    'base_css' => function () use ($_primary, $_accent, $_sep, $_fs, $_font): string {
+    'base_css' => function () use ($_accent, $_sep, $_fs, $_font): string {
         return '
         <style>
             body        { font-family:' . $_font . '; font-size:' . $_fs . 'pt; }
@@ -64,7 +72,12 @@ return [
         </style>';
     },
 
-    'header' => function (string $title) use ($_logo_path, $_logo_w, $_primary, $_title_fs, $o): string {
+    'header' => function (string $title) use (
+        $_logo_path,
+        $_logo_w,
+        $_title_fs,
+        $o
+    ): string {
         $hb = $o['header_layout'] ?? [];
         $elements = $hb['elements'] ?? [];
 
@@ -115,12 +128,28 @@ return [
                     $out .= '<img src="' . esc_attr($img_path) . '" style="width:' . $el_w_mm . 'mm;height:auto;" />';
                 } elseif ($type === 'title') {
                     $fs    = max(6, (int) ($el['size'] ?? 18));
-                    $bold  = !empty($el['bold']) ? 'bold' : 'normal';
-                    $color = esc_attr($el['color'] ?? $_primary);
-                    $align = in_array($el['align'] ?? '', ['left', 'center', 'right'], true) ? $el['align'] : 'left';
-                    $text  = esc_html(str_replace('{form_title}', $title, $el['text'] ?? '{form_title}'));
-                    $out  .= '<div style="font-size:' . $fs . 'pt;font-weight:' . $bold . ';color:' . $color
-                           . ';text-align:' . $align . ';line-height:' . $el_h_mm . 'mm;">' . $text . '</div>';
+                    $color = esc_attr($el['color'] ?? '#1d2327');
+                    $align = in_array($el['align'] ?? '', ['left','center','right'], true)
+                           ? $el['align'] : 'left';
+                    $raw   = $el['content'] ?? $el['text'] ?? '{form_title}';
+                    $raw   = str_replace('{form_title}', $title, $raw);
+                    $allowed = [
+                        'b'      => [],
+                        'strong' => [],
+                        'i'      => [],
+                        'em'     => [],
+                        'u'      => ['style' => []],
+                        's'      => [],
+                        'del'    => [],
+                        'sup'    => [],
+                        'sub'    => [],
+                        'span'   => ['style' => []],
+                        'br'     => [],
+                    ];
+                    $safe = wp_kses($raw, $allowed);
+                    $out .= '<div style="font-size:' . $fs . 'pt;color:' . $color
+                          . ';text-align:' . $align . ';line-height:' . $el_h_mm . 'mm;">'
+                          . $safe . '</div>';
                 }
 
                 $out .= '</div>';
@@ -137,27 +166,32 @@ return [
 
         if ($has_logo) {
             $logo_cell  = '<td style="width:' . $_logo_w . 'px;vertical-align:middle;">'
-                . '<img src="' . esc_attr($_logo_path) . '" style="width:' . $_logo_w . 'px;height:auto;" /></td>';
-            $title_cell = '<td style="text-align:right;vertical-align:middle;font-size:' . $_title_fs . 'pt;'
-                . 'font-weight:bold;color:' . $_primary . ';padding-left:10px;">' . esc_html($title) . '</td>';
+                . '<img src="' . esc_attr($_logo_path) . '" style="width:' . $_logo_w
+                . 'px;height:auto;" /></td>';
+            $title_cell = '<td style="text-align:right;vertical-align:middle;'
+                . 'font-size:' . $_title_fs . 'pt;font-weight:bold;'
+                . 'padding-left:10px;">' . esc_html($title) . '</td>';
         } else {
             $logo_cell  = '';
-            $title_cell = '<td style="text-align:left;vertical-align:middle;font-size:' . $_title_fs . 'pt;'
-                . 'font-weight:bold;color:' . $_primary . ';">' . esc_html($title) . '</td>';
+            $title_cell = '<td style="text-align:left;vertical-align:middle;'
+                . 'font-size:' . $_title_fs . 'pt;font-weight:bold;">'
+                . esc_html($title) . '</td>';
         }
 
         return '
         <table style="width:100%;border-collapse:collapse;margin-bottom:6px;">
             <tr>' . $logo_cell . $title_cell . '</tr>
-            <tr>
-                <td colspan="2" style="padding-top:5px;">
-                    <div style="height:3px;background:' . $_primary . ';"></div>
-                </td>
-            </tr>
         </table>';
     },
 
-    'field' => function (string $label, string $value) use ($_fs): string {
+    'field' => function (string $label, string $value) use ($_field_layout): string {
+        if ($_field_layout === 'inline') {
+            return '
+        <div class="field-block">
+            <span class="field-value"><strong class="field-label">' . esc_html($label) . ':</strong> ' . $value . '</span>
+            <div class="field-separator-thick"></div>
+        </div>';
+        }
         return '
         <div class="field-block">
             <div class="field-label">' . esc_html($label) . '</div>
@@ -202,14 +236,10 @@ return [
             return '';
         }
         $text = str_replace(
-            ['{site_name}', '{site_url}', '{date}', '{page}'],
-            [get_bloginfo('name'), get_bloginfo('url'), current_time('d.m.Y'), '{PAGENO}'],
+            ['{site_name}', '{site_url}', '{date}'],
+            [get_bloginfo('name'), get_bloginfo('url'), current_time('d.m.Y')],
             $text
         );
-        return '
-        <div style="margin-top:16px;padding-top:8px;border-top:1px solid '
-            . $_sep . ';font-size:8pt;color:#888;text-align:center;">
-            ' . esc_html($text) . '
-        </div>';
+        return esc_html($text);
     },
 ];

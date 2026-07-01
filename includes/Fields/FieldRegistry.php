@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Registry of all available form field types.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,16 +23,38 @@ namespace ForgeForms\Fields;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Registry of all available form field types.
+ */
 class FieldRegistry
 {
-    /** @var array<string, class-string<BaseField>> */
+    /**
+     * Map of field type slugs to their handler class names.
+     *
+     * @var array<string, class-string<BaseField>>
+     */
     private static array $types = [];
 
+    /**
+     * Registers a field type with its handler class.
+     *
+     * @param string $type  Field type slug.
+     * @param string $class Fully-qualified class name.
+     *
+     * @return void
+     */
     public static function register(string $type, string $class): void
     {
         self::$types[$type] = $class;
     }
 
+    /**
+     * Returns a new instance of the handler for the given field type.
+     *
+     * @param string $type Field type slug.
+     *
+     * @return BaseField|null Handler instance, or null if the type is unknown.
+     */
     public static function get(string $type): ?BaseField
     {
         $class = self::$types[$type] ?? null;
@@ -34,17 +64,33 @@ class FieldRegistry
         return new $class();
     }
 
-    /** @return array<string, class-string<BaseField>> */
+    /**
+     * Returns all registered field types as a slug-to-class map.
+     *
+     * @return array<string, class-string<BaseField>>
+     */
     public static function all(): array
     {
         return self::$types;
     }
 
+    /**
+     * Returns true if the given field type slug is registered.
+     *
+     * @param string $type Field type slug.
+     *
+     * @return bool
+     */
     public static function hasType(string $type): bool
     {
         return isset(self::$types[$type]);
     }
 
+    /**
+     * Registers all built-in field types.
+     *
+     * @return void
+     */
     public static function registerDefaults(): void
     {
         /* ── ADD NEW FIELDS HERE ─────────────────────────────────────────
@@ -90,8 +136,11 @@ class FieldRegistry
 
     /**
      * Returns palette data as an array of groups for the builder UI.
+     *
      * Shape: [ { label, items: [ { type, label, icon, defaults, schema } ] } ]
      * Order is explicit — most-used fields first.
+     *
+     * @return array
      */
     public static function paletteGroups(): array
     {

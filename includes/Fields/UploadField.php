@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * File upload field.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,6 +23,9 @@ namespace ForgeForms\Fields;
 
 defined('ABSPATH') || exit;
 
+/**
+ * File upload field with MIME type and size validation.
+ */
 class UploadField extends BaseField
 {
     private const BLOCKED_TYPES = [
@@ -31,6 +42,11 @@ class UploadField extends BaseField
         'archives'  => ['zip','tar','gz','7z'],
     ];
 
+    /**
+     * Returns field-specific CSS styles.
+     *
+     * @return string
+     */
     public function getStyles(): string
     {
         return <<<'CSS'
@@ -71,15 +87,31 @@ class UploadField extends BaseField
 CSS;
     }
 
+    /**
+     * Returns the field type label.
+     *
+     * @return string
+     */
     public function getLabel(): string
     {
         return 'Datei-Upload';
     }
+
+    /**
+     * Returns the Font Awesome icon class.
+     *
+     * @return string
+     */
     public function getIcon(): string
     {
         return 'fa-solid fa-file-arrow-up';
     }
 
+    /**
+     * Returns client-side initialization JavaScript function body.
+     *
+     * @return string
+     */
     public function getClientInit(): string
     {
         return <<<'JS'
@@ -94,6 +126,12 @@ CSS;
                 }
                 if (input) {
                     input.addEventListener('change', function () { showNames(this.files); });
+                    var form = input.closest('form');
+                    if (form) {
+                        form.addEventListener('reset', function () {
+                            if (nameEl) { nameEl.textContent = ''; }
+                        });
+                    }
                 }
                 zone.addEventListener('dragover', function (e) {
                     e.preventDefault();
@@ -125,6 +163,15 @@ CSS;
         JS;
     }
 
+    /**
+     * Renders the field HTML.
+     *
+     * @param array  $config   Field configuration.
+     * @param string $field_id Unique field identifier.
+     * @param mixed  $value    Current field value.
+     *
+     * @return string Rendered HTML.
+     */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         $req      = !empty($config['required']) ? ' required aria-required="true"' : '';
@@ -154,6 +201,13 @@ CSS;
         return $this->wrap($field_id, $config, $inner);
     }
 
+    /**
+     * Builds the accept attribute value from allowed file type groups and custom types.
+     *
+     * @param array $config Field configuration.
+     *
+     * @return string Comma-separated list of allowed file extensions.
+     */
     private function buildAccept(array $config): string
     {
         $exts = [];
@@ -174,12 +228,24 @@ CSS;
             }
         }
         $blocked = self::BLOCKED_TYPES;
-        $exts    = array_unique(array_filter($exts, static function (string $e) use ($blocked): bool {
-            return !in_array(ltrim($e, '.'), $blocked, true);
-        }));
+        $exts    = array_unique(
+            array_filter(
+                $exts, static function (string $e) use ($blocked): bool {
+                    return !in_array(ltrim($e, '.'), $blocked, true);
+                }
+            )
+        );
         return implode(',', $exts);
     }
 
+    /**
+     * Validates the submitted value.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return bool|string True on valid, error message string on invalid.
+     */
     public function validate(mixed $value, array $config): bool|string
     {
         $field_id = $config['field_id'] ?? '';
@@ -204,6 +270,14 @@ CSS;
         return true;
     }
 
+    /**
+     * Maps the field value to the normalized submission entry.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return string Normalized field entry.
+     */
     public function map(mixed $value, array $config): string
     {
         if (is_string($value) && $value !== '') {
@@ -212,9 +286,15 @@ CSS;
         return '[Kein Eintrag]';
     }
 
+    /**
+     * Returns the default field configuration.
+     *
+     * @return array
+     */
     public function getDefaultConfig(): array
     {
-        return array_merge(parent::getDefaultConfig(), [
+        return array_merge(
+            parent::getDefaultConfig(), [
             'allow_images'    => true,
             'allow_documents' => true,
             'allow_audio'     => false,
@@ -223,9 +303,15 @@ CSS;
             'allowed_types'   => '',
             'max_size_mb'     => 10,
             'multiple'        => false,
-        ]);
+            ]
+        );
     }
 
+    /**
+     * Returns the general settings schema for the field editor.
+     *
+     * @return array
+     */
     public function getGeneralSchema(): array
     {
         return [
@@ -234,6 +320,11 @@ CSS;
         ];
     }
 
+    /**
+     * Returns the advanced settings schema for the field editor.
+     *
+     * @return array
+     */
     public function getAdvancedSchema(): array
     {
         $blocked = implode(', .', self::BLOCKED_TYPES);

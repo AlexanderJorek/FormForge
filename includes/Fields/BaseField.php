@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Abstract base class providing shared behaviour for all field types.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,34 +23,65 @@ namespace ForgeForms\Fields;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Abstract base class for all FormForge field types.
+ */
 abstract class BaseField
 {
+    /**
+     * Returns the human-readable field type label.
+     *
+     * @return string
+     */
     abstract public function getLabel(): string;
+
+    /**
+     * Returns the icon identifier for the field type tile.
+     *
+     * @return string
+     */
     abstract public function getIcon(): string;
 
-    /** Whether clicking this field tile opens the settings panel. */
+    /**
+     * Whether clicking this field tile opens the settings panel.
+     *
+     * @return bool
+     */
     public function hasSettingsPanel(): bool
     {
         return true;
     }
 
-    /** Whether the "Pflichtfeld" (required) checkbox is shown in the settings panel. */
+    /**
+     * Whether the "Pflichtfeld" (required) checkbox is shown in the settings panel.
+     *
+     * @return bool
+     */
     public function hasRequired(): bool
     {
         return true;
     }
 
     /**
-     * Render the field HTML for frontend display.
-     * @param array $config   Field configuration from form definition.
-     * @param string $field_id  Element ID (e.g. "field-3").
+     * Renders the field HTML for frontend display.
+     *
+     * @param array  $config   Field configuration from form definition.
+     * @param string $field_id Element ID (e.g. "field-3").
      * @param mixed  $value    Pre-filled value (for re-displaying on error).
+     *
+     * @return string
      */
     abstract public function render(array $config, string $field_id, mixed $value = null): string;
 
     /**
-     * Validate a submitted value.
+     * Validates a submitted value.
+     *
      * Returns true on success, or an error message string on failure.
+     *
+     * @param mixed $value  The submitted value.
+     * @param array $config Field configuration array.
+     *
+     * @return bool|string
      */
     public function validate(mixed $value, array $config): bool|string
     {
@@ -54,9 +93,14 @@ abstract class BaseField
     }
 
     /**
-     * Map the submitted value to a human-readable string for PDF/email.
-     * Returns a string. May also return an array with 'value' and 'files' keys
-     * for upload/signature fields.
+     * Maps the submitted value to a human-readable string for PDF/email.
+     *
+     * May return an array with 'value' and 'files' keys for upload/signature fields.
+     *
+     * @param mixed $value  The submitted value.
+     * @param array $config Field configuration array.
+     *
+     * @return string
      */
     public function map(mixed $value, array $config): string
     {
@@ -67,12 +111,14 @@ abstract class BaseField
     }
 
     /**
-     * Client-side empty check for this field type.
+     * Returns the client-side empty-check function for this field type.
      *
      * Return ['fn' => 'function(fieldEl){ return bool; }'] or [] to use the
      * generic fallback (first visible input is non-empty).
      * Collected by Assets::enqueueFront() into window.ForgeEmptyChecks keyed
      * by field type, so front.js needs no field-specific knowledge.
+     *
+     * @return array
      */
     public function getClientEmptyCheck(): array
     {
@@ -80,22 +126,13 @@ abstract class BaseField
     }
 
     /**
-     * Client-side validation rules for this field type.
+     * Returns client-side validation rules for this field type.
      *
-     * Return an array of rule definitions. Each entry:
-     *   'rule' => unique rule key (string)
-     *   'fn'   => JavaScript function body as a string:
-     *             function(fieldEl) { ... return 'error message' | null; }
+     * Each entry: ['rule' => unique rule key, 'fn' => JS function string].
+     * Collected by Assets::enqueueFront() into window.ForgeValidators.
+     * Required/empty is handled implicitly — only declare FORMAT rules here.
      *
-     * Rules are collected by Assets::enqueueFront() and exposed as
-     * window.ForgeValidators so front.js can run them without knowing
-     * anything about specific field types.
-     *
-     * Required/empty is always handled implicitly — only declare FORMAT rules here.
-     * Rules only run when the field has content.
-     *
-     * Example:
-     *   return [['rule' => 'email', 'fn' => "function(f){ ... return null; }"]];
+     * @return array
      */
     public function getClientValidation(): array
     {
@@ -103,14 +140,12 @@ abstract class BaseField
     }
 
     /**
-     * Client-side initialisation script for this field type.
+     * Returns the client-side initialisation script for this field type.
      *
-     * Return a JavaScript function string:
-     *   function(root) { /* init all instances inside root *\/ }
+     * Return a JS function string: function(root) { ... }
+     * Collected by Assets::enqueueFront() into window.ForgeFieldInits.
      *
-     * Collected by Assets::enqueueFront() into window.ForgeFieldInits keyed
-     * by field type. front.js calls each registered init function with the
-     * container root element — no field-specific knowledge needed in front.js.
+     * @return string
      */
     public function getClientInit(): string
     {
@@ -118,9 +153,11 @@ abstract class BaseField
     }
 
     /**
-     * Field-specific CSS to inject inline on pages that load this form.
-     * Return a raw CSS string (no <style> tags). Empty string = no output.
-     * Collected by Assets::enqueueFront() into a single wp_add_inline_style call.
+     * Returns field-specific CSS to inject inline on pages that load this form.
+     *
+     * Return raw CSS (no style tags). Empty string = no output.
+     *
+     * @return string
      */
     public function getStyles(): string
     {
@@ -129,8 +166,10 @@ abstract class BaseField
 
     /**
      * Whether client-side validation should be skipped for this field type.
-     * Set true for purely presentational fields (pagebreak, html) that carry
-     * no user input. Collected into window.ForgeSkipValidation by Assets.
+     *
+     * Set true for purely presentational fields (pagebreak, html).
+     *
+     * @return bool
      */
     public function skipValidation(): bool
     {
@@ -138,8 +177,9 @@ abstract class BaseField
     }
 
     /**
-     * Default config values for the builder.
-     * Subclasses should merge their own keys.
+     * Returns default config values for the builder.
+     *
+     * @return array
      */
     public function getDefaultConfig(): array
     {
@@ -153,8 +193,9 @@ abstract class BaseField
     }
 
     /**
-     * Placeholder + description entries shared by most fields.
-     * Call from getGeneralSchema() to include them.
+     * Returns placeholder and description schema entries shared by most fields.
+     *
+     * @return array
      */
     protected function baseGeneralEntries(): array
     {
@@ -165,8 +206,9 @@ abstract class BaseField
     }
 
     /**
-     * Settings shown in the General tab.
-     * label / required / hide_label are always rendered by the JS and must NOT appear here.
+     * Returns settings schema for the General tab.
+     *
+     * @return array
      */
     public function getGeneralSchema(): array
     {
@@ -174,13 +216,22 @@ abstract class BaseField
     }
 
     /**
-     * Settings shown in the Advanced (Erweitert) tab.
+     * Returns settings schema for the Advanced tab.
+     *
+     * @return array
      */
     public function getAdvancedSchema(): array
     {
         return [];
     }
 
+    /**
+     * Checks whether a submitted value is considered empty.
+     *
+     * @param mixed $value The value to check.
+     *
+     * @return bool
+     */
     protected function isEmpty(mixed $value): bool
     {
         if ($value === null || $value === '') {
@@ -193,7 +244,14 @@ abstract class BaseField
     }
 
     /**
-     * Build standard wrapper HTML around a field's inner content.
+     * Builds standard wrapper HTML around a field's inner content.
+     *
+     * @param string $field_id    Element ID for the field.
+     * @param array  $config      Field configuration array.
+     * @param string $inner       Inner HTML content.
+     * @param string $extra_class Additional CSS class(es) for the wrapper.
+     *
+     * @return string
      */
     protected function wrap(string $field_id, array $config, string $inner, string $extra_class = ''): string
     {
@@ -227,15 +285,27 @@ abstract class BaseField
             . '</div>';
     }
 
+    /**
+     * Builds an HTML attribute string for an input element.
+     *
+     * @param array  $config   Field configuration array.
+     * @param string $field_id Element ID for the input.
+     * @param string $type     Input type attribute value.
+     * @param array  $extra    Additional attributes to merge.
+     *
+     * @return string
+     */
     protected function inputAttrs(array $config, string $field_id, string $type = 'text', array $extra = []): string
     {
-        $attrs = array_merge([
+        $attrs = array_merge(
+            [
             'type'        => $type,
             'id'          => $field_id,
             'name'        => $field_id,
             'placeholder' => $config['placeholder'] ?? '',
             'class'       => 'forge-input',
-        ], $extra);
+            ], $extra
+        );
 
         if (!empty($config['required'])) {
             $attrs['required'] = 'required';

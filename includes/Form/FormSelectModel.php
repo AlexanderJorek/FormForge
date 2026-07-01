@@ -1,29 +1,56 @@
 <?php
 
 /**
+ * Model for managing reusable select-field option lists.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  */
 
 namespace ForgeForms\Form;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Model for reusable form-select option lists stored as a WordPress option.
+ */
 class FormSelectModel
 {
     private static string $option = 'forge_form_selects';
 
     public int    $id    = 0;
     public string $title = '';
-    /** @var array<int,array{form_id:int,label:string,description:string,favorite:bool}> */
+    /**
+     * Ordered list of form-select items.
+     *
+     * @var array<int,array{form_id:int,label:string,description:string,favorite:bool}>
+     */
     public array $items = [];
 
+    /**
+     * Returns all form-select records as model objects.
+     *
+     * @return self[] Array of FormSelectModel instances.
+     */
     public static function getAll(): array
     {
         return array_map([self::class, 'fromArray'], self::getRaw());
     }
 
+    /**
+     * Returns a single form-select model by ID.
+     *
+     * @param int $id The record ID.
+     *
+     * @return self|null The model instance, or null if not found.
+     */
     public static function get(int $id): ?self
     {
         foreach (self::getRaw() as $record) {
@@ -34,6 +61,14 @@ class FormSelectModel
         return null;
     }
 
+    /**
+     * Creates or updates a form-select record, returns its ID.
+     *
+     * @param array $data Form-select data array.
+     * @param int   $id   Existing record ID, or 0 to create new.
+     *
+     * @return int The saved record ID.
+     */
     public static function save(array $data, int $id = 0): int
     {
         $all   = self::getRaw();
@@ -74,21 +109,42 @@ class FormSelectModel
         return $new_id;
     }
 
+    /**
+     * Deletes a form-select record by ID.
+     *
+     * @param int $id The record ID to delete.
+     *
+     * @return void
+     */
     public static function delete(int $id): void
     {
-        $all = array_values(array_filter(
-            self::getRaw(),
-            static fn($r) => (int) ($r['id'] ?? 0) !== $id
-        ));
+        $all = array_values(
+            array_filter(
+                self::getRaw(),
+                static fn($r) => (int) ($r['id'] ?? 0) !== $id
+            )
+        );
         update_option(self::$option, $all, false);
     }
 
+    /**
+     * Returns the raw stored array from the WordPress option.
+     *
+     * @return array Raw option data.
+     */
     private static function getRaw(): array
     {
         $raw = get_option(self::$option, []);
         return is_array($raw) ? $raw : [];
     }
 
+    /**
+     * Constructs a FormSelectModel instance from a raw data array.
+     *
+     * @param array $data Raw data array.
+     *
+     * @return self New FormSelectModel instance.
+     */
     private static function fromArray(array $data): self
     {
         $obj              = new self();
@@ -106,6 +162,13 @@ class FormSelectModel
         return $obj;
     }
 
+    /**
+     * Returns the next available integer ID for a new record.
+     *
+     * @param array $all Existing records array.
+     *
+     * @return int Next available ID.
+     */
     private static function nextId(array $all): int
     {
         $max = 0;

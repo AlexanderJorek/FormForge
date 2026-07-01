@@ -1,5 +1,19 @@
 <?php
 
+/**
+ * AJAX handler for PDF hash-seal verification.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
+ * @package   FormForge
+ * @author    Alexander Jorek
+ * @copyright 2026 Alexander Jorek
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
+ */
+
 namespace ForgeForms\Admin;
 
 defined('ABSPATH') || exit;
@@ -7,183 +21,202 @@ defined('ABSPATH') || exit;
 use Smalot\PdfParser\Parser;
 use ForgeForms\PDF\HashSeal;
 
-add_action('wp_ajax_forge_verify_push_lines', function () {
+add_action(
+    'wp_ajax_forge_verify_push_lines', function () {
 
-    /* ---- Raise limits for heavy PDF parsing ---- */
-    @ini_set('memory_limit', '1024M');
-    @ini_set('pcre.backtrack_limit', '33554432'); // 32 M — needed for [\s\S]*? across large PDFs
-    if (!ini_get('safe_mode')) {
-        set_time_limit(300);
-    }
+        /* ---- Raise limits for heavy PDF parsing ---- */
+        @ini_set('memory_limit', '1024M');
+        @ini_set('pcre.backtrack_limit', '33554432'); // 32 M — needed for [\s\S]*? across large PDFs
+        if (!ini_get('safe_mode')) {
+            set_time_limit(300);
+        }
 
-    /* ---- Capability ---- */
-    if (!\ForgeForms\Plugin::userCan('use_verifier')) {
-        wp_send_json_error(['message' => 'Forbidden'], 403);
-    }
+        /* ---- Capability ---- */
+        if (!\ForgeForms\Plugin::userCan('use_verifier')) {
+            wp_send_json_error(['message' => 'Forbidden'], 403);
+        }
 
-    /* ---- Nonce ---- */
-    check_ajax_referer('forge_verifier_nonce', 'nonce');
+        /* ---- Nonce ---- */
+        check_ajax_referer('forge_verifier_nonce', 'nonce');
 
-    /* ---- Input ---- */
-    $pdf_token   = sanitize_key($_POST['pdf_token'] ?? '');
-    $visualLines = isset($_POST['visualLines'])
+        /* ---- Input ---- */
+        $pdf_token   = sanitize_key($_POST['pdf_token'] ?? '');
+        $visualLines = isset($_POST['visualLines'])
         ? json_decode(wp_unslash($_POST['visualLines']), true)
         : [];
 
-    if (!$pdf_token) {
-        wp_send_json_error(['message' => 'Invalid input: missing token'], 400);
-    }
-    $visualLines = array_values(array_filter(
-        is_array($visualLines) ? $visualLines : [],
-        'is_string'
-    ));
+        if (!$pdf_token) {
+            wp_send_json_error(['message' => 'Invalid input: missing token'], 400);
+        }
+        $visualLines = array_values(
+            array_filter(
+                is_array($visualLines) ? $visualLines : [],
+                'is_string'
+            )
+        );
 
-    /* ---- Resolve path from transient (avoids URL-to-path mapping) ---- */
-    $target_path = get_transient('forge_pdf_' . $pdf_token);
-    if (!$target_path || !is_string($target_path)) {
-        wp_send_json_error(['message' => 'PDF not found or token expired'], 404);
-    }
+        /* ---- Resolve path from transient (avoids URL-to-path mapping) ---- */
+        $target_path = get_transient('forge_pdf_' . $pdf_token);
+        if (!$target_path || !is_string($target_path)) {
+            wp_send_json_error(['message' => 'PDF not found or token expired'], 404);
+        }
 
-    $upload_dir   = wp_upload_dir();
-    $safe_dir     = $upload_dir['basedir'] . '/forge-secure-pdf';
-    $verfiles_dir = $safe_dir . '/verfiles';
+        $upload_dir   = wp_upload_dir();
+        $safe_dir     = $upload_dir['basedir'] . '/forge-secure-pdf';
+        $verfiles_dir = $safe_dir . '/verfiles';
 
-    /* ---- Path-traversal guard ---- */
-    $real_verfiles_dir = realpath($verfiles_dir);
-    $real_target_path  = realpath($target_path);
-    if (
-        !$real_verfiles_dir ||
-        !$real_target_path ||
-        strpos($real_target_path, $real_verfiles_dir . DIRECTORY_SEPARATOR) !== 0
-    ) {
-        wp_send_json_error(['message' => 'Invalid PDF path'], 400);
-    }
+        /* ---- Path-traversal guard ---- */
+        $real_verfiles_dir = realpath($verfiles_dir);
+        $real_target_path  = realpath($target_path);
+        if (!$real_verfiles_dir 
+            || !$real_target_path 
+            || strpos($real_target_path, $real_verfiles_dir . DIRECTORY_SEPARATOR) !== 0
+        ) {
+            wp_send_json_error(['message' => 'Invalid PDF path'], 400);
+        }
 
-    /* ---- MIME re-validation on the server-side path ---- */
-    $finfo = new \finfo(FILEINFO_MIME_TYPE);
-    $detected_mime = $finfo->file($real_target_path);
-    if (!in_array($detected_mime, ['application/pdf', 'application/x-pdf'], true)) {
-        wp_send_json_error(['message' => 'File is not a valid PDF'], 400);
-    }
+        /* ---- MIME re-validation on the server-side path ---- */
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $detected_mime = $finfo->file($real_target_path);
+        if (!in_array($detected_mime, ['application/pdf', 'application/x-pdf'], true)) {
+            wp_send_json_error(['message' => 'File is not a valid PDF'], 400);
+        }
 
-    $file_size = filesize($real_target_path);
-    if ($file_size > 50 * 1024 * 1024) {
-        wp_send_json_error([
-            'message' => 'PDF too large ('
+        $file_size = filesize($real_target_path);
+        if ($file_size > 50 * 1024 * 1024) {
+            wp_send_json_error(
+                [
+                'message' => 'PDF too large ('
                 . round($file_size / 1048576, 1)
                 . ' MB). Maximum for verification is 50 MB.',
-        ], 400);
-    }
+                ], 400
+            );
+        }
 
-    $file = [
+        $file = [
         'name'     => preg_replace('/^[0-9a-f]{16}-/i', '', basename($real_target_path)),
         'tmp_name' => $real_target_path,
         'type'     => $detected_mime,
         'error'    => 0,
         'size'     => $file_size,
-    ];
+        ];
 
-    /* ---- Capture output ---- */
-    ob_start();
-    try {
-        Verificationpage::handleUpload($file, $visualLines, $pdf_token);
-    } catch (\Throwable $ajax_err) {
-        error_log('ForgeForms forge_verify_push_lines: handleUpload threw: ' . $ajax_err->getMessage());
-        echo '<p style="color:red">Internal error: ' . esc_html($ajax_err->getMessage()) . '</p>';
-    }
-    $raw_html = ob_get_clean();
+        /* ---- Capture output ---- */
+        ob_start();
+        try {
+            Verificationpage::handleUpload($file, $visualLines, $pdf_token);
+        } catch (\Throwable $ajax_err) {
+            error_log('ForgeForms forge_verify_push_lines: handleUpload threw: ' . $ajax_err->getMessage());
+            echo '<p style="color:red">Internal error: ' . esc_html($ajax_err->getMessage()) . '</p>';
+        }
+        $raw_html = ob_get_clean();
 
-    if ($raw_html === false || $raw_html === '') {
-        error_log(
-            'ForgeForms forge_verify_push_lines: raw_html is empty after handleUpload — ob level was '
-            . ob_get_level()
+        if ($raw_html === false || $raw_html === '') {
+            error_log(
+                'ForgeForms forge_verify_push_lines: raw_html is empty after handleUpload — ob level was '
+                . ob_get_level()
+            );
+            wp_send_json_error(['message' => 'PDF processing produced no output. Check the PHP error log.'], 500);
+            return;
+        }
+
+        /* ---- SANITIZE OUTPUT (critical) ---- */
+        try {
+            $safe_html = forge_sanitize_verifier_html($raw_html);
+        } catch (\Throwable $san_err) {
+            error_log('ForgeForms forge_verify_push_lines: forge_sanitize_verifier_html threw: ' . $san_err->getMessage());
+            wp_send_json_error(['message' => 'Output sanitization failed: ' . $san_err->getMessage()], 500);
+            return;
+        }
+
+        if ($safe_html === '') {
+            error_log(
+                'ForgeForms forge_verify_push_lines: safe_html is empty after wp_kses (raw len='
+                . strlen($raw_html) . ')'
+            );
+            // Fall back to escaping raw html if kses strips everything (e.g. encoding issue)
+            $safe_html = '<p style="color:orange">Result was sanitized to empty. Check PHP error log.</p>';
+        }
+
+        delete_transient('forge_vp_' . $pdf_token);
+
+        wp_send_json_success(
+            [
+            'lines_received' => count($visualLines),
+            'pdf'            => basename($real_target_path),
+            'html'           => $safe_html,
+            ]
         );
-        wp_send_json_error(['message' => 'PDF processing produced no output. Check the PHP error log.'], 500);
-        return;
     }
-
-    /* ---- SANITIZE OUTPUT (critical) ---- */
-    try {
-        $safe_html = forge_sanitize_verifier_html($raw_html);
-    } catch (\Throwable $san_err) {
-        error_log('ForgeForms forge_verify_push_lines: forge_sanitize_verifier_html threw: ' . $san_err->getMessage());
-        wp_send_json_error(['message' => 'Output sanitization failed: ' . $san_err->getMessage()], 500);
-        return;
-    }
-
-    if ($safe_html === '') {
-        error_log(
-            'ForgeForms forge_verify_push_lines: safe_html is empty after wp_kses (raw len='
-            . strlen($raw_html) . ')'
-        );
-        // Fall back to escaping raw html if kses strips everything (e.g. encoding issue)
-        $safe_html = '<p style="color:orange">Result was sanitized to empty. Check PHP error log.</p>';
-    }
-
-    delete_transient('forge_vp_' . $pdf_token);
-
-    wp_send_json_success([
-        'lines_received' => count($visualLines),
-        'pdf'            => basename($real_target_path),
-        'html'           => $safe_html,
-    ]);
-});
+);
 
 /* ---- Progress polling endpoint ---- */
-add_action('wp_ajax_forge_verify_progress', function () {
-    check_ajax_referer('forge_verifier_nonce', 'nonce');
-    if (!\ForgeForms\Plugin::userCan('use_verifier')) {
-        wp_send_json_error([], 403);
+add_action(
+    'wp_ajax_forge_verify_progress', function () {
+        check_ajax_referer('forge_verifier_nonce', 'nonce');
+        if (!\ForgeForms\Plugin::userCan('use_verifier')) {
+            wp_send_json_error([], 403);
+        }
+        $key  = sanitize_key($_POST['token'] ?? '');
+        $data = $key ? get_transient('forge_vp_' . $key) : false;
+        wp_send_json_success($data ?: ['step' => '', 'pct' => 0]);
     }
-    $key  = sanitize_key($_POST['token'] ?? '');
-    $data = $key ? get_transient('forge_vp_' . $key) : false;
-    wp_send_json_success($data ?: ['step' => '', 'pct' => 0]);
-});
+);
 
 /* ---- Authenticated PDF file-serving endpoint ---- */
-add_action('wp_ajax_forge_serve_pdf', function () {
+add_action(
+    'wp_ajax_forge_serve_pdf', function () {
 
-    if (!\ForgeForms\Plugin::userCan('use_verifier')) {
-        wp_die('Forbidden', '', ['response' => 403]);
+        if (!\ForgeForms\Plugin::userCan('use_verifier')) {
+            wp_die('Forbidden', '', ['response' => 403]);
+        }
+
+        // Nonce passed as query-string param by verification.js
+        if (!wp_verify_nonce(sanitize_key($_GET['nonce'] ?? ''), 'forge_verifier_nonce')) {
+            wp_die('Nonce verification failed', '', ['response' => 403]);
+        }
+
+        $token = sanitize_key($_GET['token'] ?? '');
+        if (!$token) {
+            wp_die('Missing token', '', ['response' => 400]);
+        }
+
+        $path = get_transient('forge_pdf_' . $token);
+        if (!$path || !is_string($path) || !file_exists($path)) {
+            wp_die('PDF not found or token expired', '', ['response' => 404]);
+        }
+
+        // Extra path-safety check
+        $upload_dir   = wp_upload_dir();
+        $safe_dir     = realpath($upload_dir['basedir'] . '/forge-secure-pdf');
+        $real_path    = realpath($path);
+        if (!$safe_dir || !$real_path || strpos($real_path, $safe_dir . DIRECTORY_SEPARATOR) !== 0) {
+            wp_die('Invalid path', '', ['response' => 403]);
+        }
+
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $detected_mime = $finfo->file($real_path);
+        if (!in_array($detected_mime, ['application/pdf', 'application/x-pdf'], true)) {
+            wp_die('Not a PDF', '', ['response' => 400]);
+        }
+
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="verified.pdf"');
+        header('Content-Length: ' . filesize($real_path));
+        header('Cache-Control: no-store');
+        readfile($real_path);
+        exit;
     }
+);
 
-    // Nonce passed as query-string param by verification.js
-    if (!wp_verify_nonce(sanitize_key($_GET['nonce'] ?? ''), 'forge_verifier_nonce')) {
-        wp_die('Nonce verification failed', '', ['response' => 403]);
-    }
-
-    $token = sanitize_key($_GET['token'] ?? '');
-    if (!$token) {
-        wp_die('Missing token', '', ['response' => 400]);
-    }
-
-    $path = get_transient('forge_pdf_' . $token);
-    if (!$path || !is_string($path) || !file_exists($path)) {
-        wp_die('PDF not found or token expired', '', ['response' => 404]);
-    }
-
-    // Extra path-safety check
-    $upload_dir   = wp_upload_dir();
-    $safe_dir     = realpath($upload_dir['basedir'] . '/forge-secure-pdf');
-    $real_path    = realpath($path);
-    if (!$safe_dir || !$real_path || strpos($real_path, $safe_dir . DIRECTORY_SEPARATOR) !== 0) {
-        wp_die('Invalid path', '', ['response' => 403]);
-    }
-
-    $finfo = new \finfo(FILEINFO_MIME_TYPE);
-    $detected_mime = $finfo->file($real_path);
-    if (!in_array($detected_mime, ['application/pdf', 'application/x-pdf'], true)) {
-        wp_die('Not a PDF', '', ['response' => 400]);
-    }
-
-    header('Content-Type: application/pdf');
-    header('Content-Disposition: inline; filename="verified.pdf"');
-    header('Content-Length: ' . filesize($real_path));
-    header('Cache-Control: no-store');
-    readfile($real_path);
-    exit;
-});
-
+/**
+ * Sanitizes HTML output from the PDF verifier using wp_kses,
+ * with data-URI preservation.
+ *
+ * @param string $html Raw HTML to sanitize.
+ *
+ * @return string Sanitized HTML.
+ */
 function forge_sanitize_verifier_html(string $html): string
 {
 
@@ -245,22 +278,37 @@ function forge_sanitize_verifier_html(string $html): string
 }
 
 
+/**
+ * Admin page for uploading and verifying PDF seal signatures.
+ */
 final class Verificationpage
 {
+    /**
+     * Registers the verification page menu and suppresses admin notices.
+     *
+     * @return void
+     */
     public static function register(): void
     {
         add_action('admin_menu', [self::class, 'menu']);
-        add_action('in_admin_header', static function (): void {
-            $screen = get_current_screen();
-            if ($screen && $screen->id === 'formforge_page_forge-pdf-verification') {
-                remove_all_actions('admin_notices');
-                remove_all_actions('all_admin_notices');
-                remove_all_actions('user_admin_notices');
-                remove_all_actions('network_admin_notices');
+        add_action(
+            'in_admin_header', static function (): void {
+                $screen = get_current_screen();
+                if ($screen && $screen->id === 'formforge_page_forge-pdf-verification') {
+                    remove_all_actions('admin_notices');
+                    remove_all_actions('all_admin_notices');
+                    remove_all_actions('user_admin_notices');
+                    remove_all_actions('network_admin_notices');
+                }
             }
-        });
+        );
     }
 
+    /**
+     * Registers the PDF Verification submenu page.
+     *
+     * @return void
+     */
     public static function menu(): void
     {
         if (\ForgeForms\Plugin::userCan('use_verifier')) {
@@ -275,6 +323,11 @@ final class Verificationpage
         }
     }
 
+    /**
+     * Renders the PDF upload and verification results page.
+     *
+     * @return void
+     */
     public static function render(): void
     {
         echo '<div class="wrap">';
@@ -283,8 +336,7 @@ final class Verificationpage
         $is_request_post = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) === 'POST';
         if ($is_request_post) {
             // Nonce is the unconditional first gate — before touching any $_FILES.
-            if (
-                !isset($_POST['forge_verifier_nonce'])
+            if (!isset($_POST['forge_verifier_nonce'])
                 || !check_admin_referer('forge_verifier_upload', 'forge_verifier_nonce')
             ) {
                 wp_die('Security check failed', 'Error', ['response' => 403]);
@@ -366,18 +418,20 @@ final class Verificationpage
                     $token = bin2hex(random_bytes(16));
                     set_transient('forge_pdf_' . $token, $target_path, 600); // 10 minutes
 
-                    $serve_url = add_query_arg([
+                    $serve_url = add_query_arg(
+                        [
                         'action' => 'forge_serve_pdf',
                         'nonce'  => wp_create_nonce('forge_verifier_nonce'),
                         'token'  => $token,
-                    ], admin_url('admin-ajax.php'));
+                        ], admin_url('admin-ajax.php')
+                    );
 
                     $push_payload = wp_json_encode(
                         ['url' => esc_url_raw($serve_url), 'token' => $token, 'name' => $safe_name],
                         JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
                     );
                     if ($push_payload === false) {
-                        error_log('FAP: wp_json_encode failed for push payload — skipping PDF.');
+                        error_log('FF: wp_json_encode failed for push payload — skipping PDF.');
                         continue;
                     }
                     echo "<script>
@@ -879,14 +933,14 @@ final class Verificationpage
                 const blocks = root.querySelectorAll('.img-slot-content');
                 if (!blocks.length) return;
 
-                console.group('[FAP] Processing image slots');
+                console.group('[FF] Processing image slots');
 
                 blocks.forEach(block => {
                     const uid = block.dataset.slot;
                     const slot = document.getElementById(uid);
 
                     if (!slot) {
-                        console.warn('[FAP] Slot not found for', uid);
+                        console.warn('[FF] Slot not found for', uid);
                         return;
                     }
 
@@ -901,7 +955,7 @@ final class Verificationpage
                         if (!img.complete) {
                             img.onload = () => img.style.height = 'auto';
                             img.onerror = () =>
-                                console.warn('[FAP] Image failed:', img.src);
+                                console.warn('[FF] Image failed:', img.src);
                         }
                     });
                 });
@@ -978,6 +1032,14 @@ final class Verificationpage
     private static bool $pdf_cleanup_registered = false;
     private static string $progressKey = '';
 
+    /**
+     * Stores upload verification progress in a transient.
+     *
+     * @param string $step Current progress step label.
+     * @param int    $pct  Progress percentage (0-100).
+     *
+     * @return void
+     */
     private static function setProgress(string $step, int $pct): void
     {
         if (self::$progressKey === '') {
@@ -986,6 +1048,15 @@ final class Verificationpage
         set_transient('forge_vp_' . self::$progressKey, ['step' => $step, 'pct' => $pct], 120);
     }
 
+    /**
+     * Processes a single uploaded PDF file and outputs verification results HTML.
+     *
+     * @param array  $file        Uploaded file data from $_FILES.
+     * @param array  $visualLines Lines of text extracted for visual display.
+     * @param string $progressKey Transient key for progress reporting.
+     *
+     * @return void
+     */
     public static function handleUpload(array $file, array $visualLines = [], string $progressKey = ''): void
     {
         self::$progressKey = $progressKey;
@@ -1084,10 +1155,12 @@ final class Verificationpage
                 || ($raw_plain_seal_count ?? 0) > 0;
 
             // Save now — $matches will be overwritten by later preg_match_all calls.
-            $text_seal_b64_list = array_values(array_filter(
-                array_map('trim', $matches[1] ?? []),
-                fn($s) => $s !== ''
-            ));
+            $text_seal_b64_list = array_values(
+                array_filter(
+                    array_map('trim', $matches[1] ?? []),
+                    fn($s) => $s !== ''
+                )
+            );
 
             $seal_base64 = trim($multiple_seals_detected ? end($matches[1]) : $matches[1][0]);
 
@@ -2057,9 +2130,8 @@ final class Verificationpage
 
                                     // Indirect reference (e.g. /Width 12 0 R)
                             $wh_pat = '/\/(Width|Height)\s+(\d+)\s+0\s+R/';
-                            if (
-                                (!$width || !$height) &&
-                                preg_match_all($wh_pat, $fullObj, $refs, PREG_SET_ORDER)
+                            if ((!$width || !$height) 
+                                && preg_match_all($wh_pat, $fullObj, $refs, PREG_SET_ORDER)
                             ) {
                                 foreach ($refs as $r) {
                                     $refNum  = $r[2];
@@ -2113,18 +2185,18 @@ final class Verificationpage
                                 // Standard color spaces
                                 if (is_string($csRaw)) {
                                     switch ($csRaw) {
-                                        case '/DeviceRGB':
-                                                    $colorspace = 'DeviceRGB';
-                                            $channels = 3;
-                                            break;
-                                        case '/DeviceGray':
-                                                    $colorspace = 'DeviceGray';
-                                            $channels = 1;
-                                            break;
-                                        case '/DeviceCMYK':
-                                                    $colorspace = 'DeviceCMYK';
-                                            $channels = 4;
-                                            break;
+                                    case '/DeviceRGB':
+                                                $colorspace = 'DeviceRGB';
+                                        $channels = 3;
+                                        break;
+                                    case '/DeviceGray':
+                                                $colorspace = 'DeviceGray';
+                                        $channels = 1;
+                                        break;
+                                    case '/DeviceCMYK':
+                                                $colorspace = 'DeviceCMYK';
+                                        $channels = 4;
+                                        break;
                                     }
                                 }
 
@@ -2135,9 +2207,8 @@ final class Verificationpage
                                 // Both MUST be decoded, or colors will be wrong.
 
                                 // Indexed color spaces
-                                if (
-                                    str_starts_with($csRaw, '[') &&
-                                    preg_match('/\/Indexed\s+\/DeviceRGB\s+(\d+)\s+(\d+)\s+0\s+R/', $csRaw, $m)
+                                if (str_starts_with($csRaw, '[') 
+                                    && preg_match('/\/Indexed\s+\/DeviceRGB\s+(\d+)\s+(\d+)\s+0\s+R/', $csRaw, $m)
                                 ) {
                                     $colorspace = 'IndexedRGB';
                                     $channels = 1; // IMPORTANT: index stream is 1 channel
@@ -2325,31 +2396,31 @@ final class Verificationpage
                                             $up  = ord($prev[$j]);
                                             $left = $j >= $channels ? ord($row[$j - $channels]) : 0;
                                             switch ($filter) {
-                                                case 0:
-                                                    $row[$j] = chr($cur);
-                                                    break;
-                                                case 1:
-                                                    $row[$j] = chr(($cur + $left) & 0xFF);
-                                                    break;
-                                                case 2:
-                                                    $row[$j] = chr(($cur + $up) & 0xFF);
-                                                    break;
-                                                case 3:
-                                                    $row[$j] = chr(($cur + intdiv($left + $up, 2)) & 0xFF);
-                                                    break;
-                                                case 4:
-                                                    $prev_c = $j >= $channels ? ord($prev[$j - $channels]) : 0;
-                                                    $p  = $left + $up - $prev_c;
-                                                    $pa = abs($p - $left);
-                                                    $pb = abs($p - $up);
-                                                    $pc = abs($p - $prev_c);
-                                                    $paeth = ($pa <= $pb && $pa <= $pc)
-                                                        ? $left
-                                                        : (($pb <= $pc) ? $up : $prev_c);
-                                                    $row[$j] = chr(($cur + $paeth) & 0xFF);
-                                                    break;
-                                                default:
-                                                    $row[$j] = chr($cur);
+                                            case 0:
+                                                $row[$j] = chr($cur);
+                                                break;
+                                            case 1:
+                                                $row[$j] = chr(($cur + $left) & 0xFF);
+                                                break;
+                                            case 2:
+                                                $row[$j] = chr(($cur + $up) & 0xFF);
+                                                break;
+                                            case 3:
+                                                $row[$j] = chr(($cur + intdiv($left + $up, 2)) & 0xFF);
+                                                break;
+                                            case 4:
+                                                $prev_c = $j >= $channels ? ord($prev[$j - $channels]) : 0;
+                                                $p  = $left + $up - $prev_c;
+                                                $pa = abs($p - $left);
+                                                $pb = abs($p - $up);
+                                                $pc = abs($p - $prev_c);
+                                                $paeth = ($pa <= $pb && $pa <= $pc)
+                                                    ? $left
+                                                    : (($pb <= $pc) ? $up : $prev_c);
+                                                $row[$j] = chr(($cur + $paeth) & 0xFF);
+                                                break;
+                                            default:
+                                                $row[$j] = chr($cur);
                                             }
                                         }
                                         $out .= $row;
@@ -2501,15 +2572,17 @@ final class Verificationpage
                                     ? in_array($check_hash, $exact_image_hashes, true)
                                     : in_array($check_hash, $allowed_hashes, true);
 
-                                        self::emitImageSlot($uid, [
-                                    'colorspace'  => $colorspace,
-                                    'width'       => $width,
-                                    'height'      => $height,
-                                    'img_id'      => $img_id,
-                                    'decoded_len' => strlen($decoded),
-                                    'allowed'     => $is_allowed ? 1 : 0,
-                                    'file_path'   => $imgFile,
-                                        ]);
+                                        self::emitImageSlot(
+                                            $uid, [
+                                            'colorspace'  => $colorspace,
+                                            'width'       => $width,
+                                            'height'      => $height,
+                                            'img_id'      => $img_id,
+                                            'decoded_len' => strlen($decoded),
+                                            'allowed'     => $is_allowed ? 1 : 0,
+                                            'file_path'   => $imgFile,
+                                            ]
+                                        );
                                 self::$image_slots[$uid] = [
                                     'allowed' => $is_allowed ? 1 : 0,
                                     'colorspace' => $colorspace,
@@ -2580,11 +2653,10 @@ final class Verificationpage
                                 }
 
                                 $isBackground = false;
-                                if (
-                                    $colorspace === 'DeviceGray' &&
-                                    $prevSlot &&
-                                    ($prevSlot['width'] ?? 0) === $width &&
-                                    ($prevSlot['height'] ?? 0) === $height
+                                if ($colorspace === 'DeviceGray' 
+                                    && $prevSlot 
+                                    && ($prevSlot['width'] ?? 0) === $width 
+                                    && ($prevSlot['height'] ?? 0) === $height
                                 ) {
                                     $isBackground = true;
                                     self::$image_slots[$uid]['isBackground'] = true;
@@ -3177,7 +3249,8 @@ final class Verificationpage
             $document_modified = !$seal_matches || $visual_modified || $any_pdf_issue;
 
             // --- Summary panel ---
-            echo self::renderSummaryPanel([
+            echo self::renderSummaryPanel(
+                [
                 'seal_matches'               => $seal_matches,
                 'seal_key_status'            => $seal_key_status  ?? 'active',
                 'seal_compromised'           => $seal_compromised ?? false,
@@ -3199,7 +3272,8 @@ final class Verificationpage
                 'file_name'                  => $file_name,
                 'uid_prefix'                 => $uid_prefix,
                 'doc_nonce'                  => (string) ($seal_data['nonce'] ?? ''),
-            ]);
+                ]
+            );
 
             echo $inner_html;
         } catch (\Throwable $e) {
@@ -3311,9 +3385,14 @@ final class Verificationpage
 
 
     /**
-     * Scan raw PDF bytes for the FAP seal marker without loading the full object graph.
-     * Reads each FlateDecode stream, decompresses it, and checks both byte alignments
-     * of the mPDF 2-byte Unicode encoding for "---BEGIN-SEAL---".
+     * Scans raw PDF bytes for the FF seal marker without loading the full object graph.
+     *
+     * Reads each FlateDecode stream, decompresses it, and checks both byte
+     * alignments of the mPDF 2-byte Unicode encoding for "---BEGIN-SEAL---".
+     *
+     * @param string $path Absolute filesystem path to the PDF file.
+     *
+     * @return bool True if the seal marker is found, false otherwise.
      */
     private static function rawPdfHasSeal(string $path): bool
     {
@@ -3371,6 +3450,16 @@ final class Verificationpage
         return false;
     }
 
+    /**
+     * Determines whether a decoded stream body is a PDF page content stream.
+     *
+     * Checks for control-character-free leading bytes and the presence of
+     * standard PDF content-stream operators (BT, q, Q, cm, Tf, Tj, Td).
+     *
+     * @param string $decoded Decompressed stream bytes.
+     *
+     * @return bool True if the stream looks like a page content stream.
+     */
     private static function isPageContentStream(string $decoded): bool
     {
         $head = substr($decoded, 0, 16);
@@ -3383,6 +3472,18 @@ final class Verificationpage
         return (bool) preg_match('/\bBT\b|\bq\b|\bQ\b|\bcm\b|\bTf\b|\bTj\b|\bTd\b/', $decoded);
     }
 
+    /**
+     * Renders the verification summary panel HTML for a single PDF.
+     *
+     * Builds a verdict banner and a check-row table from the supplied
+     * result flags, then returns the complete HTML string.
+     *
+     * @param array $d Associative array of verification result flags and
+     *                 metadata (seal_matches, document_modified, uid_prefix,
+     *                 file_name, etc.).
+     *
+     * @return string HTML for the summary panel.
+     */
     private static function renderSummaryPanel(array $d): string
     {
         $pass     = '<span class="forge-pdf-chk-pass">&#10003;</span>';
@@ -3548,6 +3649,16 @@ final class Verificationpage
     }
 
 
+    /**
+     * Reconstructs the canonical HMAC payload array from raw seal data.
+     *
+     * Produces a payload whose key order and value types exactly match
+     * those used by the generator, so the HMAC can be re-verified.
+     *
+     * @param array $seal_data Decoded seal JSON as an associative array.
+     *
+     * @return array Canonical payload ready for HMAC verification.
+     */
     private static function rebuildPayload(array $seal_data): array
     {
         // Key order must exactly match Generator::$seal_data construction order.
@@ -3623,6 +3734,17 @@ final class Verificationpage
         return $rebuilt;
     }
 
+    /**
+     * Hashes every compressed (non-page-content) stream in a raw PDF.
+     *
+     * Decompresses each stream with gzuncompress/gzinflate, skips page
+     * content streams (handled separately), and returns sorted SHA-256
+     * hashes for catch-all stream-injection detection.
+     *
+     * @param string $pdf_raw Raw PDF file bytes.
+     *
+     * @return array Sorted array of SHA-256 hex strings.
+     */
     private static function hashAllCompressedStreams(string $pdf_raw): array
     {
         $hashes = [];
@@ -3666,6 +3788,17 @@ final class Verificationpage
         return $hashes;
     }
 
+    /**
+     * Extracts and hashes font program streams from FontDescriptor objects.
+     *
+     * Locates /FontFile, /FontFile2, and /FontFile3 references, decompresses
+     * each referenced stream, and returns a sorted list of SHA-256 hashes
+     * for font-program integrity verification.
+     *
+     * @param string $pdf_raw Raw PDF file bytes.
+     *
+     * @return array Sorted array of SHA-256 hex strings.
+     */
     private static function hashFontProgramStreams(string $pdf_raw): array
     {
         $hashes   = [];
@@ -3704,6 +3837,17 @@ final class Verificationpage
         return $hashes;
     }
 
+    /**
+     * Normalizes a seal field value for comparison against PDF text.
+     *
+     * Decodes HTML entities, strips all tags, and collapses whitespace
+     * to a single space so seal values and extracted PDF text can be
+     * compared with a consistent baseline.
+     *
+     * @param string $value Raw field value from the seal payload.
+     *
+     * @return string Normalized plain-text value.
+     */
     private static function normalizeValue(string $value): string
     {
         // Decode HTML entities
@@ -3718,6 +3862,18 @@ final class Verificationpage
         return trim($value);
     }
 
+    /**
+     * Recursively computes the differences between two associative arrays.
+     *
+     * Returns a flat list of human-readable mismatch descriptions, including
+     * the dot-notation path of each differing key and the values from each side.
+     *
+     * @param array  $a    First array (seal payload).
+     * @param array  $b    Second array (rebuilt payload).
+     * @param string $path Dot-notation key path prefix for nested calls.
+     *
+     * @return array List of difference description strings.
+     */
     private static function diffArrays(array $a, array $b, string $path = ''): array
     {
         $diffs = [];
@@ -3751,9 +3907,15 @@ final class Verificationpage
     }
 
     /**
-     * Emit a rejection card that matches the forge-vpc error card visual.
-     * Used for server-side pre-flight rejections (MIME, %%EOF, no seal, etc.)
-     * so all error states share a single consistent card design.
+     * Builds a styled notice card HTML string for pre-flight rejections.
+     *
+     * Matches the forge-vpc error card visual so all server-side rejections
+     * (MIME, %%EOF, no seal, etc.) share a single consistent card design.
+     *
+     * @param string $message Notice text (may contain safe HTML).
+     * @param string $type    Card type: 'error', 'warning', 'success', or 'info'.
+     *
+     * @return string HTML notice card markup.
      */
     private static function noticeHtml(string $message, string $type = 'error'): string
     {
@@ -3782,6 +3944,18 @@ final class Verificationpage
         );
     }
 
+    /**
+     * Reverses PNG predictor filtering on an indexed-color image stream.
+     *
+     * Applies None (0), Sub (1), and Up (2) PNG row filters byte-by-byte,
+     * restoring raw palette-index bytes from a FlateDecode+Predictor stream.
+     *
+     * @param string $data  Raw (still-filtered) indexed image stream bytes.
+     * @param int    $width Image width in pixels.
+     * @param int    $bpc   Bits per component (typically 8 for indexed images).
+     *
+     * @return string Decoded index-stream bytes with predictor removed.
+     */
     private static function undoPngPredictorIndexed(
         string $data,
         int $width,
@@ -3803,18 +3977,18 @@ final class Verificationpage
                 $up  = ord($prev[$j]);
 
                 switch ($filter) {
-                    case 0: // None
-                        break;
-                    case 1: // Sub (byte-wise!)
-                        $left = $j > 0 ? ord($row[$j - 1]) : 0;
-                        $cur = ($cur + $left) & 0xFF;
-                        break;
-                    case 2: // Up
-                        $cur = ($cur + $up) & 0xFF;
-                        break;
-                    default:
-                        // Other PNG filters are illegal for PDF predictors
-                        break;
+                case 0: // None
+                    break;
+                case 1: // Sub (byte-wise!)
+                    $left = $j > 0 ? ord($row[$j - 1]) : 0;
+                    $cur = ($cur + $left) & 0xFF;
+                    break;
+                case 2: // Up
+                    $cur = ($cur + $up) & 0xFF;
+                    break;
+                default:
+                    // Other PNG filters are illegal for PDF predictors
+                    break;
                 }
 
                 $row[$j] = chr($cur);
@@ -3827,6 +4001,19 @@ final class Verificationpage
         return $out;
     }
 
+    /**
+     * Emits an empty placeholder div for a PDF image XObject.
+     *
+     * Registers the image file for deferred deletion via a shutdown function
+     * and outputs a data-attribute slot that JavaScript later populates with
+     * the fully rendered image card.
+     *
+     * @param string $uid  Unique slot identifier used as the element ID.
+     * @param array  $meta Image metadata (colorspace, width, height, img_id,
+     *                     decoded_len, allowed, file_path).
+     *
+     * @return void
+     */
     private static function emitImageSlot(string $uid, array $meta): void
     {
 
@@ -3835,27 +4022,29 @@ final class Verificationpage
         if (!self::$image_cleanup_registered) {
             self::$image_cleanup_registered = true;
 
-            register_shutdown_function(static function () {
-                if (function_exists('fastcgi_finish_request')) {
-                    fastcgi_finish_request();
-                }
+            register_shutdown_function(
+                static function () {
+                    if (function_exists('fastcgi_finish_request')) {
+                        fastcgi_finish_request();
+                    }
 
-                sleep(120);
+                    sleep(120);
 
-                foreach (self::$files_to_delete as $file) {
-                    clearstatcache(true, $file);
-                    for ($i = 0; $i < 5; $i++) {
-                        if (!file_exists($file)) {
-                            break;
-                        }
-                        if (unlink($file)) {
-                            break;
-                        }
-                        usleep(200000);
+                    foreach (self::$files_to_delete as $file) {
                         clearstatcache(true, $file);
+                        for ($i = 0; $i < 5; $i++) {
+                            if (!file_exists($file)) {
+                                break;
+                            }
+                            if (unlink($file)) {
+                                break;
+                            }
+                            usleep(200000);
+                            clearstatcache(true, $file);
+                        }
                     }
                 }
-            });
+            );
         }
 
         echo "<div id='{$uid}' class='img-slot'
@@ -3868,6 +4057,16 @@ final class Verificationpage
         ></div>";
     }
 
+    /**
+     * Schedules a temporary PDF file for deletion after the request ends.
+     *
+     * Registers a shutdown function (once) that waits 30 seconds after
+     * the response is sent, then retries unlink up to five times per file.
+     *
+     * @param string $file_path Absolute path to the PDF file to delete.
+     *
+     * @return void
+     */
     private static function scheduleDeletion(string $file_path): void
     {
         self::$pdfs_to_delete[] = $file_path;
@@ -3875,35 +4074,48 @@ final class Verificationpage
         if (!self::$pdf_cleanup_registered) {
             self::$pdf_cleanup_registered = true;
 
-            register_shutdown_function(static function () {
-                if (function_exists('fastcgi_finish_request')) {
-                    fastcgi_finish_request();
-                }
+            register_shutdown_function(
+                static function () {
+                    if (function_exists('fastcgi_finish_request')) {
+                        fastcgi_finish_request();
+                    }
 
-                sleep(30);
+                    sleep(30);
 
-                foreach (self::$pdfs_to_delete as $file) {
-                    clearstatcache(true, $file);
-                    for ($i = 0; $i < 5; $i++) {
-                        if (!file_exists($file)) {
-                            break;
-                        }
-                        if (unlink($file)) {
-                            break;
-                        }
-                        usleep(200000);
+                    foreach (self::$pdfs_to_delete as $file) {
                         clearstatcache(true, $file);
+                        for ($i = 0; $i < 5; $i++) {
+                            if (!file_exists($file)) {
+                                break;
+                            }
+                            if (unlink($file)) {
+                                break;
+                            }
+                            usleep(200000);
+                            clearstatcache(true, $file);
+                        }
                     }
                 }
-            });
+            );
         }
     }
 
+    /**
+     * Fills a previously emitted image slot with rendered image card HTML.
+     *
+     * Wraps the HTML in a relocatable container carrying the slot UID so
+     * the client-side image-slot JS can move it into the correct placeholder.
+     *
+     * @param string $uid  Slot identifier matching the placeholder element ID.
+     * @param string $html Rendered image card HTML to inject into the slot.
+     *
+     * @return void
+     */
     private static function fillImageSlot(string $uid, string $html): void
     {
         // Defensive: never emit empty content
         if ($html === '') {
-            echo "<!-- FAP: empty image slot content for {$uid} -->";
+            echo "<!-- FF: empty image slot content for {$uid} -->";
             return;
         }
 

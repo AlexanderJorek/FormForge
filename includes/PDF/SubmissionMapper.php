@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Maps raw form submission data into structured PDF template variables.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -30,6 +38,15 @@ defined('ABSPATH') || exit;
  */
 class SubmissionMapper
 {
+    /**
+     * Maps raw form field values to a normalized array for PDF/email.
+     *
+     * @param array $fields     Form field configuration array.
+     * @param array $raw_values Raw submitted values.
+     * @param array $files      Uploaded files array.
+     *
+     * @return array Normalized mapped values.
+     */
     public static function map(array $fields, array $raw_values, array $files = []): array
     {
         $mapped = [];
@@ -105,6 +122,15 @@ class SubmissionMapper
     /* Signature                                                            */
     /* ------------------------------------------------------------------ */
 
+    /**
+     * Maps a signature field value to the normalized structure.
+     *
+     * @param string $field_id Field identifier.
+     * @param string $label    Field label.
+     * @param mixed  $value    Raw signature value (data URI or similar).
+     *
+     * @return array Normalized field entry.
+     */
     private static function mapSignature(string $field_id, string $label, mixed $value): array
     {
         $materialized = [];
@@ -142,6 +168,15 @@ class SubmissionMapper
     /* Upload                                                               */
     /* ------------------------------------------------------------------ */
 
+    /**
+     * Maps upload file data to the normalized structure.
+     *
+     * @param string $field_id  Field identifier.
+     * @param string $label     Field label.
+     * @param mixed  $file_data Upload file data.
+     *
+     * @return array Normalized field entry.
+     */
     private static function mapUpload(string $field_id, string $label, mixed $file_data): array
     {
         if (!$file_data || (is_array($file_data) && empty($file_data['name']))) {
@@ -212,6 +247,17 @@ class SubmissionMapper
     /* SEPA                                                                 */
     /* ------------------------------------------------------------------ */
 
+    /**
+     * Maps SEPA field data to individual normalized entries.
+     *
+     * @param string $field_id   Field identifier.
+     * @param string $label      Field label.
+     * @param array  $config     Field configuration array.
+     * @param mixed  $value      Raw SEPA value.
+     * @param array  $raw_values All raw submitted values.
+     *
+     * @return array Array of normalized SEPA field entries.
+     */
     private static function mapSepa(
         string $field_id,
         string $label,

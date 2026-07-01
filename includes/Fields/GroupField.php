@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Section group field used to visually group other fields.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,8 +23,16 @@ namespace ForgeForms\Fields;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Section/group container field that wraps child fields.
+ */
 class GroupField extends BaseField
 {
+    /**
+     * Returns field-specific CSS styles.
+     *
+     * @return string
+     */
     public function getStyles(): string
     {
         return <<<'CSS'
@@ -90,18 +106,41 @@ class GroupField extends BaseField
 CSS;
     }
 
+    /**
+     * Returns the field type label.
+     *
+     * @return string
+     */
     public function getLabel(): string
     {
         return 'Feldgruppe';
     }
+
+    /**
+     * Returns the Font Awesome icon class.
+     *
+     * @return string
+     */
     public function getIcon(): string
     {
         return 'fa-solid fa-layer-group';
     }
+
+    /**
+     * Returns false because group fields have no settings panel in the builder.
+     *
+     * @return bool
+     */
     public function hasSettingsPanel(): bool
     {
         return false;
     }
+
+    /**
+     * Returns false because group fields have no required-toggle in the editor.
+     *
+     * @return bool
+     */
     public function hasRequired(): bool
     {
         return false;
@@ -109,7 +148,13 @@ CSS;
 
     /**
      * Returns the opening wrapper tag for this group.
+     *
      * Children are injected by FormRenderer — this just provides the container.
+     *
+     * @param array  $config   Field configuration.
+     * @param string $field_id Unique field identifier.
+     *
+     * @return string Opening HTML tag.
      */
     public function openTag(array $config, string $field_id): string
     {
@@ -125,22 +170,51 @@ CSS;
             . $desc_html;
     }
 
+    /**
+     * Returns the closing wrapper tag for this group.
+     *
+     * @return string Closing HTML tag.
+     */
     public function closeTag(): string
     {
         return '</div>';
     }
 
-    /** Fallback — not called during normal rendering. */
+    /**
+     * Renders the field HTML.
+     *
+     * Fallback only — not called during normal rendering; FormRenderer uses
+     * openTag() and closeTag() directly to inject child fields.
+     *
+     * @param array  $config   Field configuration.
+     * @param string $field_id Unique field identifier.
+     * @param mixed  $value    Current field value.
+     *
+     * @return string Rendered HTML.
+     */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         return $this->openTag($config, $field_id) . $this->closeTag();
     }
 
+    /**
+     * Maps the field value to a human-readable string for email and PDF output.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return string Human-readable representation.
+     */
     public function map(mixed $value, array $config): string
     {
         return '';
     }
 
+    /**
+     * Returns the default field configuration.
+     *
+     * @return array
+     */
     public function getDefaultConfig(): array
     {
         return [
@@ -152,6 +226,11 @@ CSS;
         ];
     }
 
+    /**
+     * Returns the general settings schema for the field editor.
+     *
+     * @return array
+     */
     public function getGeneralSchema(): array
     {
         return [

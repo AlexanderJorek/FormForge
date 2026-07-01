@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Canvas-based signature capture field.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,6 +23,9 @@ namespace ForgeForms\Fields;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Canvas-based signature capture field.
+ */
 class SignatureField extends BaseField
 {
     private const ICON_RESET = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"'
@@ -25,6 +36,11 @@ class SignatureField extends BaseField
         . ' 123.7 0 224-100.3 224-224S401.7 32 278 32c-78.1 0-145.8 39.4-185.3 99.3z"/>'
         . '</svg>';
 
+    /**
+     * Returns field-specific CSS styles.
+     *
+     * @return string
+     */
     public function getStyles(): string
     {
         return <<<'CSS'
@@ -88,15 +104,31 @@ class SignatureField extends BaseField
 CSS;
     }
 
+    /**
+     * Returns the field type label.
+     *
+     * @return string
+     */
     public function getLabel(): string
     {
         return 'Unterschrift';
     }
+
+    /**
+     * Returns the Font Awesome icon class.
+     *
+     * @return string
+     */
     public function getIcon(): string
     {
         return 'fa-solid fa-signature';
     }
 
+    /**
+     * Returns client-side initialization JavaScript function body.
+     *
+     * @return string
+     */
     public function getClientInit(): string
     {
         return <<<'JS'
@@ -111,12 +143,16 @@ CSS;
                 var fmt     = wrap.dataset.format || 'png';
                 var drawing  = false;
                 var leftArea = false;
+                var lastW = 0;
                 function resize() {
                     var rect  = canvas.getBoundingClientRect();
                     var ratio = window.devicePixelRatio || 1;
-                    var snap  = canvas.toDataURL();
-                    var cssH  = rect.height || (parseFloat(canvas.style.height) || canvas.getAttribute('height') || 160);
-                    var cssW  = rect.width  || canvas.offsetWidth || 400;
+                    var cssW  = rect.width  || canvas.offsetWidth;
+                    var fallH = parseFloat(canvas.getAttribute('height') || '160');
+                    var cssH  = rect.height || canvas.offsetHeight || fallH;
+                    if (!cssW || !cssH) { return; } // still hidden — ResizeObserver will retry
+                    var snap  = lastW ? canvas.toDataURL() : null;
+                    lastW = cssW;
                     canvas.width  = Math.round(cssW * ratio);
                     canvas.height = Math.round(cssH * ratio);
                     ctx.scale(ratio, ratio);
@@ -175,12 +211,26 @@ CSS;
                 }
                 resize();
                 window.addEventListener('resize', resize);
+                if (typeof ResizeObserver !== 'undefined') {
+                    new ResizeObserver(function (entries) {
+                        if (entries[0].contentRect.width > 0) { resize(); }
+                    }).observe(canvas);
+                }
             }
             (root || document).querySelectorAll('.forge-signature-wrap').forEach(initSignature);
         }
         JS;
     }
 
+    /**
+     * Renders the field HTML.
+     *
+     * @param array  $config   Field configuration.
+     * @param string $field_id Unique field identifier.
+     * @param mixed  $value    Current field value.
+     *
+     * @return string Rendered HTML.
+     */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         $req       = !empty($config['required']) ? ' data-required="true"' : '';
@@ -211,6 +261,14 @@ CSS;
         return $this->wrap($field_id, $config, $inner);
     }
 
+    /**
+     * Validates the submitted value.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return bool|string True on valid, error message string on invalid.
+     */
     public function validate(mixed $value, array $config): bool|string
     {
         if (!empty($config['required'])) {
@@ -224,25 +282,50 @@ CSS;
         return true;
     }
 
+    /**
+     * Maps the field value to a human-readable string for email and PDF output.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return string Human-readable representation.
+     */
     public function map(mixed $value, array $config): string
     {
         return empty($value) ? '[Kein Eintrag]' : 'Erfasste Unterschrift';
     }
 
+    /**
+     * Returns the default field configuration.
+     *
+     * @return array
+     */
     public function getDefaultConfig(): array
     {
-        return array_merge(parent::getDefaultConfig(), [
+        return array_merge(
+            parent::getDefaultConfig(), [
             'canvas_height' => 200,
             'stroke_width'  => 2,
             'export_format' => 'png',
-        ]);
+            ]
+        );
     }
 
+    /**
+     * Returns the general settings schema for the field editor.
+     *
+     * @return array
+     */
     public function getGeneralSchema(): array
     {
         return [];
     }
 
+    /**
+     * Returns the advanced settings schema for the field editor.
+     *
+     * @return array
+     */
     public function getAdvancedSchema(): array
     {
         return [

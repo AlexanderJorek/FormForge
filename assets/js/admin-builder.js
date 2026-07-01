@@ -123,7 +123,7 @@ document.addEventListener('DOMContentLoaded', function () {
             var fd  = JSON.parse(el.dataset.form    || '{}');
             var pal = JSON.parse(el.dataset.palette || '[]');
             state.fields        = fd.fields        || [];
-            state.notifications = fd.notifications || [];
+            state.notifications = (fd.notifications || []).map(normalizeNotifBodyFields);
             state.formName      = fd.title         || 'Neues Formular';
             if (fd.settings) {
                 var s = fd.settings;
@@ -2798,42 +2798,72 @@ function spNotice(parent, text, level) {
     parent.appendChild(el);
 }
 
-/* HTML/Section editor: textarea + Code|Vorschau toggle */
-function spHtmlEditor(parent, key, label, value, onChange) {
+/* HTML/Section editor: textarea, optionally with a Code|Vorschau toggle */
+function spHtmlEditor(parent, key, label, value, onChange, opts) {
+    opts = opts || {};
+    var showToggle = opts.showToggle !== false;
+
     var row = document.createElement('div');
     row.className = 'forge-sp-row';
 
-    var lbl = document.createElement('div');
-    lbl.className   = 'forge-sp-label';
-    lbl.textContent = label;
-
-    var modeBar = document.createElement('div');
-    modeBar.className = 'forge-sp-html-modebar';
-    var modePill = mkSeg(['code', 'preview'], ['Code', 'Vorschau'], 'code', switchMode);
-    modeBar.appendChild(modePill);
-
     var hdr = document.createElement('div');
     hdr.className = 'forge-sp-html-hdr';
-    hdr.appendChild(lbl);
-    hdr.appendChild(modeBar);
-    row.appendChild(hdr);
+
+    if (label) {
+        var lbl = document.createElement('div');
+        lbl.className   = 'forge-sp-label';
+        lbl.textContent = label;
+        hdr.appendChild(lbl);
+    }
 
     var ta = document.createElement('textarea');
-    ta.className = 'forge-sp-input forge-sp-html-textarea';
-    ta.rows      = 8;
-    ta.value     = value || '';
+    ta.className  = 'forge-sp-input forge-sp-html-textarea';
+    ta.rows       = 8;
+    ta.value      = value || '';
     ta.spellcheck = false;
+
+    var previewDiv;
+    if (showToggle) {
+        var modeBar = document.createElement('div');
+        modeBar.className = 'forge-sp-html-modebar';
+        var modePill = mkSeg(['code', 'preview'], ['Code', 'Vorschau'], 'code', switchMode);
+        modeBar.appendChild(modePill);
+        hdr.appendChild(modeBar);
+
+        previewDiv = document.createElement('div');
+        previewDiv.className = 'forge-sp-html-preview';
+        previewDiv.hidden    = true;
+        previewDiv.innerHTML = value || '';
+    }
+
+    if (hdr.children.length) row.appendChild(hdr);
+
+    var resizeTimer = null;
+    function resizeTa() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function () {
+            ta.style.height = 'auto';
+            ta.style.height = Math.max(ta.scrollHeight, 140) + 'px';
+        }, 30);
+    }
+
     ta.addEventListener('input', function () {
         onChange(this.value);
-        if (!previewDiv.hidden) previewDiv.innerHTML = this.value;
+        if (previewDiv && !previewDiv.hidden) previewDiv.innerHTML = this.value;
+        resizeTa();
     });
     row.appendChild(ta);
+    if (previewDiv) row.appendChild(previewDiv);
 
-    var previewDiv = document.createElement('div');
-    previewDiv.className = 'forge-sp-html-preview';
-    previewDiv.hidden    = true;
-    previewDiv.innerHTML = value || '';
-    row.appendChild(previewDiv);
+    ta.style.overflowY = 'hidden';
+    ta.style.resize     = 'none';
+    resizeTa();
+    if (window.IntersectionObserver) {
+        var taIo = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) { if (entry.isIntersecting) resizeTa(); });
+        });
+        taIo.observe(row);
+    }
 
     function switchMode(mode) {
         if (mode === 'preview') {
@@ -2847,6 +2877,186 @@ function spHtmlEditor(parent, key, label, value, onChange) {
     }
 
     parent.appendChild(row);
+}
+
+/* Rich text editor: sandboxed iframe in designMode (not contenteditable —
+ * that strips the <html>/<head>/<body> wrapper and is an extension target). */
+function spRichTextEditor(parent, key, label, value, onChange) {
+    var row = document.createElement('div');
+    row.className = 'forge-sp-row';
+
+    if (label) {
+        var lbl = document.createElement('div');
+        lbl.className   = 'forge-sp-label';
+        lbl.textContent = label;
+        row.appendChild(lbl);
+    }
+
+    var toolbar = document.createElement('div');
+    toolbar.className = 'forge-sp-richtext-toolbar';
+    var commands = [
+        ['bold', 'Fett', 'fa-bold'],
+        ['italic', 'Kursiv', 'fa-italic'],
+        ['underline', 'Unterstrichen', 'fa-underline'],
+        ['insertUnorderedList', 'Liste', 'fa-list-ul'],
+        ['insertOrderedList', 'Nummerierte Liste', 'fa-list-ol'],
+        ['createLink', 'Link', 'fa-link'],
+    ];
+    commands.forEach(function (cmd) {
+        var btn = document.createElement('button');
+        btn.type      = 'button';
+        btn.className = 'forge-sp-richtext-btn';
+        btn.title     = cmd[1];
+        btn.innerHTML = '<i class="fa-solid ' + cmd[2] + '"></i>';
+        btn.addEventListener('mousedown', function (e) { e.preventDefault(); });
+        btn.addEventListener('click', function () {
+            var doc = iframe.contentDocument;
+            iframe.contentWindow.focus();
+            if (cmd[0] === 'createLink') {
+                var url = window.prompt('Link-URL eingeben:', 'https://');
+                if (!url) return;
+                doc.execCommand('createLink', false, url);
+            } else {
+                doc.execCommand(cmd[0], false, null);
+            }
+            emitChange();
+        });
+        toolbar.appendChild(btn);
+    });
+    row.appendChild(toolbar);
+
+    var iframe = document.createElement('iframe');
+    iframe.className = 'forge-sp-input forge-sp-richtext-editor';
+    iframe.setAttribute('sandbox', 'allow-same-origin');
+    iframe.setAttribute('title', label || 'Nachricht');
+    row.appendChild(iframe);
+    parent.appendChild(row);
+
+    function emitChange() {
+        onChange(sanitizeRichDoc(iframe.contentDocument));
+        resize();
+    }
+
+    var resizeTimer = null;
+    function resize() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(doResize, 30);
+    }
+
+    function doResize() {
+        var doc = iframe.contentDocument;
+        if (!doc || !doc.documentElement || !doc.body) return;
+        /* scroll metrics are unreliable with overflow:hidden containers
+           (e.g. rounded email "card" tables), so measure the real bottom
+           edge of every element instead. */
+        var max = 0;
+        var nodes = doc.body.querySelectorAll('*');
+        for (var i = 0; i < nodes.length; i++) {
+            var bottom = nodes[i].getBoundingClientRect().bottom;
+            if (bottom > max) max = bottom;
+        }
+        var bodyRect = doc.body.getBoundingClientRect();
+        if (bodyRect.bottom > max) max = bodyRect.bottom;
+
+        var fallback = Math.max(
+            doc.documentElement.scrollHeight,
+            doc.documentElement.offsetHeight,
+            doc.body.scrollHeight,
+            doc.body.offsetHeight
+        );
+        var h = Math.max(max, fallback);
+        iframe.style.height = Math.max(Math.ceil(h) + 2, 140) + 'px';
+    }
+
+    function loadDoc(html) {
+        var doc = iframe.contentDocument;
+        var full = /<html[\s>]/i.test(html || '')
+            ? html
+            : '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'
+                + 'html,body{margin:0;}'
+                + 'body{padding:10px 12px;box-sizing:border-box;'
+                + 'font-family:-apple-system,Segoe UI,Arial,sans-serif;'
+                + 'font-size:13px;line-height:1.6;color:#1d2327;}</style></head>'
+                + '<body>' + (html || '') + '</body></html>';
+        doc.open();
+        doc.write(full);
+        doc.close();
+        doc.designMode = 'on';
+        doc.addEventListener('input', emitChange);
+
+        /* Email markup is often a fixed-width table wider than the editor;
+           a horizontal scrollbar would eat into clientHeight and force an
+           unwanted vertical scroll too, so clip overflow-x instead. */
+        doc.documentElement.style.overflowX = 'hidden';
+        doc.body.style.overflowX = 'hidden';
+
+        /* Images load async and can change the height after the fact. */
+        doc.querySelectorAll('img').forEach(function (img) {
+            img.addEventListener('load', resize);
+            img.addEventListener('error', resize);
+        });
+
+        resize();
+    }
+
+    loadDoc(value);
+
+    /* Catch late layout shifts (fonts, async assets). */
+    setTimeout(resize, 300);
+
+    /* The tab this editor lives in starts hidden (display:none), so every
+       resize() call above measures a 0x0 box and falls back to 140px.
+       Re-measure the instant the tab actually becomes visible. */
+    if (window.IntersectionObserver) {
+        var io = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (entry.isIntersecting) resize();
+            });
+        });
+        io.observe(row);
+    }
+}
+
+/* Strips scripts, event handlers, javascript:/vbscript: URIs, and known
+ * Dark Reader artifacts from the iframe's live document, then serializes
+ * it back with its doctype intact. */
+function sanitizeRichDoc(doc) {
+    doc.querySelectorAll('script').forEach(function (el) { el.remove(); });
+    doc.querySelectorAll(
+        'style.darkreader, link.darkreader, meta[name="darkreader"], .darkreader--fallback'
+    ).forEach(function (el) { el.remove(); });
+    doc.querySelectorAll('*').forEach(function (el) {
+        Array.prototype.slice.call(el.attributes).forEach(function (attr) {
+            var name = attr.name.toLowerCase();
+            var val  = attr.value || '';
+            if (/^on/.test(name) || name.indexOf('data-darkreader') === 0) {
+                el.removeAttribute(attr.name);
+            } else if ((name === 'href' || name === 'src') && /^\s*(javascript|vbscript):/i.test(val)) {
+                el.removeAttribute(attr.name);
+            }
+        });
+    });
+    return (doc.doctype ? '<!DOCTYPE ' + doc.doctype.name + '>' : '')
+        + doc.documentElement.outerHTML;
+}
+
+/* Back-compat: migrates legacy body_html_content/body_text_content fields
+   into the single canonical HTML body field. */
+function normalizeNotifBodyFields(notif) {
+    if (notif.body === undefined) {
+        var legacy = notif.body_html ? (notif.body_html_content || '')
+            : (notif.body_text_content || '');
+        notif.body = /<[a-z][\s\S]*>/i.test(legacy)
+            ? legacy
+            : (function (text) {
+                var div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML.replace(/\n/g, '<br>');
+            })(legacy);
+    }
+    delete notif.body_html_content;
+    delete notif.body_text_content;
+    return notif;
 }
 
 /* Rating icon row: select (icon type) + half-values pill in one line */
@@ -3185,7 +3395,8 @@ function renderNotifications() {
             slug: 'notification-' + n,
             name: 'Benachrichtigung ' + n,
             to: '{admin_email}', subject: 'Formular: {form_title}',
-            body: '{all_fields}', from_name: '{site_name}',
+            body: '{all_fields}',
+            from_name: '{site_name}',
             from_email: '{admin_email}', attach_pdf: true, enabled: true,
         });
         renderNotifications();
@@ -3199,12 +3410,16 @@ function buildNotifRow(notif, idx) {
     var row = document.createElement('div');
     row.className = 'forge-field-row';
 
+    var recipientText = notif.recipient_mode === 'routing'
+        ? 'Routing aktiv'
+        : (notif.to || '');
+
     row.innerHTML =
         '<div class="forge-row-handle" style="visibility:hidden"><i class="fa-solid fa-grip-vertical"></i></div>' +
         '<div class="forge-row-icon"><i class="fa-solid fa-bell"></i></div>' +
         '<div class="forge-row-info">' +
             '<div class="forge-row-label">' + escHtml(notif.name || '(kein Name)') + '</div>' +
-            '<div class="forge-row-type">' + escHtml(notif.to || '') + '</div>' +
+            '<div class="forge-row-type">' + escHtml(recipientText) + '</div>' +
         '</div>' +
         '<div class="forge-row-actions">' +
             '<button class="forge-row-btn forge-row-edit"   title="Bearbeiten"><i class="fa-solid fa-pen-to-square"></i></button>' +
@@ -3561,7 +3776,9 @@ function buildNotifContentTab(notif) {
     spRow(panel, 'notif-subject', 'Betreff', 'text', notif.subject || '',
         function (v) { state.notifications[notifModalIdx].subject = v; });
 
-    /* Body: Text | HTML toggle */
+    /* Body: Visual | Code — both views read/write notif.body directly.
+       body_html is a transient in-memory flag for the active view; it's
+       never persisted, so every fresh load defaults to Visual. */
     var isHtml = !!notif.body_html;
     var bodyWrap = document.createElement('div');
     bodyWrap.className = 'forge-sp-row';
@@ -3571,9 +3788,10 @@ function buildNotifContentTab(notif) {
     var bodyLbl = document.createElement('div');
     bodyLbl.className = 'forge-sp-label'; bodyLbl.textContent = 'Nachricht';
     bodyHdr.appendChild(bodyLbl);
-    var typePill = mkSeg(['text','html'], ['Text','HTML'], isHtml ? 'html' : 'text', function (v) {
-        state.notifications[notifModalIdx].body_html = (v === 'html');
-        buildNotifContentTab(state.notifications[notifModalIdx]);
+    var typePill = mkSeg(['text','html'], ['Visuell','Code'], isHtml ? 'html' : 'text', function (v) {
+        var notif = state.notifications[notifModalIdx];
+        notif.body_html = (v === 'html');
+        buildNotifContentTab(notif);
     });
     var modeBar = document.createElement('div');
     modeBar.className = 'forge-sp-html-modebar';
@@ -3584,9 +3802,10 @@ function buildNotifContentTab(notif) {
 
     if (isHtml) {
         spHtmlEditor(panel, 'notif-body', '', notif.body || '',
-            function (k, v) { state.notifications[notifModalIdx].body = v; });
+            function (v) { state.notifications[notifModalIdx].body = v; },
+            { showToggle: false });
     } else {
-        spTextarea(panel, 'notif-body', '', notif.body || '',
+        spRichTextEditor(panel, 'notif-body', '', notif.body || '',
             function (v) { state.notifications[notifModalIdx].body = v; });
     }
 
@@ -3990,7 +4209,7 @@ function bindSave() {
         var fd = new FormData();
         fd.append('action',    'forge_forms_save_form');
         fd.append('nonce',     NONCE);
-        fd.append('form_data', JSON.stringify(payload));
+        fd.append('form_data', btoa(unescape(encodeURIComponent(JSON.stringify(payload)))));
         fetch(AJAX_URL, { method: 'POST', body: fd })
             .then(function (r) { return r.json(); })
             .then(function (data) {

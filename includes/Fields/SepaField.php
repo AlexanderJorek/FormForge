@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * SEPA direct debit mandate composite field (IBAN, BIC, dual signatures).
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,8 +23,16 @@ namespace ForgeForms\Fields;
 
 defined('ABSPATH') || exit;
 
+/**
+ * SEPA direct debit mandate composite field with IBAN, BIC, and dual signature canvases.
+ */
 class SepaField extends BaseField
 {
+    /**
+     * Returns the client-side empty-check function for the required validator.
+     *
+     * @return array
+     */
     public function getClientEmptyCheck(): array
     {
         /* Validators must always run so that BIC/Kontoinhaber/Sig can show
@@ -25,6 +41,11 @@ class SepaField extends BaseField
         return ['fn' => 'function(){return false;}'];
     }
 
+    /**
+     * Returns client-side validation rules.
+     *
+     * @return array
+     */
     public function getClientValidation(): array
     {
         return [
@@ -93,6 +114,11 @@ class SepaField extends BaseField
         ];
     }
 
+    /**
+     * Returns field-specific CSS styles.
+     *
+     * @return string
+     */
     public function getStyles(): string
     {
         return <<<'CSS'
@@ -131,15 +157,31 @@ class SepaField extends BaseField
 CSS;
     }
 
+    /**
+     * Returns the field type label.
+     *
+     * @return string
+     */
     public function getLabel(): string
     {
         return 'SEPA Lastschrift';
     }
+
+    /**
+     * Returns the Font Awesome icon class.
+     *
+     * @return string
+     */
     public function getIcon(): string
     {
         return 'fa-solid fa-building-columns';
     }
 
+    /**
+     * Returns client-side initialization JavaScript function body.
+     *
+     * @return string
+     */
     public function getClientInit(): string
     {
         return <<<'JS'
@@ -285,6 +327,15 @@ CSS;
         JS;
     }
 
+    /**
+     * Renders the field HTML.
+     *
+     * @param array  $config   Field configuration.
+     * @param string $field_id Unique field identifier.
+     * @param mixed  $value    Current field value.
+     *
+     * @return string Rendered HTML.
+     */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         $val = is_array($value) ? $value : [];
@@ -434,6 +485,14 @@ CSS;
         return $html;
     }
 
+    /**
+     * Validates the submitted value.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return bool|string True on valid, error message string on invalid.
+     */
     public function validate(mixed $value, array $config): bool|string
     {
         if (empty($config['required'])) {
@@ -468,6 +527,14 @@ CSS;
         return true;
     }
 
+    /**
+     * Maps the field value to a human-readable string for email and PDF output.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return string Human-readable representation.
+     */
     public function map(mixed $value, array $config): string
     {
         if (!is_array($value)) {
@@ -477,14 +544,21 @@ CSS;
         $bic    = strtoupper((string)($value['bic']    ?? ''));
         $holder = (string)($value['holder'] ?? '');
 
-        $parts = array_filter([
+        $parts = array_filter(
+            [
             $iban   !== '' ? 'IBAN: ' . wordwrap($iban, 4, ' ', true) : '',
             $bic    !== '' ? 'BIC: ' . $bic : '',
             $holder !== '' ? 'Kontoinhaber: ' . $holder : '',
-        ]);
+            ]
+        );
         return $parts ? trim(implode(' | ', $parts)) : '[Kein Eintrag]';
     }
 
+    /**
+     * Returns the default field configuration.
+     *
+     * @return array
+     */
     public function getDefaultConfig(): array
     {
         return [
@@ -508,6 +582,11 @@ CSS;
         ];
     }
 
+    /**
+     * Returns the general settings schema for the field editor.
+     *
+     * @return array
+     */
     public function getGeneralSchema(): array
     {
         $country_options = $this->ibanCountryOptions();
@@ -529,6 +608,11 @@ CSS;
         ];
     }
 
+    /**
+     * Returns the advanced settings schema for the field editor.
+     *
+     * @return array
+     */
     public function getAdvancedSchema(): array
     {
         return [
@@ -537,6 +621,11 @@ CSS;
         ];
     }
 
+    /**
+     * Returns the list of IBAN country options for the country selector.
+     *
+     * @return array
+     */
     private function ibanCountryOptions(): array
     {
         $countries = [
@@ -574,6 +663,11 @@ CSS;
         return $opts;
     }
 
+    /**
+     * Returns the default SEPA mandate body text.
+     *
+     * @return string
+     */
     private function defaultMandateText(): string
     {
         return '<p>Hiermit ermächtige ich den Zahlungsempfänger, Zahlungen von'
@@ -586,6 +680,11 @@ CSS;
             . ' Die Kosten der Rücklastschrift werden von mir getragen.</p>';
     }
 
+    /**
+     * Returns the default SEPA mandate fine-print note.
+     *
+     * @return string
+     */
     private function defaultMandateNote(): string
     {
         return '<small>Hinweis: Ich kann innerhalb von acht Wochen, beginnend mit'

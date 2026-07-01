@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Sends form submission emails with optional PDF attachment.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/form-forge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -18,18 +26,45 @@ use ForgeForms\Admin\FormSettings;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Sends form submission email notifications with optional PDF attachments.
+ */
 class MailSender
 {
     /**
-     * Hooked into forge_forms_submission.
-     * Generates PDF once, sends one email per enabled notification,
-     * attaches PDF to those with attach_pdf = true.
+     * Hooked into forge_forms_submission; generates and emails the submission PDF.
+     *
+     * Generates the PDF once and sends one email per enabled notification,
+     * attaching the PDF to those with attach_pdf = true.
+     *
+     * @param int       $form_id The form post ID.
+     * @param array     $mapped  Normalized field data from SubmissionMapper::map().
+     * @param FormModel $form    The form model object.
+     *
+     * @return void
      */
     public static function onSubmission(int $form_id, array $mapped, FormModel $form): void
     {
+        \ForgeForms\forge_log(
+            "ForgeForms MailSender: onSubmission fired for form {$form_id}, "
+            . count($form->notifications ?? []) . ' notification(s) configured'
+        );
+
         if (empty($form->notifications)) {
+            \ForgeForms\forge_log(
+                "ForgeForms MailSender: no notifications for form {$form_id}, aborting"
+            );
             return;
         }
+
+        add_action(
+            'wp_mail_failed',
+            static function (\WP_Error $error): void {
+                $msg = 'ForgeForms MailSender: wp_mail_failed — '
+                    . $error->get_error_message();
+                \ForgeForms\forge_log($msg);
+            }
+        );
 
         /* ---- Generate PDF once ---- */
         $pdf_path = Generator::generate($mapped, $form_id, $form->title);
@@ -38,24 +73,60 @@ class MailSender
             \ForgeForms\forge_log("ForgeForms MailSender: PDF generation failed for form {$form_id}");
         }
 
-        $from_email = get_option('forge_forms_from_email', get_option('admin_email'));
-        $from_name  = get_option('forge_forms_from_name', get_bloginfo('name'));
+        $global_from_email = get_option('forge_forms_from_email')
+            ?: get_option('admin_email');
+        $global_from_name  = get_option('forge_forms_from_name')
+            ?: get_bloginfo('name');
 
         foreach ($form->notifications as $notif) {
             if (empty($notif['enabled'])) {
+                \ForgeForms\forge_log(
+                    'ForgeForms MailSender: notification '
+                    . ($notif['slug'] ?? '?') . ' disabled, skipping'
+                );
                 continue;
             }
 
-            $to = self::resolveRecipient($notif['to'] ?? '', $mapped, $form);
+            $to = ($notif['recipient_mode'] ?? 'single') === 'routing'
+                ? self::_resolveRoutedRecipient($notif, $mapped, $form)
+                : self::resolveRecipient($notif['to'] ?? '', $mapped, $form);
             if (empty($to)) {
+                \ForgeForms\forge_log(
+                    'ForgeForms MailSender: notification ' . ($notif['slug'] ?? '?')
+                    . ' has no resolvable recipient (raw: '
+                    . ($notif['to'] ?? '') . '), skipping'
+                );
                 continue;
             }
 
             $should_attach = !empty($notif['attach_pdf'])
                 || FormSettings::shouldAttachPdf($form_id, $notif['slug'] ?? '');
 
-            $subject = self::replacePlaceholders($notif['subject'] ?? 'Neue Einsendung', $mapped, $form);
-            $body    = self::buildEmailBody($notif['body'] ?? '', $mapped, $form);
+            $subject = self::replacePlaceholders(
+                $notif['subject'] ?? 'Neue Einsendung',
+                $mapped,
+                $form
+            );
+            $body    = self::buildEmailBody(
+                $notif['body'] ?? '',
+                $mapped,
+                $form
+            );
+
+            $notif_email = self::replacePlaceholders(
+                $notif['from_email'] ?? '',
+                $mapped,
+                $form
+            );
+            $notif_name  = self::replacePlaceholders(
+                $notif['from_name'] ?? '',
+                $mapped,
+                $form
+            );
+            $from_email = ('' !== $notif_email && is_email($notif_email))
+                ? $notif_email
+                : $global_from_email;
+            $from_name  = '' !== $notif_name ? $notif_name : $global_from_name;
 
             $headers = [
                 'Content-Type: text/html; charset=UTF-8',
@@ -72,23 +143,51 @@ class MailSender
                 $attachments[] = $pdf_path;
             }
 
-            wp_mail(
+            /* Plain text is never authored or stored — it's derived from the
+               HTML body at send time and attached as the multipart/alternative
+               part for clients that don't render HTML. */
+            $altBodySetter = static function ($phpmailer) use ($body): void {
+                $phpmailer->isHTML(true);
+                $phpmailer->Body    = $body;
+                $phpmailer->AltBody = self::htmlToPlainText($body);
+            };
+            add_action('phpmailer_init', $altBodySetter);
+
+            $sent = wp_mail(
                 $to,
                 $subject,
                 $body,
                 $headers,
                 $attachments
             );
+
+            remove_action('phpmailer_init', $altBodySetter);
+
+            \ForgeForms\forge_log(
+                'ForgeForms MailSender: wp_mail to ' . $to . ' returned '
+                . ($sent ? 'true' : 'false')
+            );
         }
 
         /* ---- Clean up PDF after all emails sent ---- */
-        register_shutdown_function(static function () use ($pdf_path): void {
-            if ($pdf_path && file_exists($pdf_path)) {
-                @unlink($pdf_path);
+        register_shutdown_function(
+            static function () use ($pdf_path): void {
+                if ($pdf_path && file_exists($pdf_path)) {
+                    @unlink($pdf_path);
+                }
             }
-        });
+        );
     }
 
+    /**
+     * Replaces placeholders in a recipient address and validates it as an email.
+     *
+     * @param string    $to     Recipient address or placeholder.
+     * @param array     $mapped Mapped submission data.
+     * @param FormModel $form   The form model instance.
+     *
+     * @return string Resolved email address, or empty string when invalid.
+     */
     private static function resolveRecipient(string $to, array $mapped, FormModel $form): string
     {
         /* Support {admin_email}, {field_id} */
@@ -97,6 +196,136 @@ class MailSender
         return is_email($to) ? $to : '';
     }
 
+    /**
+     * Resolves the recipient for a notification in "routing" mode: walks its
+     * routing_rules in order and returns the email of the first matching
+     * rule, falling back to routing_fallback when none match.
+     *
+     * @param array     $notif  Notification config (routing_rules, routing_fallback).
+     * @param array     $mapped Mapped submission data.
+     * @param FormModel $form   The form model instance (for option labels).
+     *
+     * @return string Resolved email, or empty string when none apply.
+     */
+    private static function _resolveRoutedRecipient(
+        array $notif,
+        array $mapped,
+        FormModel $form
+    ): string {
+        foreach ((array) ($notif['routing_rules'] ?? []) as $rule) {
+            $field_id = $rule['field_id'] ?? '';
+            $email    = self::replacePlaceholders(
+                (string) ($rule['email'] ?? ''),
+                $mapped,
+                $form
+            );
+            $email = sanitize_email(trim($email));
+            if ($field_id === '' || !is_email($email)) {
+                continue;
+            }
+            $actual   = (string) ($mapped[$field_id]['value'] ?? '');
+            $operator = $rule['operator'] ?? 'equals';
+            /* The rule stores the raw option value (e.g. "yes"), but $mapped
+               holds the field handler's human-readable label (e.g. "Ja") —
+               translate before comparing so choice-field rules can match. */
+            $expected = self::_resolveOptionLabel(
+                $form,
+                $field_id,
+                (string) ($rule['value'] ?? '')
+            );
+            if (self::_ruleMatches($actual, $operator, $expected)) {
+                return $email;
+            }
+        }
+
+        $fallback = self::replacePlaceholders(
+            (string) ($notif['routing_fallback'] ?? ''),
+            $mapped,
+            $form
+        );
+        $fallback = sanitize_email(trim($fallback));
+        return is_email($fallback) ? $fallback : '';
+    }
+
+    /**
+     * Translates a field's raw option value to its display label, mirroring
+     * how field handlers (e.g. SelectField::map) render submitted values.
+     * Returns the input unchanged for non-choice fields or unknown options.
+     *
+     * @param FormModel $form     The form model instance.
+     * @param string    $field_id Field identifier to look up.
+     * @param string    $raw      Raw option value from the routing rule.
+     *
+     * @return string The option's label, or $raw unchanged.
+     */
+    private static function _resolveOptionLabel(
+        FormModel $form,
+        string $field_id,
+        string $raw
+    ): string {
+        foreach ((array) ($form->fields ?? []) as $field_cfg) {
+            if (($field_cfg['id'] ?? '') !== $field_id) {
+                continue;
+            }
+            foreach ((array) ($field_cfg['options'] ?? []) as $opt) {
+                $opt_val = is_array($opt) ? ($opt['value'] ?? '') : $opt;
+                if ((string) $opt_val === $raw) {
+                    return is_array($opt)
+                        ? (string) ($opt['label'] ?? $raw)
+                        : (string) $opt;
+                }
+            }
+            break;
+        }
+        return $raw;
+    }
+
+    /**
+     * Evaluates a single routing-rule comparison against a submitted value.
+     *
+     * @param string $actual   The submitted field value.
+     * @param string $operator One of the supported comparison operators.
+     * @param string $expected The rule's comparison value.
+     *
+     * @return bool Whether the rule matches.
+     */
+    private static function _ruleMatches(
+        string $actual,
+        string $operator,
+        string $expected
+    ): bool {
+        switch ($operator) {
+        case 'not_equals':
+            return mb_strtolower($actual) !== mb_strtolower($expected);
+        case 'contains':
+            return $expected !== '' && mb_stripos($actual, $expected) !== false;
+        case 'not_contains':
+            return $expected === '' || mb_stripos($actual, $expected) === false;
+        case 'empty':
+            return trim($actual) === '';
+        case 'not_empty':
+            return trim($actual) !== '';
+        case 'greater':
+            return is_numeric($actual) && is_numeric($expected)
+                && (float) $actual > (float) $expected;
+        case 'less':
+            return is_numeric($actual) && is_numeric($expected)
+                && (float) $actual < (float) $expected;
+        case 'equals':
+        default:
+            return mb_strtolower($actual) === mb_strtolower($expected);
+        }
+    }
+
+    /**
+     * Replaces template placeholders in a text string.
+     *
+     * @param string    $text   Template string with placeholders.
+     * @param array     $mapped Mapped submission data.
+     * @param FormModel $form   The form model instance.
+     *
+     * @return string Text with placeholders replaced.
+     */
     private static function replacePlaceholders(string $text, array $mapped, FormModel $form): string
     {
         /* {admin_email} */
@@ -108,7 +337,8 @@ class MailSender
 
         /* {all_fields} — formatted list */
         if (str_contains($text, '{all_fields}')) {
-            $all = '';
+            $all    = '';
+            $inline = get_option('forge_forms_field_layout', 'block') === 'inline';
             foreach ($mapped as $entry) {
                 $label = $entry['label'] ?? '';
                 $value = $entry['value'] ?? '';
@@ -116,8 +346,11 @@ class MailSender
                     continue;
                 }
                 if ($label !== '') {
-                    $all .= '<strong>' . esc_html((string)$label) . '</strong><br>'
-                        . nl2br(esc_html((string)$value)) . '<br><br>';
+                    $sl = esc_html((string) $label);
+                    $sv = nl2br(esc_html((string) $value));
+                    $all .= $inline
+                        ? '<strong>' . $sl . ':</strong> ' . $sv . '<br>'
+                        : '<strong>' . $sl . '</strong><br>' . $sv . '<br><br>';
                 }
             }
             $text = str_replace('{all_fields}', $all, $text);
@@ -132,12 +365,54 @@ class MailSender
         return $text;
     }
 
-    private static function buildEmailBody(string $body_template, array $mapped, FormModel $form): string
-    {
+    /**
+     * Builds a complete HTML email body from a template.
+     *
+     * The notification body is always stored as HTML (whether authored via
+     * the visual editor or the HTML source editor — they share one field),
+     * so the only decision left here is structural: wrap bare markup in a
+     * minimal document if the admin didn't already author a full one.
+     *
+     * @param string    $body_template Email body template string (HTML).
+     * @param array     $mapped        Mapped submission data.
+     * @param FormModel $form          The form model instance.
+     *
+     * @return string Complete HTML email body.
+     */
+    private static function buildEmailBody(
+        string $body_template,
+        array $mapped,
+        FormModel $form
+    ): string {
         $body = self::replacePlaceholders($body_template, $mapped, $form);
 
-        return '<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;font-size:14px;color:#333;">'
-            . '<p>' . nl2br(wp_kses_post($body)) . '</p>'
+        if (stripos($body, '<html') !== false || stripos($body, '<body') !== false) {
+            return $body;
+        }
+
+        $style = 'font-family:Arial,sans-serif;font-size:14px;color:#333;';
+        return '<!DOCTYPE html><html>'
+            . '<body style="' . $style . '">'
+            . $body
             . '</body></html>';
+    }
+
+    /**
+     * Derives a readable plain-text version of an HTML email body for the
+     * multipart/alternative AltBody part. Never stored — generated fresh
+     * for every send.
+     *
+     * @param string $html HTML email body.
+     *
+     * @return string Plain text equivalent.
+     */
+    private static function htmlToPlainText(string $html): string
+    {
+        $text = preg_replace('/<br\s*\/?>/i', "\n", $html);
+        $text = preg_replace('/<\/(p|div|tr|li|h[1-6])>/i', "\n", $text);
+        $text = wp_strip_all_tags((string) $text);
+        $text = html_entity_decode($text, ENT_QUOTES, 'UTF-8');
+        $text = preg_replace("/\n{3,}/", "\n\n", $text);
+        return trim((string) $text);
     }
 }

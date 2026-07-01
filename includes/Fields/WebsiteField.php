@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Website URL input field.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,17 +23,36 @@ namespace ForgeForms\Fields;
 
 defined('ABSPATH') || exit;
 
+/**
+ * URL/website input field with validation.
+ */
 class WebsiteField extends BaseField
 {
+    /**
+     * Returns the field type label.
+     *
+     * @return string
+     */
     public function getLabel(): string
     {
         return 'Website';
     }
+
+    /**
+     * Returns the Font Awesome icon class.
+     *
+     * @return string
+     */
     public function getIcon(): string
     {
         return 'fa-solid fa-globe';
     }
 
+    /**
+     * Returns client-side validation rules.
+     *
+     * @return array
+     */
     public function getClientValidation(): array
     {
         return [['rule' => 'website-url', 'fn' => <<<'JS'
@@ -38,19 +65,38 @@ class WebsiteField extends BaseField
             JS]];
     }
 
+    /**
+     * Renders the field HTML.
+     *
+     * @param array  $config   Field configuration.
+     * @param string $field_id Unique field identifier.
+     * @param mixed  $value    Current field value.
+     *
+     * @return string Rendered HTML.
+     */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         $ph    = $config['placeholder'] ?? 'https://';
-        $attrs = $this->inputAttrs($config, $field_id, 'url', [
+        $attrs = $this->inputAttrs(
+            $config, $field_id, 'url', [
             'value'       => esc_attr((string)($value ?? '')),
             'placeholder' => $ph,
-        ]);
+            ]
+        );
         if (!empty($config['validate_url'])) {
             $attrs .= ' data-validate-url="1"';
         }
         return $this->wrap($field_id, $config, '<input' . $attrs . '>');
     }
 
+    /**
+     * Validates the submitted value.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return bool|string True on valid, error message string on invalid.
+     */
     public function validate(mixed $value, array $config): bool|string
     {
         $base = parent::validate($value, $config);
@@ -65,15 +111,27 @@ class WebsiteField extends BaseField
         return true;
     }
 
+    /**
+     * Returns the default field configuration.
+     *
+     * @return array
+     */
     public function getDefaultConfig(): array
     {
         return array_merge(parent::getDefaultConfig(), ['validate_url' => true]);
     }
 
+    /**
+     * Returns the general settings schema for the field editor.
+     *
+     * @return array
+     */
     public function getGeneralSchema(): array
     {
-        return array_merge($this->baseGeneralEntries(), [
+        return array_merge(
+            $this->baseGeneralEntries(), [
             ['key' => 'validate_url', 'type' => 'checkbox', 'label' => 'URL-Format prüfen'],
-        ]);
+            ]
+        );
     }
 }

@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Plugin entry point and WordPress plugin header.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,18 +39,22 @@ define('FORGE_FORMS_BASENAME', plugin_basename(__FILE__));
 
 $composer_autoload = FORGE_FORMS_PATH . 'vendor/autoload.php';
 if (file_exists($composer_autoload)) {
-    require_once $composer_autoload;
+    include_once $composer_autoload;
 } else {
-    add_action('admin_notices', static function (): void {
-        echo '<div class="notice notice-error"><p>'
+    add_action(
+        'admin_notices', static function (): void {
+            echo '<div class="notice notice-error"><p>'
             . '<strong>FormForge:</strong> Composer autoloader not found. '
             . 'Run <code>composer install</code> in the plugin directory.'
             . '</p></div>';
-    });
+        }
+    );
 }
 
 require_once FORGE_FORMS_PATH . 'includes/Plugin.php';
 
-add_action('plugins_loaded', static function (): void {
-    \ForgeForms\Plugin::init();
-});
+add_action(
+    'plugins_loaded', static function (): void {
+        \ForgeForms\Plugin::init();
+    }
+);

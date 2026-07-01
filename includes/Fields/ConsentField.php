@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Single consent checkbox field.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,8 +23,16 @@ namespace ForgeForms\Fields;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Single-checkbox consent field.
+ */
 class ConsentField extends BaseField
 {
+    /**
+     * Returns field-specific CSS styles.
+     *
+     * @return string
+     */
     public function getStyles(): string
     {
         return <<<'CSS'
@@ -61,15 +77,35 @@ class ConsentField extends BaseField
 CSS;
     }
 
+    /**
+     * Returns the field type label.
+     *
+     * @return string
+     */
     public function getLabel(): string
     {
         return 'Einwilligung';
     }
+
+    /**
+     * Returns the Font Awesome icon class.
+     *
+     * @return string
+     */
     public function getIcon(): string
     {
         return 'fa-solid fa-circle-check';
     }
 
+    /**
+     * Renders the field HTML.
+     *
+     * @param array  $config   Field configuration.
+     * @param string $field_id Unique field identifier.
+     * @param mixed  $value    Current field value.
+     *
+     * @return string Rendered HTML.
+     */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         $req     = !empty($config['required']) ? ' required aria-required="true"' : '';
@@ -85,6 +121,14 @@ CSS;
         return $this->wrap($field_id, $config, $inner);
     }
 
+    /**
+     * Validates the submitted value.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return bool|string True on valid, error message string on invalid.
+     */
     public function validate(mixed $value, array $config): bool|string
     {
         if (!empty($config['required']) && empty($value)) {
@@ -93,16 +137,34 @@ CSS;
         return true;
     }
 
+    /**
+     * Maps the field value to a human-readable string for email and PDF output.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return string Human-readable representation.
+     */
     public function map(mixed $value, array $config): string
     {
         return (!empty($value) && $value !== '0') ? 'Ja' : 'Nein';
     }
 
+    /**
+     * Returns the default field configuration.
+     *
+     * @return array
+     */
     public function getDefaultConfig(): array
     {
         return array_merge(parent::getDefaultConfig(), ['consent_text' => 'Ich stimme den Bedingungen zu.']);
     }
 
+    /**
+     * Returns the general settings schema for the field editor.
+     *
+     * @return array
+     */
     public function getGeneralSchema(): array
     {
         return [

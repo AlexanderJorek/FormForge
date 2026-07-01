@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Time picker field.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,8 +23,16 @@ namespace ForgeForms\Fields;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Time picker input field.
+ */
 class TimeField extends BaseField
 {
+    /**
+     * Returns field-specific CSS styles.
+     *
+     * @return string
+     */
     public function getStyles(): string
     {
         return <<<'CSS'
@@ -27,15 +43,35 @@ class TimeField extends BaseField
 CSS;
     }
 
+    /**
+     * Returns the field type label.
+     *
+     * @return string
+     */
     public function getLabel(): string
     {
         return 'Uhrzeit';
     }
+
+    /**
+     * Returns the Font Awesome icon class.
+     *
+     * @return string
+     */
     public function getIcon(): string
     {
         return 'fa-solid fa-clock';
     }
 
+    /**
+     * Renders the field HTML.
+     *
+     * @param array  $config   Field configuration.
+     * @param string $field_id Unique field identifier.
+     * @param mixed  $value    Current field value.
+     *
+     * @return string Rendered HTML.
+     */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         $is12h   = !empty($config['time_format']);
@@ -47,18 +83,32 @@ CSS;
         return $this->wrap($field_id, $config, '<input' . $attrs . $prefill . '>');
     }
 
+    /**
+     * Returns the default field configuration.
+     *
+     * @return array
+     */
     public function getDefaultConfig(): array
     {
-        return array_merge(parent::getDefaultConfig(), [
+        return array_merge(
+            parent::getDefaultConfig(), [
             'time_format'  => false,
             'prefill_now'  => false,
-        ]);
+            ]
+        );
     }
 
+    /**
+     * Returns the general settings schema for the field editor.
+     *
+     * @return array
+     */
     public function getGeneralSchema(): array
     {
-        return array_merge($this->baseGeneralEntries(), [
+        return array_merge(
+            $this->baseGeneralEntries(), [
             ['type' => 'time_row', 'format_key' => 'time_format', 'prefill_key' => 'prefill_now'],
-        ]);
+            ]
+        );
     }
 }

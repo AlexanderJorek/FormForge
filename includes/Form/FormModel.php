@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * CRUD model for storing and retrieving form definitions.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/form-forge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -17,6 +25,7 @@ defined('ABSPATH') || exit;
 
 /**
  * Thin wrapper around the forge_form custom post type.
+ *
  * Forms are stored as posts; field definitions and notifications are stored as post meta.
  */
 class FormModel
@@ -27,6 +36,13 @@ class FormModel
     public array $notifications = [];
     public array $settings      = [];
 
+    /**
+     * Retrieves a form model by its post ID.
+     *
+     * @param int $form_id The post ID of the form.
+     *
+     * @return self|null The form model, or null if not found.
+     */
     public static function get(int $form_id): ?self
     {
         $post = get_post($form_id);
@@ -45,8 +61,12 @@ class FormModel
     }
 
     /**
-     * Create or update a form. Returns form ID on success or WP_Error.
-     * @param array $data  Keys: title, fields, notifications, settings.
+     * Creates or updates a form. Returns the form ID on success or WP_Error on failure.
+     *
+     * @param array $data    Keys: title, fields, notifications, settings.
+     * @param int   $form_id Existing post ID to update, or 0 to create.
+     *
+     * @return int|\WP_Error
      */
     public static function save(array $data, int $form_id = 0): int|\WP_Error
     {
@@ -71,43 +91,67 @@ class FormModel
 
         $id = (int)$result;
 
-        $flags = JSON_UNESCAPED_UNICODE;
-        update_post_meta($id, 'forge_form_fields', wp_json_encode($data['fields']        ?? [], $flags));
-        update_post_meta($id, 'forge_form_notifications', wp_json_encode($data['notifications'] ?? [], $flags));
-        update_post_meta($id, 'forge_form_settings', wp_json_encode($data['settings']      ?? [], $flags));
+        $fields        = $data['fields']        ?? [];
+        $notifications = $data['notifications'] ?? [];
+        $settings      = $data['settings']      ?? [];
+        update_post_meta($id, 'forge_form_fields',        $fields);
+        update_post_meta($id, 'forge_form_notifications', $notifications);
+        update_post_meta($id, 'forge_form_settings',      $settings);
 
         return $id;
     }
 
+    /**
+     * Creates a copy of an existing form.
+     *
+     * @param int $form_id The post ID of the form to duplicate.
+     *
+     * @return int|\WP_Error New form post ID, or WP_Error on failure.
+     */
     public static function duplicate(int $form_id): int|\WP_Error
     {
         $source = self::get($form_id);
         if (!$source) {
             return new \WP_Error('not_found', 'Formular nicht gefunden.');
         }
-        return self::save([
+        return self::save(
+            [
             'title'         => $source->title . ' (Kopie)',
             'fields'        => $source->fields,
             'notifications' => $source->notifications,
             'settings'      => $source->settings,
-        ]);
+            ]
+        );
     }
 
+    /**
+     * Permanently deletes a form post.
+     *
+     * @param int $form_id The post ID of the form to delete.
+     *
+     * @return bool True on success, false on failure.
+     */
     public static function delete(int $form_id): bool
     {
         return (bool)wp_delete_post($form_id, true);
     }
 
-    /** @return self[] */
+    /**
+     * Returns all forge_form posts as model instances.
+     *
+     * @return self[]
+     */
     public static function getAll(): array
     {
-        $posts = get_posts([
+        $posts = get_posts(
+            [
             'post_type'      => 'forge_form',
             'posts_per_page' => -1,
             'post_status'    => 'publish',
             'orderby'        => 'title',
             'order'          => 'ASC',
-        ]);
+            ]
+        );
 
         $models = [];
         foreach ($posts as $post) {
@@ -122,13 +166,24 @@ class FormModel
         return $models;
     }
 
+    /**
+     * Decodes a JSON post meta value into an array.
+     *
+     * @param int    $id  Post ID.
+     * @param string $key Meta key to decode.
+     *
+     * @return array Decoded array, or empty array on failure.
+     */
     private static function decodeMeta(int $id, string $key): array
     {
         $raw = get_post_meta($id, $key, true);
-        if (!$raw || !is_string($raw)) {
-            return [];
+        if (is_array($raw)) {
+            return $raw;
         }
-        $decoded = json_decode($raw, true);
-        return is_array($decoded) ? $decoded : [];
+        if (is_string($raw) && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+        return [];
     }
 }

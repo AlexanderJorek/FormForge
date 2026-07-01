@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Multi-value checkbox (checkboxes) field.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,8 +23,16 @@ namespace ForgeForms\Fields;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Multi-value checkbox group field.
+ */
 class CheckboxField extends BaseField
 {
+    /**
+     * Returns field-specific CSS styles.
+     *
+     * @return string
+     */
     public function getStyles(): string
     {
         return <<<'CSS'
@@ -72,15 +88,31 @@ class CheckboxField extends BaseField
 CSS;
     }
 
+    /**
+     * Returns the field type label.
+     *
+     * @return string
+     */
     public function getLabel(): string
     {
         return 'Checkboxen';
     }
+
+    /**
+     * Returns the Font Awesome icon class.
+     *
+     * @return string
+     */
     public function getIcon(): string
     {
         return 'fa-solid fa-square-check';
     }
 
+    /**
+     * Returns client-side validation rules.
+     *
+     * @return array
+     */
     public function getClientValidation(): array
     {
         return [['rule' => 'checkbox-count', 'fn' => <<<'JS'
@@ -98,11 +130,25 @@ CSS;
             JS]];
     }
 
+    /**
+     * Returns the client-side empty-check function for required validation.
+     *
+     * @return array
+     */
     public function getClientEmptyCheck(): array
     {
         return ['fn' => "function(f){return !f.querySelector('input[type=\"checkbox\"]:checked');}"];
     }
 
+    /**
+     * Renders the field HTML.
+     *
+     * @param array  $config   Field configuration.
+     * @param string $field_id Unique field identifier.
+     * @param mixed  $value    Current field value.
+     *
+     * @return string Rendered HTML.
+     */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         $options  = $config['options'] ?? [];
@@ -158,6 +204,14 @@ CSS;
         return $this->wrap($field_id, $config, $inner);
     }
 
+    /**
+     * Validates the submitted value.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return bool|string True on valid, error message string on invalid.
+     */
     public function validate(mixed $value, array $config): bool|string
     {
         if (!empty($config['required'])) {
@@ -179,6 +233,14 @@ CSS;
         return true;
     }
 
+    /**
+     * Maps the field value to the normalized submission entry.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return string Normalized field entry.
+     */
     public function map(mixed $value, array $config): string
     {
         $selected = is_array($value) ? array_filter($value) : [];
@@ -207,9 +269,15 @@ CSS;
         return implode(', ', $labels);
     }
 
+    /**
+     * Returns the default field configuration.
+     *
+     * @return array
+     */
     public function getDefaultConfig(): array
     {
-        return array_merge(parent::getDefaultConfig(), [
+        return array_merge(
+            parent::getDefaultConfig(), [
             'layout'         => true,
             'other_option'   => false,
             'min_selections' => '',
@@ -218,9 +286,15 @@ CSS;
                 ['value' => 'option-1', 'label' => 'Option 1', 'default' => false],
                 ['value' => 'option-2', 'label' => 'Option 2', 'default' => false],
             ],
-        ]);
+            ]
+        );
     }
 
+    /**
+     * Returns the general settings schema for the field editor.
+     *
+     * @return array
+     */
     public function getGeneralSchema(): array
     {
         return [

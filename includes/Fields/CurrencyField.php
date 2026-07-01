@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Currency amount input field.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,6 +23,9 @@ namespace ForgeForms\Fields;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Currency amount input field with locale-aware formatting.
+ */
 class CurrencyField extends BaseField
 {
     private const CURRENCIES = [
@@ -23,11 +34,21 @@ class CurrencyField extends BaseField
         'NOK' => 'kr', 'DKK' => 'kr', 'PLN' => 'zł', 'CZK' => 'Kč',
     ];
 
+    /**
+     * Returns the field type label.
+     *
+     * @return string
+     */
     public function getLabel(): string
     {
         return 'Währung';
     }
 
+    /**
+     * Returns field-specific CSS styles.
+     *
+     * @return string
+     */
     public function getStyles(): string
     {
         return <<<'CSS'
@@ -77,11 +98,25 @@ class CurrencyField extends BaseField
 }
 CSS;
     }
+    /**
+     * Returns the Font Awesome icon class.
+     *
+     * @return string
+     */
     public function getIcon(): string
     {
         return 'fa-solid fa-euro-sign';
     }
 
+    /**
+     * Renders the field HTML.
+     *
+     * @param array  $config   Field configuration.
+     * @param string $field_id Unique field identifier.
+     * @param mixed  $value    Current field value.
+     *
+     * @return string Rendered HTML.
+     */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         $symbol  = self::CURRENCIES[$config['currency'] ?? 'EUR'] ?? '€';
@@ -98,6 +133,14 @@ CSS;
         return $this->wrap($field_id, $config, $inner);
     }
 
+    /**
+     * Validates the submitted value.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return bool|string True on valid, error message string on invalid.
+     */
     public function validate(mixed $value, array $config): bool|string
     {
         $base = parent::validate($value, $config);
@@ -120,6 +163,11 @@ CSS;
         return true;
     }
 
+    /**
+     * Returns client-side validation rules.
+     *
+     * @return array
+     */
     public function getClientValidation(): array
     {
         return [['rule' => 'currency-range', 'fn' => <<<'JS'
@@ -137,6 +185,14 @@ CSS;
             JS]];
     }
 
+    /**
+     * Maps the field value to the normalized submission entry.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return string Normalized field entry.
+     */
     public function map(mixed $value, array $config): string
     {
         if ($value === '' || $value === null) {
@@ -147,25 +203,39 @@ CSS;
         return trim($number . ' ' . $symbol);
     }
 
+    /**
+     * Returns the default field configuration.
+     *
+     * @return array
+     */
     public function getDefaultConfig(): array
     {
-        return array_merge(parent::getDefaultConfig(), [
+        return array_merge(
+            parent::getDefaultConfig(), [
             'currency'  => 'EUR',
             'min_value' => '',
             'max_value' => '',
-        ]);
+            ]
+        );
     }
 
+    /**
+     * Returns the general settings schema for the field editor.
+     *
+     * @return array
+     */
     public function getGeneralSchema(): array
     {
         $currencyOptions = [];
         foreach (self::CURRENCIES as $code => $sym) {
             $currencyOptions[] = ['value' => $code, 'label' => $code . ' ' . $sym];
         }
-        return array_merge($this->baseGeneralEntries(), [
+        return array_merge(
+            $this->baseGeneralEntries(), [
             ['key' => 'currency',  'type' => 'select', 'label' => 'Währung', 'options' => $currencyOptions],
             ['key' => 'min_value', 'type' => 'number', 'label' => 'Mindestwert', 'hint' => 'Leer = kein Minimum'],
             ['key' => 'max_value', 'type' => 'number', 'label' => 'Maximalwert', 'hint' => 'Leer = kein Maximum'],
-        ]);
+            ]
+        );
     }
 }

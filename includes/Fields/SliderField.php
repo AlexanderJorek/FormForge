@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Range slider input field.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,8 +23,16 @@ namespace ForgeForms\Fields;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Range slider input field.
+ */
 class SliderField extends BaseField
 {
+    /**
+     * Returns field-specific CSS styles.
+     *
+     * @return string
+     */
     public function getStyles(): string
     {
         return <<<'CSS'
@@ -73,20 +89,41 @@ class SliderField extends BaseField
 CSS;
     }
 
+    /**
+     * Returns the field type label.
+     *
+     * @return string
+     */
     public function getLabel(): string
     {
         return 'Schieberegler';
     }
+
+    /**
+     * Returns the Font Awesome icon class.
+     *
+     * @return string
+     */
     public function getIcon(): string
     {
         return 'fa-solid fa-sliders';
     }
 
+    /**
+     * Returns the client-side empty-check function for the required validator.
+     *
+     * @return array
+     */
     public function getClientEmptyCheck(): array
     {
         return ['fn' => "function(f){var i=f.querySelector('input[type=\"hidden\"]');return !i||i.value==='';}"];
     }
 
+    /**
+     * Returns client-side initialization JavaScript function body.
+     *
+     * @return string
+     */
     public function getClientInit(): string
     {
         return <<<'JS'
@@ -205,6 +242,15 @@ CSS;
         JS;
     }
 
+    /**
+     * Renders the field HTML.
+     *
+     * @param array  $config   Field configuration.
+     * @param string $field_id Unique field identifier.
+     * @param mixed  $value    Current field value.
+     *
+     * @return string Rendered HTML.
+     */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         $min    = (float)($config['min']  ?? 0);
@@ -256,6 +302,14 @@ CSS;
         return $this->wrap($field_id, $config, $inner);
     }
 
+    /**
+     * Validates the submitted value.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return bool|string True on valid, error message string on invalid.
+     */
     public function validate(mixed $value, array $config): bool|string
     {
         $base = parent::validate($value, $config);
@@ -295,6 +349,11 @@ CSS;
         return true;
     }
 
+    /**
+     * Returns client-side validation rules.
+     *
+     * @return array
+     */
     public function getClientValidation(): array
     {
         return [['rule' => 'slider-range', 'fn' => <<<'JS'
@@ -325,6 +384,14 @@ CSS;
             JS]];
     }
 
+    /**
+     * Maps the field value to a human-readable string for email and PDF output.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return string Human-readable representation.
+     */
     public function map(mixed $value, array $config): string
     {
         if (!empty($config['ranged']) && is_array($value)) {
@@ -333,24 +400,38 @@ CSS;
         return $value !== null && $value !== '' ? (string)$value : '[Kein Eintrag]';
     }
 
+    /**
+     * Returns the default field configuration.
+     *
+     * @return array
+     */
     public function getDefaultConfig(): array
     {
-        return array_merge(parent::getDefaultConfig(), [
+        return array_merge(
+            parent::getDefaultConfig(), [
             'min'    => 0,
             'max'    => 100,
             'step'   => 1,
             'ranged' => false,
-        ]);
+            ]
+        );
     }
 
+    /**
+     * Returns the general settings schema for the field editor.
+     *
+     * @return array
+     */
     public function getGeneralSchema(): array
     {
-        return array_merge($this->baseGeneralEntries(), [
+        return array_merge(
+            $this->baseGeneralEntries(), [
             ['key' => 'ranged', 'type' => 'bool_seg', 'label' => 'Modus',
              'false_label' => 'Einzel', 'true_label' => 'Bereich'],
             ['key' => 'min',  'type' => 'number', 'label' => 'Mindestwert'],
             ['key' => 'max',  'type' => 'number', 'label' => 'Maximalwert'],
             ['key' => 'step', 'type' => 'number', 'label' => 'Schrittweite'],
-        ]);
+            ]
+        );
     }
 }

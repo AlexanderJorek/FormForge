@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Removes all plugin data from the database on plugin deletion.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -20,12 +28,14 @@ defined('WP_UNINSTALL_PLUGIN') || exit;
  */
 
 /* Remove all stored forms (CPT posts + meta) */
-$forms = get_posts([
+$forms = get_posts(
+    [
     'post_type'      => 'forge_form',
     'posts_per_page' => -1,
     'post_status'    => 'any',
     'fields'         => 'ids',
-]);
+    ]
+);
 foreach ($forms as $id) {
     wp_delete_post($id, true);
 }

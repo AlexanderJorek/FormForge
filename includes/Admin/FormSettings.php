@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Admin settings page for individual form configuration.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/form-forge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,8 +23,16 @@ namespace ForgeForms\Admin;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Admin settings page for FormForge global configuration.
+ */
 class FormSettings
 {
+    /**
+     * Registers all admin hooks for the settings page.
+     *
+     * @return void
+     */
     public static function init(): void
     {
         add_action('admin_menu', [self::class, 'addSettingsPage']);
@@ -32,8 +48,16 @@ class FormSettings
         add_action('wp_ajax_forge_setup_reset_choice', [self::class, 'handleSetupResetChoice']);
         add_action('wp_ajax_forge_add_legacy_key', [self::class, 'handleAddLegacyKey']);
         add_action('wp_ajax_forge_save_access_settings', [self::class, 'handleSaveAccessSettings']);
+        add_action('wp_ajax_forge_save_general_settings', [self::class, 'handleSaveGeneralSettings']);
     }
 
+    /**
+     * Appends a CSS class on the settings page.
+     *
+     * @param string $classes Existing admin body classes.
+     *
+     * @return string Modified body class string.
+     */
     public static function bodyClass(string $classes): string
     {
         if (isset($_GET['page']) && $_GET['page'] === 'forge-forms-settings') {
@@ -42,6 +66,11 @@ class FormSettings
         return $classes;
     }
 
+    /**
+     * Registers the settings submenu page.
+     *
+     * @return void
+     */
     public static function addSettingsPage(): void
     {
         if (\ForgeForms\Plugin::userCan('settings')) {
@@ -56,6 +85,11 @@ class FormSettings
         }
     }
 
+    /**
+     * Renders the full settings page HTML.
+     *
+     * @return void
+     */
     public static function renderSettingsPage(): void
     {
         if (!\ForgeForms\Plugin::userCan('settings')) {
@@ -65,23 +99,27 @@ class FormSettings
         $saved   = false;
         $error   = '';
 
-        if (
-            isset($_POST['forge_settings_nonce']) &&
-            wp_verify_nonce(sanitize_key($_POST['forge_settings_nonce']), 'forge_forms_settings')
+        if (isset($_POST['forge_settings_nonce']) 
+            && wp_verify_nonce(sanitize_key($_POST['forge_settings_nonce']), 'forge_forms_settings')
         ) {
             self::saveGeneralSettings();
             $saved = true;
         }
 
-        $from_email       = get_option('forge_forms_from_email', '');
-        $from_name        = get_option('forge_forms_from_name', '');
-        $recaptcha_site   = get_option('forge_forms_recaptcha_site_key', '');
-        $recaptcha_secret = get_option('forge_forms_recaptcha_secret_key', '');
-        $hover_color      = get_option('forge_forms_hover_color', '#1d2327');
-        $accent_color     = get_option('forge_forms_accent_color', '#f59e0b');
-        $border_color     = get_option('forge_forms_border_color', '#c9cdd4');
-        $wp_admin_email   = get_option('admin_email');
+        $from_email        = get_option('forge_forms_from_email', '');
+        $from_name         = get_option('forge_forms_from_name', '');
+        $recaptcha_site    = get_option('forge_forms_recaptcha_site_key', '');
+        $recaptcha_secret  = get_option('forge_forms_recaptcha_secret_key', '');
+        $hover_color       = get_option('forge_forms_hover_color', '#1d2327');
+        $accent_color      = get_option('forge_forms_accent_color', '#f59e0b');
+        $border_color      = get_option('forge_forms_border_color', '#c9cdd4');
+        $field_layout_mode = get_option('forge_forms_field_layout', 'block');
+        $wp_admin_email    = get_option('admin_email');
         $setup_done_early = (bool) get_option('forge_forms_seal_setup_done', false);
+        /* Users granted access only via the plugin's own user-control system
+           (not real WP admins) don't see PDF-seal security, recaptcha keys,
+           or the user-access/reset tile — those stay reserved for site admins. */
+        $is_full_admin = current_user_can('manage_options');
         ?>
         <?php if ($saved) : ?>
         <div class="forge-settings-notice forge-settings-notice--success">
@@ -299,6 +337,40 @@ class FormSettings
 
                     <div class="forge-settings-card">
                         <h2 class="forge-settings-card-title">
+                            <i class="fa-solid fa-table-list"></i> Feldausgabe
+                        </h2>
+                        <div class="forge-settings-field">
+                            <label>Layout in E-Mail &amp; PDF</label>
+                            <div class="forge-card-radio-group">
+                                <label class="forge-card-radio">
+                                    <input type="radio" name="field_layout_mode" value="block"
+                                        <?php checked($field_layout_mode, 'block'); ?>>
+                                    <span class="forge-card-radio-head">
+                                        <i class="fa-solid fa-list"></i>
+                                        <strong>Block</strong>
+                                    </span>
+                                    <span class="forge-card-radio-desc">
+                                        Bezeichnung über dem Wert.
+                                    </span>
+                                </label>
+                                <label class="forge-card-radio">
+                                    <input type="radio" name="field_layout_mode" value="inline"
+                                        <?php checked($field_layout_mode, 'inline'); ?>>
+                                    <span class="forge-card-radio-head">
+                                        <i class="fa-solid fa-grip-lines"></i>
+                                        <strong>Inline</strong>
+                                    </span>
+                                    <span class="forge-card-radio-desc">
+                                        Bezeichnung: Wert in einer Zeile.
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <?php if ($is_full_admin) : ?>
+                    <div class="forge-settings-card">
+                        <h2 class="forge-settings-card-title">
                             <i class="fa-solid fa-shield-halved"></i> reCAPTCHA v2
                         </h2>
 
@@ -320,6 +392,7 @@ class FormSettings
                                    data-1p-ignore data-bwignore spellcheck="false">
                         </div>
                     </div>
+                    <?php endif; ?>
 
                     <div class="forge-settings-section-header">
                         <i class="fa-solid fa-server"></i> Backend
@@ -379,19 +452,20 @@ class FormSettings
                         : null;
                     $enc_enabled      = \ForgeForms\PDF\HashSeal::isEncryptionEnabled();
                     ?>
-                    <div class="forge-settings-card forge-settings-card--security">
+                    <div class="forge-settings-card forge-settings-card--security"
+                         <?php echo $is_full_admin ? '' : 'hidden'; ?>>
                         <h2 class="forge-settings-card-title">
                             <i class="fa-solid fa-shield-halved"></i> Sicherheit
                         </h2>
 
                         <?php if ($setup_done) : ?>
-                        <?php if ($enc_enabled) : ?>
+                            <?php if ($enc_enabled) : ?>
                         <div style="border:1px solid #b8e6c1;border-radius:4px;padding:10px 14px;
                                     margin-bottom:14px;background:#f0faf2;display:flex;align-items:center;gap:6px;">
                             <i class="fa-solid fa-lock" style="color:#00a32a;"></i>
                             <strong style="color:#007017;">Verschlüsselt</strong>
                             <span style="color:#50575e;font-size:13px;">
-                                — Schlüssel sind mit AES-256-GCM gesichert.</span>
+                                Schlüssel sind mit AES-256-GCM gesichert.</span>
                         </div>
                         <?php else : ?>
                         <button type="button" id="forge-upgrade-enc-btn"
@@ -441,7 +515,7 @@ class FormSettings
                         </div>
                     </div>
 
-                    <div class="forge-settings-card">
+                    <div class="forge-settings-card" <?php echo $is_full_admin ? '' : 'hidden'; ?>>
                         <h2 class="forge-settings-card-title">
                             <i class="fa-solid fa-screwdriver-wrench"></i> Sonstige
                         </h2>
@@ -654,6 +728,8 @@ class FormSettings
                     <li><i class="fa-solid fa-shield-halved"></i> reCAPTCHA Site- &amp; Secret Key</li>
                     <li><i class="fa-solid fa-paintbrush"></i> Darstellungsfarben</li>
                     <li><i class="fa-solid fa-file-pdf"></i> PDF-Layouteinstellungen</li>
+                    <li><i class="fa-solid fa-users"></i>
+                        Benutzerverwaltung &amp; Zugriffsrechte</li>
                 </ul>
 
                 <div class="forge-reset-key-notice">
@@ -879,6 +955,7 @@ class FormSettings
         ];
         ?>
         <script>
+        window._forgeIsFullAdmin       = <?php echo wp_json_encode($is_full_admin); ?>;
         window._forgePendingDownload    = <?php echo wp_json_encode($pending_download ?? null); ?>;
         window._forgeSetupDone         = <?php echo wp_json_encode($setup_done); ?>;
         window._forgeSetupNonce        = <?php echo wp_json_encode($setup_nonce); ?>;
@@ -903,6 +980,39 @@ class FormSettings
         <script>
         jQuery(function ($) {
 $('.forge-iris-input').wpColorPicker();
+
+            /* The Sicherheit/Sonstige cards stay in the DOM (hidden) for
+               non-admins so existing JS bindings don't null-crash. This is
+               UI-only — the real boundary is server-side (manage_options
+               checks in the AJAX handlers) — but re-hide on tamper anyway. */
+            if (!window._forgeIsFullAdmin) {
+                var adminOnlySel = '.forge-settings-card--security, ' +
+                    '#forge-access-tile-btn, #forge-reset-tile-btn';
+                /* Modal overlays for the hidden tiles — toggled via the same
+                   bare hidden attribute, but not nested inside a card. */
+                var adminOnlyOverlayIds = [
+                    'forge-key-overlay', 'forge-key-view-overlay',
+                    'forge-reset-overlay', 'forge-key-dl-overlay',
+                    'forge-master-key-overlay', 'forge-legacy-key-overlay',
+                    'forge-access-overlay'
+                ];
+                function rehideAdminCards() {
+                    document.querySelectorAll(adminOnlySel).forEach(function (el) {
+                        var card = el.closest('.forge-settings-card') || el;
+                        if (!card.hidden) card.hidden = true;
+                    });
+                    adminOnlyOverlayIds.forEach(function (id) {
+                        var el = document.getElementById(id);
+                        if (el && !el.hidden) el.hidden = true;
+                    });
+                }
+                rehideAdminCards();
+                new MutationObserver(rehideAdminCards).observe(document.body, {
+                    attributes: true,
+                    attributeFilter: ['hidden'],
+                    subtree: true
+                });
+            }
 
             /* ── Factory-reset modal ── */
             var overlay   = document.getElementById('forge-reset-overlay');
@@ -1909,14 +2019,88 @@ $('.forge-iris-input').wpColorPicker();
                 errorEl.style.display = '';
             }
         }());
+
+        /* ---- AJAX save for #forge-settings-form (no page reload) ---- */
+        (function(){
+            var form = document.getElementById('forge-settings-form');
+            if (!form) return;
+            function showNotice(msg, isError) {
+                var existing = document.querySelector('.forge-settings-notice');
+                if (existing) existing.remove();
+                var n = document.createElement('div');
+                n.className = 'forge-settings-notice forge-settings-notice--'
+                    + (isError ? 'error' : 'success');
+                n.innerHTML = '<i class="fa-solid fa-'
+                    + (isError ? 'circle-xmark' : 'circle-check') + '"></i> ' + msg;
+                form.parentNode.insertBefore(n, form);
+                n.scrollIntoView({behavior:'smooth', block:'nearest'});
+                if (!isError) {
+                    setTimeout(function() {
+                        n.style.transition = 'opacity .4s';
+                        n.style.opacity = '0';
+                        setTimeout(function() { n.remove(); }, 420);
+                    }, 3000);
+                }
+            }
+            form.addEventListener('submit', function(e){
+                e.preventDefault();
+                var btn = form.querySelector('button[type="submit"]');
+                var origHtml = btn ? btn.innerHTML : '';
+                if (btn) { btn.disabled = true; btn.innerHTML = '<span class="forge-spinner"></span> Speichern…'; }
+                var fd = new FormData(form);
+                fd.set('action', 'forge_save_general_settings');
+                requestAnimationFrame(function(){ requestAnimationFrame(function(){
+                fetch(ajaxurl, {method:'POST', body:fd})
+                    .then(function(r){ return r.json(); })
+                    .then(function(data){
+                        if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+                        if (data.success) {
+                            showNotice(data.data.message, false);
+                        } else {
+                            showNotice((data.data && data.data.message) || 'Fehler beim Speichern.', true);
+                        }
+                    })
+                    .catch(function(){
+                        if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+                        showNotice('Netzwerkfehler.', true);
+                    });
+                }); }); // requestAnimationFrame double-frame
+            });
+        }());
         </script>
         <?php
     }
 
+    /**
+     * AJAX handler that saves general plugin settings.
+     *
+     * @return void
+     */
+    public static function handleSaveGeneralSettings(): void
+    {
+        if (!\ForgeForms\Plugin::userCan('settings')) {
+            wp_send_json_error(['message' => 'Forbidden'], 403);
+        }
+        check_ajax_referer('forge_forms_settings', 'forge_settings_nonce');
+        self::saveGeneralSettings();
+        wp_send_json_success(['message' => 'Einstellungen gespeichert.']);
+    }
+
+    /**
+     * Saves general settings (email, reCAPTCHA keys, colors) from POST.
+     *
+     * @return void
+     */
     private static function saveGeneralSettings(): void
     {
-        update_option('forge_forms_from_email', sanitize_email(wp_unslash($_POST['forge_cfg_a'] ?? '')));
-        update_option('forge_forms_from_name', sanitize_text_field(wp_unslash($_POST['forge_cfg_b'] ?? '')));
+        $from_email_input = sanitize_email(wp_unslash($_POST['forge_cfg_a'] ?? ''));
+        if ($from_email_input !== '') {
+            update_option('forge_forms_from_email', $from_email_input);
+        }
+        $from_name_input = sanitize_text_field(wp_unslash($_POST['forge_cfg_b'] ?? ''));
+        if ($from_name_input !== '') {
+            update_option('forge_forms_from_name', $from_name_input);
+        }
         $site_key = sanitize_text_field(wp_unslash($_POST['recaptcha_site'] ?? ''));
         update_option('forge_forms_recaptcha_site_key', $site_key);
         $secret_key = sanitize_text_field(wp_unslash($_POST['recaptcha_secret'] ?? ''));
@@ -1928,11 +2112,24 @@ $('.forge-iris-input').wpColorPicker();
         update_option('forge_forms_hover_color', $hover);
         update_option('forge_forms_accent_color', $accent);
         update_option('forge_forms_border_color', $border);
+
+        $layout_mode = wp_unslash($_POST['field_layout_mode'] ?? 'block');
+        update_option(
+            'forge_forms_field_layout',
+            $layout_mode === 'inline' ? 'inline' : 'block'
+        );
     }
 
+    /**
+     * AJAX handler that resets all plugin settings (and optionally forms).
+     *
+     * @return void
+     */
     public static function handleFactoryReset(): void
     {
-        if (!\ForgeForms\Plugin::userCan('settings')) {
+        $allowed = \ForgeForms\Plugin::userCan('settings')
+            && current_user_can('manage_options');
+        if (!$allowed) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
         check_ajax_referer('forge_factory_reset', 'nonce');
@@ -1947,6 +2144,7 @@ $('.forge-iris-input').wpColorPicker();
             'forge_forms_border_color',
             'forge_forms_pdf_settings',
             'forge_forms_pdf_layout',
+            'forge_forms_field_layout',
             'forge_forms_access',
         ];
         foreach ($options as $opt) {
@@ -1954,11 +2152,13 @@ $('.forge-iris-input').wpColorPicker();
         }
 
         if (!empty($_POST['del_forms']) && $_POST['del_forms'] === '1') {
-            $ids = get_posts([
+            $ids = get_posts(
+                [
                 'post_type'      => 'forge_form',
                 'posts_per_page' => -1,
                 'fields'         => 'ids',
-            ]);
+                ]
+            );
             foreach ($ids as $id) {
                 wp_delete_post((int)$id, true);
             }
@@ -1968,6 +2168,11 @@ $('.forge-iris-input').wpColorPicker();
         wp_send_json_success();
     }
 
+    /**
+     * AJAX handler to save PDF attachment settings per notification.
+     *
+     * @return void
+     */
     public static function savePdfSettings(): void
     {
         if (!\ForgeForms\Plugin::userCan('settings')) {
@@ -1995,9 +2200,16 @@ $('.forge-iris-input').wpColorPicker();
         wp_send_json_success(['saved' => $raw]);
     }
 
+    /**
+     * AJAX handler to rotate the PDF seal key with a password.
+     *
+     * @return void
+     */
     public static function handleRotateKey(): void
     {
-        if (!\ForgeForms\Plugin::userCan('settings')) {
+        $allowed = \ForgeForms\Plugin::userCan('settings')
+            && current_user_can('manage_options');
+        if (!$allowed) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
         check_ajax_referer('forge_rotate_key', 'nonce');
@@ -2018,14 +2230,21 @@ $('.forge-iris-input').wpColorPicker();
         }
 
         $new_key = \ForgeForms\PDF\HashSeal::rotateKey($password, $compromised);
-        wp_send_json_success([
+        wp_send_json_success(
+            [
             'message'    => 'Schlüssel erfolgreich rotiert.',
             'key_uuid'   => $new_key['uuid'],
             'key_value'  => $new_key['key'],
             'created_at' => $new_key['created_at'],
-        ]);
+            ]
+        );
     }
 
+    /**
+     * AJAX handler to finalize setup using default (unencrypted) key storage.
+     *
+     * @return void
+     */
     public static function handleSetupKeepDefault(): void
     {
         if (!\ForgeForms\Plugin::userCan('settings')) {
@@ -2043,6 +2262,11 @@ $('.forge-iris-input').wpColorPicker();
         wp_send_json_success($dl);
     }
 
+    /**
+     * AJAX handler that generates and returns the master key define line for wp-config.php.
+     *
+     * @return void
+     */
     public static function handleSetupGetMasterKey(): void
     {
         if (!\ForgeForms\Plugin::userCan('settings')) {
@@ -2057,11 +2281,18 @@ $('.forge-iris-input').wpColorPicker();
         if (function_exists('opcache_invalidate')) {
             opcache_invalidate(ABSPATH . 'wp-config.php', true);
         }
-        wp_send_json_success([
+        wp_send_json_success(
+            [
             'define_line' => "define('FORGE_SEAL_MASTER_KEY', '" . $master_hex . "');",
-        ]);
+            ]
+        );
     }
 
+    /**
+     * AJAX handler that resets the encryption mode choice during setup.
+     *
+     * @return void
+     */
     public static function handleSetupResetChoice(): void
     {
         if (!\ForgeForms\Plugin::userCan('settings')) {
@@ -2073,6 +2304,11 @@ $('.forge-iris-input').wpColorPicker();
         wp_send_json_success();
     }
 
+    /**
+     * AJAX handler that checks the master key and completes encrypted setup.
+     *
+     * @return void
+     */
     public static function handleSetupConfirmSecure(): void
     {
         if (!\ForgeForms\Plugin::userCan('settings')) {
@@ -2081,19 +2317,23 @@ $('.forge-iris-input').wpColorPicker();
         check_ajax_referer('forge_seal_setup', 'nonce');
 
         if (!defined('FORGE_SEAL_MASTER_KEY') || (string) FORGE_SEAL_MASTER_KEY === '') {
-            wp_send_json_error([
+            wp_send_json_error(
+                [
                 'message' => 'FORGE_SEAL_MASTER_KEY nicht gefunden. '
                     . 'Bitte prüfen Sie die wp-config.php und versuchen Sie es erneut.',
-            ]);
+                ]
+            );
             return;
         }
 
         $expected = get_transient('forge_setup_master_key_' . get_current_user_id());
         if ($expected && !hash_equals($expected, strtolower((string) FORGE_SEAL_MASTER_KEY))) {
-            wp_send_json_error([
+            wp_send_json_error(
+                [
                 'message' => 'Der eingetragene Master-Schlüssel stimmt nicht mit dem erwarteten überein. '
                     . 'Bitte prüfen Sie die wp-config.php.',
-            ]);
+                ]
+            );
             return;
         }
 
@@ -2116,18 +2356,27 @@ $('.forge-iris-input').wpColorPicker();
                 wp_send_json_success(['upgrade' => true]);
                 return;
             }
-            wp_send_json_error([
+            wp_send_json_error(
+                [
                 'message' => 'Setup abgeschlossen, aber kein Download-Eintrag gefunden. '
                     . 'Bitte rotieren Sie den Schlüssel, um einen Download zu erzeugen.',
-            ]);
+                ]
+            );
             return;
         }
         wp_send_json_success($dl);
     }
 
+    /**
+     * AJAX handler to import a legacy PDF seal key from JSON.
+     *
+     * @return void
+     */
     public static function handleAddLegacyKey(): void
     {
-        if (!\ForgeForms\Plugin::userCan('settings')) {
+        $allowed = \ForgeForms\Plugin::userCan('settings')
+            && current_user_can('manage_options');
+        if (!$allowed) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
         check_ajax_referer('forge_add_legacy_key', 'nonce');
@@ -2180,9 +2429,11 @@ $('.forge-iris-input').wpColorPicker();
                 && ($entry['key']       ?? '') === $key
                 && ($entry['retired_at'] ?? '') === $incoming_created;
             if ($history_dup) {
-                wp_send_json_error([
+                wp_send_json_error(
+                    [
                     'message' => 'Dieser Schlüssel ist bereits im Verlauf vorhanden (identischer Eintrag).',
-                ]);
+                    ]
+                );
                 return;
             }
         }
@@ -2192,13 +2443,15 @@ $('.forge-iris-input').wpColorPicker();
         $expected_plugin = 'FormForge PDF Seal Key';
         $confirm_mismatch = (bool) (sanitize_text_field(wp_unslash($_POST['confirm_mismatch'] ?? '')) === '1');
         if ($plugin_field !== $expected_plugin && !$confirm_mismatch) {
-            wp_send_json_error([
+            wp_send_json_error(
+                [
                 'code'    => 'plugin_mismatch',
                 'message' => 'Plugin-Bezeichnung stimmt nicht überein.',
                 'text'    => 'Der Eintrag „plugin" lautet „' . esc_html($plugin_field)
                     . '" — das sieht nicht nach einem Schlüssel dieses Plugins aus.',
                 'confirm' => 'Sind Sie sicher, dass Sie diesen Schlüssel importieren möchten?',
-            ]);
+                ]
+            );
             return;
         }
 
@@ -2215,9 +2468,14 @@ $('.forge-iris-input').wpColorPicker();
         wp_send_json_success(['message' => 'Legacy-Schlüssel erfolgreich hinzugefügt.']);
     }
 
+    /**
+     * AJAX handler (debug) that resets the seal setup state.
+     *
+     * @return void
+     */
     public static function handleDebugTriggerInstall(): void
     {
-        if (!\ForgeForms\Plugin::userCan('settings')) {
+        if (!current_user_can('manage_options')) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
         check_ajax_referer('forge_debug_actions', 'nonce');
@@ -2227,9 +2485,14 @@ $('.forge-iris-input').wpColorPicker();
         wp_send_json_success(['message' => 'Setup-Prompt zurückgesetzt. Seite wird neu geladen.']);
     }
 
+    /**
+     * AJAX handler (debug) that deletes all seal keys.
+     *
+     * @return void
+     */
     public static function handleDebugClearKeys(): void
     {
-        if (!\ForgeForms\Plugin::userCan('settings')) {
+        if (!current_user_can('manage_options')) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
         check_ajax_referer('forge_debug_actions', 'nonce');
@@ -2239,6 +2502,11 @@ $('.forge-iris-input').wpColorPicker();
         wp_send_json_success(['message' => 'Alle Schlüssel gelöscht.']);
     }
 
+    /**
+     * Returns the list of FormForge capability slugs.
+     *
+     * @return array List of capability slug strings.
+     */
     private static function accessCaps(): array
     {
         return [
@@ -2250,6 +2518,13 @@ $('.forge-iris-input').wpColorPicker();
         ];
     }
 
+    /**
+     * Sanitizes a permissions array for a role or user.
+     *
+     * @param array $raw Raw permissions array from POST.
+     *
+     * @return array Sanitized permissions array.
+     */
     private static function sanitizePerms(array $raw): array
     {
         $perms = [];
@@ -2259,9 +2534,16 @@ $('.forge-iris-input').wpColorPicker();
         return $perms;
     }
 
+    /**
+     * AJAX handler to save role and user access permissions.
+     *
+     * @return void
+     */
     public static function handleSaveAccessSettings(): void
     {
-        if (!\ForgeForms\Plugin::userCan('settings')) {
+        /* Grants/revokes capabilities for other users — must stay reserved
+           for real WP admins, never just the broader "settings" cap. */
+        if (!current_user_can('manage_options')) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
         check_ajax_referer('forge_access_settings', 'nonce');
@@ -2298,6 +2580,14 @@ $('.forge-iris-input').wpColorPicker();
         wp_send_json_success();
     }
 
+    /**
+     * Returns whether a PDF should be attached for the given form and notification.
+     *
+     * @param int    $form_id Form post ID.
+     * @param string $slug    Notification slug.
+     *
+     * @return bool True if PDF should be attached.
+     */
     public static function shouldAttachPdf(int $form_id, string $slug): bool
     {
         $saved = get_option('forge_forms_pdf_settings', []);

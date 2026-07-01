@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Generates PDF documents from form submissions using mPDF.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/form-forge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -19,13 +27,19 @@ use Mpdf\HTMLParserMode;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Generates PDF documents from form submission data and embeds an HMAC seal.
+ */
 class Generator
 {
     /**
-     * @param array  $mapped    Normalized field data from SubmissionMapper::map()
-     * @param int    $form_id
-     * @param string $form_title
-     * @return string|false  Absolute path to the generated PDF, or false on failure.
+     * Generates a PDF from normalized submission data and returns its path.
+     *
+     * @param array  $mapped     Normalized field data from SubmissionMapper::map().
+     * @param int    $form_id    The form identifier.
+     * @param string $form_title Human-readable form title used in the PDF header.
+     *
+     * @return string|false Absolute path to the generated PDF, or false on failure.
      */
     public static function generate(array $mapped, int $form_id, string $form_title = ''): string|false
     {
@@ -34,7 +48,7 @@ class Generator
             return false;
         }
 
-        $layout = require FORGE_FORMS_PATH . 'pdf-templates/layout.php';
+        $layout = include FORGE_FORMS_PATH . 'pdf-templates/layout.php';
 
         $embedded_pdfs  = [];
         $image_vars     = [];
@@ -63,10 +77,10 @@ class Generator
             $is_media   = in_array($field_type, ['upload', 'signature'], true);
 
             if ($field_type === 'html') {
-                $start = '<div style="font-size:0.1px;line-height:0.1px;color:#000;position:absolute;">'
-                    . '[FORGE_PDF_FIELD_' . $field_id . ']</div>';
-                $end   = '<div style="font-size:0.1px;line-height:0.1px;color:#000;position:absolute;">'
-                    . '[FORGE_PDF_FIELD_END]</div>';
+                $start = '<span style="font-size:0.1px;line-height:0.1px;color:#000;position:absolute;">'
+                    . '[FORGE_PDF_FIELD_' . $field_id . ']</span>';
+                $end   = '<span style="font-size:0.1px;line-height:0.1px;color:#000;position:absolute;">'
+                    . '[FORGE_PDF_FIELD_END]</span>';
                 if (!empty($field['label'])) {
                     $fields_html .= $layout['field']($field['label'], $start . $field['value'] . $end);
                 } else {
@@ -79,7 +93,10 @@ class Generator
                 continue;
             }
 
-            $cell_html = esc_html($field['value']);
+            // Signature image is self-explanatory; suppress redundant text label.
+            $cell_html = $field_type === 'signature'
+                ? ''
+                : esc_html($field['value']);
 
             if ($is_media && !empty($field['materialized_files'])) {
                 foreach ($field['materialized_files'] as $file) {
@@ -132,13 +149,13 @@ class Generator
                 }
             }
 
-            $start     = '<div style="font-size:0.1px;line-height:0.1px;color:#000;position:absolute;">'
-                . '[FORGE_PDF_FIELD_' . $field_id . ']</div>';
-            $end       = '<div style="font-size:0.1px;line-height:0.1px;color:#000;position:absolute;">'
-                . '[FORGE_PDF_FIELD_END]</div>';
+            $start     = '<span style="font-size:0.1px;line-height:0.1px;color:#000;position:absolute;">'
+                . '[FORGE_PDF_FIELD_' . $field_id . ']</span>';
+            $end       = '<span style="font-size:0.1px;line-height:0.1px;color:#000;position:absolute;">'
+                . '[FORGE_PDF_FIELD_END]</span>';
             $cell_html = $start . $cell_html . $end;
-
             $block = $layout['field']($field['label'], $cell_html);
+
             if ($is_media) {
                 $sigs_html .= $block;
             } else {
@@ -166,9 +183,8 @@ class Generator
                 $html .= $layout['document_metadata']($full_data);
             } elseif ($slug === 'legal' && isset($layout['legal_notice'])) {
                 $html .= $layout['legal_notice']();
-            } elseif ($slug === 'footer' && isset($layout['footer'])) {
-                $html .= $layout['footer']();
             }
+            /* footer moved to SetHTMLFooter — rendered per-page, not inline */
         }
 
         /* ---- Template image fingerprints ---- */
@@ -210,6 +226,17 @@ class Generator
             $margin_right  = (int) ($layout['margin_right_mm']  ?? 15);
             $margin_bottom = (int) ($layout['margin_bottom_mm'] ?? 15);
 
+            /* Strip any HTML wrapper that older cached versions of layout.php
+               may have returned (e.g. a <div style="border-top:...">). */
+            $user_footer_text = isset($layout['footer'])
+                ? wp_strip_all_tags(trim((string) $layout['footer']()))
+                : '';
+            $pdf_opts  = (array) get_option('forge_forms_pdf_layout', []);
+            $sep_color = sanitize_hex_color($pdf_opts['separator_color'] ?? '')
+                ?: '#c9cdd4';
+            /* Widen the footer zone when user text is present. */
+            $footer_margin = $user_footer_text !== '' ? 10 : 5;
+
             $mpdf_config = [
                 'tempDir'       => $mpdf_temp,
                 'margin_top'    => $margin_top,
@@ -217,7 +244,7 @@ class Generator
                 'margin_right'  => $margin_right,
                 'margin_bottom' => $margin_bottom,
                 'margin_header' => 3,
-                'margin_footer' => 3,
+                'margin_footer' => $footer_margin,
             ];
 
             /* ---- PASS 1: font discovery ---- */
@@ -225,7 +252,7 @@ class Generator
             $mpdf->SetDefaultBodyCSS('background', "url('{$grid_svg}')");
             $mpdf->SetDefaultBodyCSS('background-repeat', 'repeat');
             $mpdf->SetDefaultBodyCSS('background-position', 'center center');
-            $mpdf->SetHTMLFooter(self::footerHtml());
+            $mpdf->SetHTMLFooter(self::footerHtml($user_footer_text, $sep_color));
             if (!empty($image_vars)) {
                 $mpdf->imageVars = $image_vars;
             }
@@ -313,7 +340,7 @@ class Generator
             $mpdf->SetDefaultBodyCSS('background', "url('{$grid_svg}')");
             $mpdf->SetDefaultBodyCSS('background-repeat', 'repeat');
             $mpdf->SetDefaultBodyCSS('background-position', 'center center');
-            $mpdf->SetHTMLFooter(self::footerHtml());
+            $mpdf->SetHTMLFooter(self::footerHtml($user_footer_text, $sep_color));
             if (!empty($image_vars)) {
                 $mpdf->imageVars = $image_vars;
             }
@@ -342,15 +369,39 @@ class Generator
 
     /* ------------------------------------------------------------------ */
 
-    private static function footerHtml(): string
+    /**
+     * Returns the mPDF HTML footer string with page number tokens.
+     *
+     * @return string HTML footer markup.
+     */
+    private static function footerHtml(string $user_text = '', string $sep_color = '#c9cdd4'): string
     {
-        return '<div style="text-align:right;font-size:10pt;">
-            <span style="font-size:0.1px;line-height:0.1px;color:#fff;">[FORGE_PDF_PAGENO_START]</span>
-            Seite {PAGENO} von {nbpg}
-            <span style="font-size:0.1px;line-height:0.1px;color:#fff;">[FORGE_PDF_PAGENO_END]</span>
-        </div>';
+        $pageno = '<span style="font-size:0.1px;line-height:0.1px;color:#fff;">'
+            . '[FORGE_PDF_PAGENO_START]</span>'
+            . 'Seite {PAGENO} von {nbpg}'
+            . '<span style="font-size:0.1px;line-height:0.1px;color:#fff;">'
+            . '[FORGE_PDF_PAGENO_END]</span>';
+
+        $border = '';
+
+        if ($user_text === '') {
+            return '<div style="text-align:right;font-size:10pt;' . $border . '">'
+                . $pageno . '</div>';
+        }
+
+        return '<table style="width:100%;border-collapse:collapse;' . $border . 'font-size:8pt;">'
+            . '<tr>'
+            . '<td style="text-align:left;color:#888;">' . $user_text . '</td>'
+            . '<td style="text-align:right;white-space:nowrap;font-size:10pt;">' . $pageno . '</td>'
+            . '</tr>'
+            . '</table>';
     }
 
+    /**
+     * Returns the absolute path to the embed storage directory, creating it if needed.
+     *
+     * @return string Absolute filesystem path to the embed directory.
+     */
     private static function getEmbedStorageDir(): string
     {
         $dir = wp_upload_dir()['basedir'] . '/forge-secure-pdf/embed';
@@ -361,6 +412,11 @@ class Generator
         return $dir;
     }
 
+    /**
+     * Builds SHA-256 fingerprint records for all PDF template asset files.
+     *
+     * @return array Array of fingerprint entries, each with name, mime, and sha256 keys.
+     */
     private static function buildTemplateFingerprints(): array
     {
         $finfo    = new \finfo(FILEINFO_MIME_TYPE);
@@ -411,6 +467,13 @@ class Generator
         return $template;
     }
 
+    /**
+     * Hashes every decoded page content stream found in the raw PDF bytes.
+     *
+     * @param string $pdf_raw Raw PDF binary string.
+     *
+     * @return array Sorted SHA-256 hashes of decoded page content streams.
+     */
     private static function hashPageContentStreams(string $pdf_raw): array
     {
         $hashes = [];
@@ -447,9 +510,14 @@ class Generator
     }
 
     /**
-     * Hash every image XObject stream in the PDF (skipping SMask alpha channels).
-     * Uses the same decoding pipeline as Verificationpage so the hashes match exactly.
-     * Called on PASS-1 output; PASS-2 produces byte-identical XObjects.
+     * Hashes every image XObject stream in the PDF, skipping SMask alpha channels.
+     *
+     * Uses the same decoding pipeline as Verificationpage so the hashes match
+     * exactly. Called on PASS-1 output; PASS-2 produces byte-identical XObjects.
+     *
+     * @param string $pdf_raw Raw PDF binary string.
+     *
+     * @return array SHA-256 hashes of raw compressed image XObject streams.
      */
     private static function hashImageXObjects(string $pdf_raw): array
     {
@@ -503,6 +571,17 @@ class Generator
         return $hashes;
     }
 
+    /**
+     * Computes a perceptual thumbnail hash of an image for stable cross-pass comparison.
+     *
+     * Downscales the image to an 8x8 pixel grid and hashes the quantised RGB
+     * values, producing a hash that is stable across PDF rendering passes.
+     * Returns null when the GD extension is unavailable or the image cannot be decoded.
+     *
+     * @param string $binary Raw binary image data.
+     *
+     * @return string|null SHA-256 hash of the thumbnail pixels, or null on failure.
+     */
     private static function thumbnailHash(string $binary): ?string
     {
         if (!function_exists('imagecreatefromstring')) {
@@ -534,21 +613,16 @@ class Generator
     }
 
     /**
-     * Hash every embedded font program stream (TrueType/CIDFontType2/Type1).
-     * Font names are already in the seal; this covers glyph-outline substitution:
-     * an attacker keeping the font name but replacing the binary program changes glyphs
-     * without altering any text operator — undetectable by name-only comparison.
+     * Hashes every non-content compressed stream in the PDF.
      *
-     * Strategy: find /FontDescriptor objects that reference /FontFile, /FontFile2,
-     * or /FontFile3; follow those indirect references and hash the compressed stream body.
-     * Returns sorted SHA-256 hashes (order-independent, matches Verificationpage).
-     */
-    /**
-     * Hash every non-content compressed stream in the PDF.
      * Content streams are excluded because they differ between PASS 1 and PASS 2
      * (seal embedding changes them) and are already covered by content_streams.
-     * This catches auxiliary streams (Form XObjects, ICC profiles, CMaps, etc.)
-     * that the type-specific checks don't cover, stable across both passes.
+     * Catches auxiliary streams (Form XObjects, ICC profiles, CMaps, etc.)
+     * that the type-specific checks do not cover; stable across both passes.
+     *
+     * @param string $pdf_raw Raw PDF binary string.
+     *
+     * @return array Sorted SHA-256 hashes of all non-content compressed streams.
      */
     private static function hashAllCompressedStreams(string $pdf_raw): array
     {
@@ -593,6 +667,17 @@ class Generator
         return $hashes;
     }
 
+    /**
+     * Hashes every embedded font program stream found in FontDescriptor objects.
+     *
+     * Covers TrueType, CIDFontType2, and Type1 font files referenced via
+     * /FontFile, /FontFile2, or /FontFile3. Returns sorted SHA-256 hashes so
+     * the result is order-independent and matches the Verificationpage output.
+     *
+     * @param string $pdf_raw Raw PDF binary string.
+     *
+     * @return array Sorted SHA-256 hashes of decoded font program streams.
+     */
     private static function hashFontProgramStreams(string $pdf_raw): array
     {
         $hashes = [];
@@ -633,6 +718,16 @@ class Generator
         return $hashes;
     }
 
+    /**
+     * Returns true when the decoded stream data looks like a PDF page content stream.
+     *
+     * Checks for printable leading bytes and the presence of common PDF graphics
+     * or text operators (BT, q, Q, cm, Tf, Tj, Td).
+     *
+     * @param string $decoded Decompressed stream data.
+     *
+     * @return bool True if the stream appears to be a page content stream.
+     */
     private static function isPageContentStream(string $decoded): bool
     {
         $head = substr($decoded, 0, 16);
@@ -645,6 +740,15 @@ class Generator
         return (bool)preg_match('/\bBT\b|\bq\b|\bQ\b|\bcm\b|\bTf\b|\bTj\b|\bTd\b/', $decoded);
     }
 
+    /**
+     * Writes an HTML string to mPDF in chunks to avoid PCRE backtrack limit errors.
+     *
+     * @param Mpdf   $mpdf      The mPDF instance to write into.
+     * @param string $html      Full HTML string to render.
+     * @param int    $chunkSize Maximum byte size of each chunk.
+     *
+     * @return void
+     */
     private static function writeHtmlChunked(Mpdf $mpdf, string $html, int $chunkSize = 1500000): void
     {
         $html  = str_replace(["\r\n", "\r"], "\n", $html);
@@ -664,13 +768,21 @@ class Generator
         }
     }
 
+    /**
+     * Builds the normalized fields array used as seal input from mapped submission data.
+     *
+     * @param array $mapped Normalized field data from SubmissionMapper::map().
+     *
+     * @return array Array of label/value pairs with normalized string values.
+     */
     private static function buildSealFields(array $mapped): array
     {
         $fields = [];
         foreach ($mapped as $field) {
+            $is_signature = ($field['type'] ?? '') === 'signature';
             $fields[] = [
                 'label' => (string)($field['label'] ?? ''),
-                'value' => isset($field['value']) && is_string($field['value'])
+                'value' => (!$is_signature && isset($field['value']) && is_string($field['value']))
                     ? self::normalizeFieldValue($field['value'])
                     : '',
             ];
@@ -678,6 +790,14 @@ class Generator
         return $fields;
     }
 
+    /**
+     * Normalises a field value by decoding HTML entities, stripping tags,
+     * and collapsing whitespace.
+     *
+     * @param string $value Raw field value string.
+     *
+     * @return string Normalised plain-text value.
+     */
     private static function normalizeFieldValue(string $value): string
     {
         $value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');

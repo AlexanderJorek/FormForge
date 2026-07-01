@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Admin settings page for configuring PDF layout and branding.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/form-forge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,6 +23,9 @@ namespace ForgeForms\Admin;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Admin editor for customizing the PDF layout (header, footer, fonts, colors).
+ */
 class PDFLayoutEditor
 {
     private static array $section_labels = [
@@ -26,14 +37,18 @@ class PDFLayoutEditor
         'footer'     => 'Fußzeile',
     ];
 
+    /**
+     * Returns the default PDF layout options array.
+     *
+     * @return array Default PDF layout options.
+     */
     public static function defaults(): array
     {
         return [
             'logo_url'        => '',
             'logo_width'      => 180,
-            'primary_color'   => '#1a3a5c',
-            'accent_color'    => '#4a7fc1',
-            'separator_color' => '#aaaaaa',
+            'accent_color'    => '#f59e0b',
+            'separator_color' => '#c9cdd4',
             'font_family'     => 'dejavusans',
             'font_size_body'  => 11,
             'title_size'      => 18,
@@ -48,13 +63,24 @@ class PDFLayoutEditor
         ];
     }
 
+    /**
+     * Registers admin hooks for the PDF layout editor.
+     *
+     * @return void
+     */
     public static function init(): void
     {
         add_action('admin_menu', [self::class, 'addPage']);
         add_action('admin_body_class', [self::class, 'bodyClass']);
         add_action('wp_ajax_forge_forms_pdf_preview', [self::class, 'ajaxPreview']);
+        add_action('wp_ajax_forge_save_pdf_layout', [self::class, 'handleSave']);
     }
 
+    /**
+     * AJAX handler that generates and returns a PDF preview as base64.
+     *
+     * @return void
+     */
     public static function ajaxPreview(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_pdf_layout')) {
@@ -75,7 +101,6 @@ class PDFLayoutEditor
                 $preview_opts = [
                     'logo_url'        => esc_url_raw($raw['logo_url'] ?? ''),
                     'logo_width'      => min(400, max(40, (int) ($raw['logo_width']     ?? 180))),
-                    'primary_color'   => sanitize_hex_color($raw['primary_color']   ?? '') ?: $defs['primary_color'],
                     'accent_color'    => sanitize_hex_color($raw['accent_color']    ?? '') ?: $defs['accent_color'],
                     'separator_color' => sanitize_hex_color($raw['separator_color'] ?? '') ?: $defs['separator_color'],
                     'font_family'     => sanitize_key($raw['font_family'] ?? 'dejavusans'),
@@ -86,49 +111,29 @@ class PDFLayoutEditor
                     'margin_bottom'   => min(50, max(0, (int) ($raw['margin_bottom'] ?? 15))),
                     'margin_left'     => min(50, max(0, (int) ($raw['margin_left']   ?? 15))),
                     'margin_right'    => min(50, max(0, (int) ($raw['margin_right']  ?? 15))),
-                    'section_order'   => array_values(array_filter(
-                        array_map('sanitize_key', (array) ($raw['section_order'] ?? [])),
-                        fn($s) => isset(self::$section_labels[$s])
-                    )),
-                    'section_hidden'  => array_values(array_filter(
-                        array_map('sanitize_key', (array) ($raw['section_hidden'] ?? [])),
-                        fn($s) => isset(self::$section_labels[$s])
-                    )),
+                    'section_order'   => array_values(
+                        array_filter(
+                            array_map('sanitize_key', (array) ($raw['section_order'] ?? [])),
+                            fn($s) => isset(self::$section_labels[$s])
+                        )
+                    ),
+                    'section_hidden'  => array_values(
+                        array_filter(
+                            array_map('sanitize_key', (array) ($raw['section_hidden'] ?? [])),
+                            fn($s) => isset(self::$section_labels[$s])
+                        )
+                    ),
                     'header_layout'   => $sanitized_hl,
                 ];
-                add_filter('pre_option_forge_forms_pdf_layout', static function () use ($preview_opts): array {
-                    return $preview_opts;
-                }, PHP_INT_MAX);
+                add_filter(
+                    'pre_option_forge_forms_pdf_layout', static function () use ($preview_opts): array {
+                        return $preview_opts;
+                    }, PHP_INT_MAX
+                );
             }
         }
 
-        $dummy = [
-            ['type' => 'text',     'label' => 'Vorname',   'value' => 'Max'],
-            ['type' => 'text',     'label' => 'Nachname',  'value' => 'Mustermann'],
-            ['type' => 'email',    'label' => 'E-Mail',    'value' => 'max.mustermann@example.de'],
-            ['type' => 'text',     'label' => 'Anliegen',  'value' => 'Mitgliedsantrag'],
-            ['type' => 'textarea', 'label' => 'Nachricht', 'value' => 'Beispieltext für die PDF-Vorschau.'],
-            [
-                'type'  => 'signature',
-                'label' => 'Unterschrift',
-                'value' => '[Beispielunterschrift]',
-                'materialized_files' => [[
-                    'name'   => 'unterschrift.png',
-                    'mime'   => 'image/png',
-                    'base64' => self::dummySignaturePng(),
-                ]],
-            ],
-            [
-                'type'  => 'upload',
-                'label' => 'Anhang',
-                'value' => 'beispiel-dokument.png',
-                'materialized_files' => [[
-                    'name'   => 'beispiel-dokument.png',
-                    'mime'   => 'image/png',
-                    'base64' => self::dummyUploadPng(),
-                ]],
-            ],
-        ];
+        $dummy = self::dummyFields();
 
         $path = \ForgeForms\PDF\Generator::generate($dummy, 0, 'Layout-Vorschau');
 
@@ -146,6 +151,13 @@ class PDFLayoutEditor
         wp_send_json_success(['pdf_b64' => base64_encode($data)]);
     }
 
+    /**
+     * Appends a CSS class on the PDF layout editor page.
+     *
+     * @param string $classes Existing admin body classes.
+     *
+     * @return string Modified body class string.
+     */
     public static function bodyClass(string $classes): string
     {
         if (isset($_GET['page']) && $_GET['page'] === 'forge-forms-pdf-layout') {
@@ -154,6 +166,11 @@ class PDFLayoutEditor
         return $classes;
     }
 
+    /**
+     * Registers the PDF-Layout submenu page and removes admin notices on it.
+     *
+     * @return void
+     */
     public static function addPage(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_pdf_layout')) {
@@ -167,14 +184,21 @@ class PDFLayoutEditor
             'forge-forms-pdf-layout',
             [self::class, 'render']
         );
-        add_action('load-' . $hook, static function (): void {
-            remove_all_actions('admin_notices');
-            remove_all_actions('all_admin_notices');
-            remove_all_actions('user_admin_notices');
-            remove_all_actions('network_admin_notices');
-        });
+        add_action(
+            'load-' . $hook, static function (): void {
+                remove_all_actions('admin_notices');
+                remove_all_actions('all_admin_notices');
+                remove_all_actions('user_admin_notices');
+                remove_all_actions('network_admin_notices');
+            }
+        );
     }
 
+    /**
+     * Renders the PDF layout editor page.
+     *
+     * @return void
+     */
     public static function render(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_pdf_layout')) {
@@ -184,9 +208,8 @@ class PDFLayoutEditor
         wp_enqueue_media();
 
         $saved = false;
-        if (
-            isset($_POST['forge_pdf_layout_nonce']) &&
-            wp_verify_nonce(sanitize_key($_POST['forge_pdf_layout_nonce']), 'forge_pdf_layout')
+        if (isset($_POST['forge_pdf_layout_nonce']) 
+            && wp_verify_nonce(sanitize_key($_POST['forge_pdf_layout_nonce']), 'forge_pdf_layout')
         ) {
             self::save();
             $saved = true;
@@ -215,8 +238,8 @@ class PDFLayoutEditor
             'freemono'       => 'FreeMono (Schreibmaschine)',
         ];
 
-        $js_opts = wp_json_encode([
-            'primary_color'   => $opts['primary_color'],
+        $js_opts = wp_json_encode(
+            [
             'accent_color'    => $opts['accent_color'],
             'separator_color' => $opts['separator_color'],
             'font_family'     => $opts['font_family'],
@@ -229,10 +252,24 @@ class PDFLayoutEditor
             'margin_right'    => (int) $opts['margin_right'],
             'section_order'   => $opts['section_order'],
             'section_hidden'  => $opts['section_hidden'],
-        ]);
+            ]
+        );
 
-        $site_name = esc_js(get_bloginfo('name'));
-        $site_url  = esc_js(get_bloginfo('url'));
+        $site_name         = esc_js(get_bloginfo('name'));
+        $site_url          = esc_js(get_bloginfo('url'));
+        $field_layout_mode = get_option('forge_forms_field_layout', 'block');
+
+        /* Same sample data as the server-rendered PDF preview, so both
+           previews show identical text and images. */
+        $dummy_fields    = self::dummyFields();
+        $dummy_text      = array_values(
+            array_filter(
+                $dummy_fields,
+                fn($f) => in_array($f['type'], ['text', 'email', 'textarea'], true)
+            )
+        );
+        $dummy_signature = self::dummySignaturePng();
+        $dummy_upload    = self::dummyUploadPng();
         ?>
 <canvas id="forge-particle-canvas"></canvas>
 <div class="wrap forge-list-wrap">
@@ -275,20 +312,23 @@ class PDFLayoutEditor
                 <div class="forge-settings-card">
                     <h2 class="forge-settings-card-title"><i class="fa-solid fa-palette"></i> Farben</h2>
 
-                    <?php foreach (
-                    [
-                        ['accent_color',    'Akzentfarbe (dicke Trennlinien)'],
-                        ['separator_color', 'Trennlinienfarbe (dünne Linien)'],
-                    ] as [$id, $lbl]
-) : ?>
-                    <div class="forge-settings-field forge-color-row">
-                        <label><?php echo esc_html($lbl); ?></label>
-                        <div class="forge-color-input-wrap">
-                            <input type="color" id="<?php echo $id; ?>" name="<?php echo $id; ?>"
-                                value="<?php echo esc_attr($opts[$id]); ?>">
-                            <input type="text" id="<?php echo $id; ?>_hex" class="forge-hex-input"
-                                value="<?php echo esc_attr($opts[$id]); ?>" maxlength="7">
-                        </div>
+                    <?php
+                    $color_fields = [
+                        ['accent_color',    'Akzentfarbe (dicke Trennlinien)', '#f59e0b'],
+                        ['separator_color', 'Trennlinienfarbe (dünne Linien)', '#c9cdd4'],
+                    ];
+                    foreach ($color_fields as [$id, $lbl, $default]) :
+                        $eid = esc_attr($id);
+                        ?>
+                    <div class="forge-settings-field">
+                        <label for="<?php echo $eid; ?>"><?php echo esc_html($lbl); ?></label>
+                        <input type="text" id="<?php echo $eid; ?>"
+                               name="<?php echo $eid; ?>"
+                               value="<?php echo esc_attr($opts[$id]); ?>"
+                               class="forge-iris-input"
+                               data-default-color="<?php echo esc_attr($default); ?>"
+                               autocomplete="off" data-lpignore="true"
+                               data-1p-ignore data-bwignore spellcheck="false">
                     </div>
                     <?php endforeach; ?>
                 </div>
@@ -391,10 +431,12 @@ class PDFLayoutEditor
                         <textarea id="footer_text" name="footer_text" rows="3"
                             placeholder="z. B. Firmenname · Adresse · Telefon"
                         ><?php echo esc_textarea($opts['footer_text']); ?></textarea>
-                        <p class="forge-settings-hint">Platzhalter:
-                            <code>{site_name}</code> <code>{site_url}</code>
-                            <code>{date}</code> <code>{page}</code>
-                        </p>
+                        <div class="forge-placeholder-chips">
+                            <?php foreach (['{site_name}','{site_url}','{date}'] as $token): ?>
+                            <button type="button" class="forge-placeholder-chip"
+                                data-insert="<?php echo esc_attr($token); ?>"><?php echo esc_html($token); ?></button>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
                 </div>
 
@@ -469,6 +511,19 @@ class PDFLayoutEditor
 
 <script>
 (function () {
+    /* Mirrors the Settings → Feldausgabe option so the browser preview
+       matches what the actual mPDF template (layout.php) renders. */
+    var fieldLayoutMode = <?php echo wp_json_encode($field_layout_mode); ?>;
+
+    /* Same sample content (text + images) as the server-rendered PDF
+       preview (PDFLayoutEditor::dummyFields/dummySignaturePng/dummyUploadPng)
+       so the browser preview matches the real PDF exactly. */
+    var dummyTextFields = <?php echo wp_json_encode($dummy_text); ?>;
+    var dummySignatureSrc = 'data:image/png;base64,'
+        + <?php echo wp_json_encode($dummy_signature); ?>;
+    var dummyUploadSrc = 'data:image/png;base64,'
+        + <?php echo wp_json_encode($dummy_upload); ?>;
+
     /* Auto-dismiss save notice: wait 5 s, then fade out over 2 s */
     var notice = document.querySelector('.forge-settings-notice');
     if (notice) {
@@ -521,15 +576,15 @@ class PDFLayoutEditor
         'freemono':       "'Courier New', Courier, monospace"
     };
 
-    var sampleFields = [
-        {label:'Vorname',    value:'Max'},
-        {label:'Nachname',   value:'Mustermann'},
-        {label:'E-Mail',     value:'max.mustermann@example.de'},
-        {label:'Anliegen',   value:'Mitgliedsantrag'},
-        {label:'Nachricht',  value:'Dies ist ein Beispieltext der Vorschau.'}
-    ];
+    /* dummyTextFields comes from PHP (PDFLayoutEditor::dummyFields) — same
+       content as the server-rendered PDF preview. */
+    var sampleFields = dummyTextFields.map(function (f) {
+        return {label: f.label, value: f.value};
+    });
 
-    function mm(n){ return (n*3.7795).toFixed(1)+'px'; }
+    /* mPDF renders A4 at 120 DPI: 120/25.4 = 4.7244 px/mm, 120/72 = 1.6667 px/pt */
+    function mm(n){ return (n*4.7244).toFixed(1)+'px'; }
+    function pt(n){ return (n*120/72).toFixed(1)+'px'; }
 
     function collectSettings(){
         var order=[], hidden=[];
@@ -538,9 +593,8 @@ class PDFLayoutEditor
             if(li.classList.contains('forge-section-hidden')) hidden.push(li.dataset.slug);
         });
         return {
-            primary_color:   val('primary_color')||'#1a3a5c',
-            accent_color:    val('accent_color')||'#4a7fc1',
-            separator_color: val('separator_color')||'#aaaaaa',
+            accent_color:    val('accent_color')||'#f59e0b',
+            separator_color: val('separator_color')||'#c9cdd4',
             font_family:     val('font_family')||'dejavusans',
             font_size_body:  parseInt(val('font_size_body'))||11,
             title_size:      parseInt(val('title_size'))||18,
@@ -558,38 +612,69 @@ class PDFLayoutEditor
 
     function buildPreview(s){
         var ff  = fontMap[s.font_family]||'Arial,sans-serif';
-        var fs  = s.font_size_body+'pt';
+        var fs  = pt(s.font_size_body);
         var pad = mm(s.margin_top)+' '+mm(s.margin_right)+' '+mm(s.margin_bottom)+' '+mm(s.margin_left);
-        var out = '<div style="font-family:'+ff+';font-size:'+fs+';color:#222;padding:'+pad+';box-sizing:border-box;">';
+        /* line-height:1.7 matches mPDF's default — browsers default to ~1.2
+           which makes all block heights ~22px shorter than the real PDF. */
+        var out = '<div style="font-family:'+ff+';font-size:'+fs+';line-height:1.6;color:#222;padding:'+pad+';box-sizing:border-box;">';
 
         s.section_order.forEach(function(slug){
             if(s.section_hidden.indexOf(slug)!==-1) return;
 
             if(slug==='header'){
                 out+='<table style="width:100%;border-collapse:collapse;margin-bottom:10px;"><tr>';
-                out+='<td style="text-align:right;vertical-align:middle;font-size:'+s.title_size+'pt;'
-                    +'font-weight:bold;color:#1a3a5c;">Beispielformular</td>';
+                out+='<td style="text-align:right;vertical-align:middle;font-size:'+pt(s.title_size)+';'
+                    +'font-weight:bold;color:#1d2327;">Beispielformular</td>';
                 out+='</tr></table>';
             }
 
             if(slug==='fields'){
                 sampleFields.forEach(function(f){
-                    out+='<div style="margin-bottom:10px;">';
-                    out+='<div style="font-weight:700;font-size:'+s.font_size_body+'pt;border-bottom:1px solid '+s.separator_color+';padding-bottom:2px;">'+f.label+'</div>';
-                    out+='<div style="font-size:'+s.font_size_body+'pt;color:#444;padding:3px 0 4px;border-bottom:3px solid '+s.accent_color+';">'+f.value+'</div>';
-                    out+='</div>';
+                    /* Mirror layout.php .field-block / .field-label / .field-separator-thin
+                       / .field-value / .field-separator-thick CSS exactly */
+                    if(fieldLayoutMode==='inline'){
+                        out+='<div style="margin-bottom:14px;">';
+                        out+='<span style="font-weight:700;font-size:'+pt(s.font_size_body)+';color:#222;">'+f.label+':</span> ';
+                        out+='<span style="font-size:'+pt(s.font_size_body)+';color:#333;margin-bottom:5px;">'+f.value+'</span>';
+                        out+='<div style="border-bottom:3px solid '+s.accent_color+';margin-top:2px;"></div>';
+                        out+='</div>';
+                    } else {
+                        out+='<div style="margin-bottom:14px;">';
+                        out+='<div style="font-weight:700;font-size:'+pt(s.font_size_body)+';margin-bottom:4px;color:#222;">'+f.label+'</div>';
+                        out+='<div style="border-bottom:1px solid '+s.separator_color+';margin-bottom:4px;"></div>';
+                        out+='<div style="font-size:'+pt(s.font_size_body)+';margin-bottom:5px;color:#333;">'+f.value+'</div>';
+                        out+='<div style="border-bottom:3px solid '+s.accent_color+';margin-top:2px;"></div>';
+                        out+='</div>';
+                    }
                 });
             }
 
             if(slug==='signatures'){
-                out+='<div style="margin-bottom:12px;">';
-                out+='<div style="font-weight:700;margin-bottom:5px;">Unterschrift</div>';
-                out+='<div style="border:1px solid '+s.separator_color+';height:65px;border-radius:4px;background:#fafafa;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:8pt;">[Signatur]</div>';
+                /* Mirror Generator.php: image rendered via layout['image'] at
+                   max-width:100%;max-height:300px inside a field-block.
+                   Signature suppresses the text label; upload shows filename. */
+                /* width="300" height="80" = natural PNG dimensions; explicit attrs
+                   ensure sandbox measurement is correct before async decode. */
+                var imgStyle = 'max-width:100%;max-height:300px;border:1px solid #ccc;padding:4px;display:block;';
+                /* Signature */
+                out+='<div style="margin-bottom:14px;">';
+                out+='<div style="font-weight:700;font-size:'+pt(s.font_size_body)+';margin-bottom:4px;color:#222;">Unterschrift</div>';
+                out+='<div style="border-bottom:1px solid '+s.separator_color+';margin-bottom:4px;"></div>';
+                out+='<div style="margin:8px 0;"><img src="'+dummySignatureSrc+'" width="300" height="80" style="'+imgStyle+'" alt="Unterschrift"></div>';
+                out+='<div style="border-bottom:3px solid '+s.accent_color+';margin-top:2px;"></div>';
+                out+='</div>';
+                /* Upload / Anhang */
+                out+='<div style="margin-bottom:14px;">';
+                out+='<div style="font-weight:700;font-size:'+pt(s.font_size_body)+';margin-bottom:4px;color:#222;">Anhang</div>';
+                out+='<div style="border-bottom:1px solid '+s.separator_color+';margin-bottom:4px;"></div>';
+                out+='<div style="font-size:'+pt(s.font_size_body)+';margin-bottom:5px;color:#333;">beispiel-dokument.png</div>';
+                out+='<div style="margin:8px 0;"><img src="'+dummyUploadSrc+'" width="300" height="80" style="'+imgStyle+'" alt="Anhang"></div>';
+                out+='<div style="border-bottom:3px solid '+s.accent_color+';margin-top:2px;"></div>';
                 out+='</div>';
             }
 
             if(slug==='metadata'){
-                out+='<div style="margin:12px 0;padding:8px 10px;background:#f9f9f9;border:1px solid #e0e0e0;border-radius:4px;font-size:8pt;color:#555;">';
+                out+='<div style="margin:12px 0;padding:8px 10px;background:#f9f9f9;border:1px solid #e0e0e0;border-radius:4px;font-size:'+pt(8)+';color:#555;">';
                 out+='<strong>Metadaten</strong><br>';
                 out+='Erstellt: '+new Date().toLocaleString('de-DE')+'<br>';
                 out+='Formular-ID: 42 &nbsp;·&nbsp; Formular: Beispielformular';
@@ -597,26 +682,62 @@ class PDFLayoutEditor
             }
 
             if(slug==='legal'){
-                out+='<p style="font-size:7.5pt;color:#666;margin-top:6px;line-height:1.4;">';
+                out+='<p style="font-size:'+pt(7.5)+';color:#666;margin-top:6px;line-height:1.4;">';
                 out+='<strong>Rechtlicher Hinweis:</strong> Dieses Dokument stellt das Original dar. '
-                    +'Jede Änderung, Manipulation oder Modifikation macht dieses Dokument ungültig.';
+                    +'Jede Änderung, Manipulation oder Modifikation macht dieses Dokument ungültig. '
+                    +'Dieses Dokument wurde in elektronischer Form ausgestellt '
+                    +'und ist ausschließlich in elektronischer Form aufzubewahren. '
+                    +'Jeder Ausdruck ist lediglich eine Kopie und hat keine Rechtsgültigkeit.';
                 out+='</p>';
             }
 
-            if(slug==='footer'){
-                var ft = (s.footer_text||'')
-                    .replace(/\{site_name\}/g,'<?php echo $site_name; ?>')
-                    .replace(/\{site_url\}/g, '<?php echo $site_url; ?>')
-                    .replace(/\{date\}/g, new Date().toLocaleDateString('de-DE'))
-                    .replace(/\{page\}/g, '1');
-                if(ft){
-                    out+='<div style="margin-top:18px;padding-top:7px;border-top:1px solid '+s.separator_color+';font-size:7.5pt;color:#888;text-align:center;word-wrap:break-word;overflow-wrap:break-word;white-space:pre-wrap;">'+ft+'</div>';
-                }
-            }
+            /* footer is rendered as a per-page overlay in updatePreview,
+               not as inline content — skip here so it doesn't paginate. */
         });
 
         out+='</div>';
         return out;
+    }
+
+    var PAGE_HEIGHT_PX = 1402; /* A4 at 120dpi (mPDF), matches .forge-a4-paper */
+
+    /* Splits buildPreview()'s single (unbounded) HTML output into multiple
+       A4-sized pages by measuring top-level blocks in an offscreen sandbox —
+       mirrors real pagination instead of one ever-growing sheet. */
+    function paginate(s, fullHtml){
+        var inner = fullHtml.replace(/^<div[^>]*>/, '').replace(/<\/div>\s*$/, '');
+        var ff  = fontMap[s.font_family]||'Arial,sans-serif';
+        var fs  = pt(s.font_size_body);
+        var pad = mm(s.margin_top)+' '+mm(s.margin_right)+' '+mm(s.margin_bottom)+' '+mm(s.margin_left);
+
+        var parser = document.createElement('div');
+        parser.innerHTML = inner;
+        var blocks = Array.prototype.slice.call(parser.children).map(function(el){
+            return el.outerHTML;
+        });
+
+        var sandbox = document.createElement('div');
+        sandbox.style.cssText = 'position:absolute;visibility:hidden;left:-99999px;top:0;'
+            +'width:992px;box-sizing:border-box;font-family:'+ff+';font-size:'+fs
+            +';line-height:1.6;padding:'+pad+';';
+        document.body.appendChild(sandbox);
+
+        var pages = [];
+        var current = '';
+        blocks.forEach(function(blockHtml){
+            var trial = current + blockHtml;
+            sandbox.innerHTML = trial;
+            if(sandbox.offsetHeight > PAGE_HEIGHT_PX && current !== ''){
+                pages.push(current);
+                current = blockHtml;
+            } else {
+                current = trial;
+            }
+        });
+        if(current || pages.length===0) pages.push(current);
+        document.body.removeChild(sandbox);
+
+        return {pages: pages, ff: ff, fs: fs, pad: pad, footerText: s.footer_text||''};
     }
 
     function updatePreview(){
@@ -625,7 +746,57 @@ class PDFLayoutEditor
         var hi = $('forge-section-hidden-input');
         if(oi) oi.value = s.section_order.join(',');
         if(hi) hi.value = s.section_hidden.join(',');
-        if(paper) paper.innerHTML = buildPreview(s);
+
+        var stage = paper ? paper.parentElement : null;
+        if(!stage) return;
+
+        var result = paginate(s, buildPreview(s));
+        var total  = result.pages.length;
+
+        /* Pre-process footer template once — page number substituted per-page */
+        var footerBase = (result.footerText||'')
+            .replace(/\{site_name\}/g, '<?php echo $site_name; ?>')
+            .replace(/\{site_url\}/g,  '<?php echo $site_url; ?>')
+            .replace(/\{date\}/g, new Date().toLocaleDateString('de-DE'))
+            .replace(/\{nbpg\}/g, total);
+
+        stage.innerHTML = '';
+        result.pages.forEach(function(pageContent, idx){
+            var pageEl = document.createElement('div');
+            pageEl.className = 'forge-a4-paper';
+            if(idx===0) pageEl.id = 'forge-a4-paper';
+
+            var padParts = result.pad.split(' ');
+            var pRight = padParts[1]||padParts[0];
+            var pBottom = padParts[2]||padParts[0];
+            var pLeft  = padParts[3]||padParts[1]||padParts[0];
+
+            /* Mirror PHP footerHtml(): user text left, page numbers right,
+               always present (page numbers shown even with no user text). */
+            var pageNum = idx + 1;
+            var userFt  = footerBase || '';
+            var pageNumHtml = 'Seite ' + pageNum + ' von ' + total;
+            var footerHtml;
+            if(userFt){
+                footerHtml = '<table style="width:100%;border-collapse:collapse;font-size:'+pt(8)+';"><tr>'
+                    +'<td style="text-align:left;color:#888;">'+userFt+'</td>'
+                    +'<td style="text-align:right;white-space:nowrap;font-size:'+pt(10)+';">'
+                    +pageNumHtml+'</td></tr></table>';
+            } else {
+                footerHtml = '<div style="text-align:right;font-size:'+pt(10)+';">'
+                    +pageNumHtml+'</div>';
+            }
+            footerHtml = '<div style="position:absolute;bottom:0;left:0;right:0;'
+                +'padding:0 '+pRight+' '+pBottom+' '+pLeft+';'
+                +'background:#fff;box-sizing:border-box;">'
+                +footerHtml+'</div>';
+
+            pageEl.innerHTML = '<div style="font-family:'+result.ff+';font-size:'+result.fs+';'
+                +'line-height:1.6;color:#222;padding:'+result.pad+';box-sizing:border-box;height:100%;overflow:hidden;">'
+                +pageContent+'</div>'+footerHtml;
+            stage.appendChild(pageEl);
+        });
+        paper = document.getElementById('forge-a4-paper');
     }
 
     /* range sliders */
@@ -642,20 +813,25 @@ class PDFLayoutEditor
         inp.addEventListener('input', function(){ lbl.textContent=inp.value; updatePreview(); });
     });
 
-    /* color pickers */
-    ['primary_color','accent_color','separator_color'].forEach(function(id){
-        var picker = $(id), hex = $(id+'_hex');
-        if(!picker||!hex) return;
-        picker.addEventListener('input', function(){ hex.value=picker.value; updatePreview(); });
-        hex.addEventListener('input', function(){
-            if(/^#[0-9a-fA-F]{6}$/.test(hex.value)){ picker.value=hex.value; updatePreview(); }
-        });
-    });
 
     /* font & textarea */
     var fontSel = $('font_family'), footerTxt = $('footer_text');
     if(fontSel)  fontSel.addEventListener('change', updatePreview);
     if(footerTxt) footerTxt.addEventListener('input', updatePreview);
+
+    /* Placeholder chips — insert token at cursor position */
+    document.querySelectorAll('.forge-placeholder-chip').forEach(function(btn){
+        btn.addEventListener('click', function(){
+            var token = btn.dataset.insert;
+            if(!footerTxt) return;
+            footerTxt.focus();
+            var start = footerTxt.selectionStart, end = footerTxt.selectionEnd;
+            var val   = footerTxt.value;
+            footerTxt.value = val.slice(0,start) + token + val.slice(end);
+            footerTxt.selectionStart = footerTxt.selectionEnd = start + token.length;
+            updatePreview();
+        });
+    });
 
 
 
@@ -815,12 +991,12 @@ class PDFLayoutEditor
         var inner = document.createElement('div');
         inner.className = 'forge-hb-el-inner';
         if(el.type==='image' && el.src){
-            inner.innerHTML = '<img src="'+hbEsc(el.src)+'" style="width:100%;height:100%;display:block;">';
+            inner.innerHTML = '<img src="'+hbEsc(el.src)+'" style="width:100%;height:auto;max-height:100%;display:block;">';
         } else if(el.type==='title'){
-            var fs = Math.round((el.size||18)*0.75);
+            var tcnt = (el.content||el.text||'{form_title}').replace(/\{form_title\}/g,'Beispielformular');
             inner.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;padding:2px 4px;box-sizing:border-box;">'
-                +'<span style="width:100%;font-size:'+fs+'px;font-weight:'+(el.bold?'bold':'normal')+';color:'+hbEsc(el.color||'#1a3a5c')+';text-align:'+hbEsc(el.align||'left')+';">'
-                +hbEsc((el.text||'{form_title}').replace('{form_title}','Beispielformular'))+'</span></div>';
+                +'<span style="width:100%;font-size:'+(el.size||18)+'pt;color:'+hbEsc(el.color||'#1d2327')+';text-align:'+hbEsc(el.align||'left')+';">'
+                +tcnt+'</span></div>';
         } else if(el.type==='html'){
             inner.innerHTML = el.html || '<span style="color:#aaa;font-size:10px;padding:4px">[HTML]</span>';
         } else {
@@ -853,6 +1029,14 @@ class PDFLayoutEditor
         return node;
     }
 
+    function hbSyncPosInputs(el){
+        if(!el||!hbProps) return;
+        hbProps.querySelectorAll('input[data-p]').forEach(function(inp){
+            var p=inp.dataset.p;
+            if(p==='x'||p==='y'||p==='w'||p==='h') inp.value=el[p];
+        });
+    }
+
     document.addEventListener('mousemove', function(e){
         if(!hbDrag) return;
         var dx = Math.round((e.clientX - hbDrag.mx0) / HB_CELL);
@@ -876,6 +1060,7 @@ class PDFLayoutEditor
             el.h = Math.min(maxRows-el.y, Math.max(1, nh));
         }
         hbRender();
+        hbSyncPosInputs(el);
     });
 
     document.addEventListener('mouseup', function(){ if(hbDrag){ hbDrag=null; hbRender(); } });
@@ -887,12 +1072,12 @@ class PDFLayoutEditor
         });
     }
 
-    /* Delete key */
+    /* Delete key (ENTF) — removes selected element */
     document.addEventListener('keydown', function(e){
         if(!hbModal||hbModal.hidden) return;
-        if(e.key!=='Delete'&&e.key!=='Backspace') return;
+        if(e.key!=='Delete') return;
         var t=document.activeElement;
-        if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT')) return;
+        if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable)) return;
         if(!hbSel) return;
         hbLayout.elements = hbLayout.elements.filter(function(el){ return el.id!==hbSel; });
         hbSel=null; hbRender(); hbRenderProps();
@@ -903,7 +1088,7 @@ class PDFLayoutEditor
         var rows = Math.max(2, hbLayout.rows||8);
         var el = { id:'e'+(hbNextId++), type:type, x:0, y:0,
             w: HB_COLS, h: rows };
-        if(type==='title'){ el.text='{form_title}'; el.size=18; el.bold=true; el.align='right'; el.color='#1a3a5c'; }
+        if(type==='title'){ el.content='{form_title}'; el.size=18; el.align='right'; el.color='#1d2327'; }
         else if(type==='html'){ el.html=''; }
         hbLayout.elements.push(el);
         hbSel=el.id; hbRender(); hbRenderProps();
@@ -970,54 +1155,89 @@ class PDFLayoutEditor
         var el = hbSel ? hbGetEl(hbSel) : null;
         if(!el){ hbProps.innerHTML='<p class="forge-hb-empty">Element auswählen<br>zum Bearbeiten</p>'; return; }
 
-        var h='<div class="forge-hb-prop-row2">'
+        var h='<div class="forge-hb-card"><div class="forge-hb-prop-row2">'
             +'<div class="forge-hb-prop-group"><span>X</span><input type="number" data-p="x" value="'+el.x+'" min="0" max="41"></div>'
             +'<div class="forge-hb-prop-group"><span>Y</span><input type="number" data-p="y" value="'+el.y+'" min="0"></div>'
             +'<div class="forge-hb-prop-group"><span>Breite</span><input type="number" data-p="w" value="'+el.w+'" min="1" max="42"></div>'
             +'<div class="forge-hb-prop-group"><span>Höhe</span><input type="number" data-p="h" value="'+el.h+'" min="1"></div>'
-            +'</div>';
+            +'</div></div>';
 
         if(el.type==='image'){
             /* Image: picker first, then position/size, then fit */
             h=''; /* reset — image skips the shared X/Y/W/H block above */
-            h+='<div class="forge-hb-prop-group">'
-                +'<span>Bild</span>'
-                +'<div class="forge-hb-img-preview">'
-                +(el.src ? '<img src="'+hbEsc(el.src)+'" style="max-width:100%;max-height:80px;display:block;border-radius:3px;">' : '<span style="color:#aaa;font-size:11px;">Kein Bild gewählt</span>')
-                +'</div>'
-                +'<button type="button" class="button" id="hb-media-pick" style="width:100%;margin-top:6px">'
-                +'<i class="fa-solid fa-upload"></i> '+(el.src?'Bild ändern':'Aus Mediathek wählen')+'</button>'
-                +'<input type="text" data-p="src" value="'+hbEsc(el.src||'')+'" placeholder="oder URL eingeben …" style="margin-top:4px">'
-                +'</div>';
-            h+='<div class="forge-hb-prop-row2">'
+            h+='<div class="forge-hb-card"><div class="forge-hb-prop-row2">'
                 +'<div class="forge-hb-prop-group"><span>X</span><input type="number" data-p="x" value="'+el.x+'" min="0" max="41"></div>'
                 +'<div class="forge-hb-prop-group"><span>Y</span><input type="number" data-p="y" value="'+el.y+'" min="0"></div>'
                 +'<div class="forge-hb-prop-group"><span>Breite</span><input type="number" data-p="w" value="'+el.w+'" min="1" max="42"></div>'
                 +'<div class="forge-hb-prop-group"><span>Höhe</span><input type="number" data-p="h" value="'+el.h+'" min="1"></div>'
+                +'</div></div>';
+            h+='<div class="forge-hb-card forge-hb-card--image">'
+                +'<div class="forge-hb-img-preview">'
+                +(el.src ? '<img src="'+hbEsc(el.src)+'" style="max-width:100%;max-height:80px;display:block;border-radius:3px;">' : '<span style="color:#aaa;font-size:11px;">Kein Bild gewählt</span>')
+                +'</div>'
+                +'<button type="button" class="button" id="hb-media-pick" style="width:100%">'
+                +'<i class="fa-solid fa-upload"></i> '+(el.src?'Bild ändern':'Aus Mediathek wählen')+'</button>'
+                +'<input type="text" data-p="src" value="'+hbEsc(el.src||'')+'" placeholder="oder URL eingeben …">'
                 +'</div>';
-            h+='<div class="forge-hb-prop-group"><span>Anpassung</span><select data-p="fit">'
-                +'<option value="contain"'+(el.fit==='contain'?' selected':'')+'>Einpassen</option>'
-                +'<option value="cover"'+(el.fit==='cover'?' selected':'')+'>Füllen</option>'
-                +'<option value="fill"'+(el.fit==='fill'?' selected':'')+'>Strecken</option>'
-                +'</select></div>';
+            h+='<div class="forge-hb-card">'
+                +'<div class="forge-hb-fit-btns">'
+                +'<button type="button" class="forge-hb-fit-btn'+((!el.fit||el.fit==='contain')?' forge-hb-fit-btn--active':'')+'" data-fit="contain">Einpassen</button>'
+                +'<button type="button" class="forge-hb-fit-btn'+(el.fit==='cover'?' forge-hb-fit-btn--active':'')+'" data-fit="cover">Füllen</button>'
+                +'<button type="button" class="forge-hb-fit-btn'+(el.fit==='fill'?' forge-hb-fit-btn--active':'')+'" data-fit="fill">Strecken</button>'
+                +'</div>'
+                +'</div>';
         } else if(el.type==='title'){
-            h+='<div class="forge-hb-prop-group"><span>Text</span><input type="text" data-p="text" value="'+hbEsc(el.text||'')+'" placeholder="{form_title}"></div>';
-            h+='<div class="forge-hb-prop-row2">'
-                +'<div class="forge-hb-prop-group"><span>Größe (pt)</span><input type="number" data-p="size" value="'+(el.size||18)+'" min="6" max="72"></div>'
-                +'<div class="forge-hb-prop-group"><span>Farbe</span><input type="color" data-p="color" value="'+hbEsc(el.color||'#1a3a5c')+'"></div>'
+            var _al = (!el.align||el.align==='left') ? ' forge-hb-tb-btn--active' : '';
+            var _ac = el.align==='center' ? ' forge-hb-tb-btn--active' : '';
+            var _ar = el.align==='right'  ? ' forge-hb-tb-btn--active' : '';
+            h+='<div class="forge-hb-card"><div class="forge-hb-fmt-toolbar">'
+                /* Rich-text format buttons — execCommand, use data-cmd */
+                +'<button type="button" class="forge-hb-tb-btn" data-cmd="bold" title="Fett"><i class="fa-solid fa-bold"></i></button>'
+                +'<button type="button" class="forge-hb-tb-btn" data-cmd="italic" title="Kursiv"><i class="fa-solid fa-italic"></i></button>'
+                /* Underline split button */
+                +'<div class="forge-hb-tb-split">'
+                +'<button type="button" class="forge-hb-tb-btn" data-cmd="underline" title="Unterstreichen"><i class="fa-solid fa-underline"></i></button>'
+                +'<button type="button" class="forge-hb-tb-btn forge-hb-tb-chevron" data-action="ul-menu" title="Unterstreichungsart"><i class="fa-solid fa-chevron-down"></i></button>'
+                +'<div class="forge-hb-ul-menu" hidden>'
+                +'<button type="button" data-ul-style="solid"><span class="forge-hb-ul-prev forge-hb-ul-solid"></span>Durchgehend</button>'
+                +'<button type="button" data-ul-style="double"><span class="forge-hb-ul-prev forge-hb-ul-double"></span>Doppelt</button>'
+                +'<button type="button" data-ul-style="dotted"><span class="forge-hb-ul-prev forge-hb-ul-dotted"></span>Gepunktet</button>'
+                +'<button type="button" data-ul-style="dashed"><span class="forge-hb-ul-prev forge-hb-ul-dashed"></span>Gestrichelt</button>'
+                +'</div></div>'
+                +'<button type="button" class="forge-hb-tb-btn" data-cmd="strikeThrough" title="Durchgestrichen"><i class="fa-solid fa-strikethrough"></i></button>'
+                +'<div class="forge-hb-tb-sep"></div>'
+                +'<button type="button" class="forge-hb-tb-btn" data-valign="super" title="Hochgestellt"><i class="fa-solid fa-superscript"></i></button>'
+                +'<button type="button" class="forge-hb-tb-btn" data-valign="sub" title="Tiefgestellt"><i class="fa-solid fa-subscript"></i></button>'
+                +'<div class="forge-hb-tb-sep"></div>'
+                /* Alignment — element-level, use data-p */
+                +'<button type="button" class="forge-hb-tb-btn'+_al+'" data-p="align" data-val="left" title="Links"><i class="fa-solid fa-align-left"></i></button>'
+                +'<button type="button" class="forge-hb-tb-btn'+_ac+'" data-p="align" data-val="center" title="Mitte"><i class="fa-solid fa-align-center"></i></button>'
+                +'<button type="button" class="forge-hb-tb-btn'+_ar+'" data-p="align" data-val="right" title="Rechts"><i class="fa-solid fa-align-right"></i></button>'
+                +'<div class="forge-hb-tb-sep"></div>'
+                /* Size + colour — element-level */
+                +(function(){
+                    var sizes=[8,9,10,11,12,14,16,18,20,24,28,32,36,48,72];
+                    var cur=el.size||18;
+                    var s='<select class="forge-hb-tb-size-sel" data-sz title="Schriftgröße">';
+                    sizes.forEach(function(n){
+                        s+='<option value="'+n+'"'+(n===cur?' selected':'')+'>'+n+' pt</option>';
+                    });
+                    return s+'</select>';
+                }())
+                +'<input type="color" data-p="color" value="'+hbEsc(el.color||'#1d2327')+'" class="forge-hb-tb-color" title="Farbe">'
                 +'</div>';
-            h+='<div class="forge-hb-prop-group"><span>Ausrichtung</span><select data-p="align">'
-                +'<option value="left"'+(el.align==='left'?' selected':'')+'>Links</option>'
-                +'<option value="center"'+(el.align==='center'?' selected':'')+'>Mitte</option>'
-                +'<option value="right"'+(el.align==='right'?' selected':'')+'>Rechts</option>'
-                +'</select></div>';
-            h+='<div class="forge-hb-prop-inline"><input type="checkbox" data-p="bold"'+(el.bold?' checked':'')+' id="hb-bold"><label for="hb-bold">Fett</label></div>';
+            h+='<div class="forge-hb-prop-group forge-hb-prop-group--editor"><span>Text</span>'
+                +'<div class="forge-hb-title-editor" contenteditable="true" spellcheck="false" '
+                +'style="font-size:'+(el.size||18)+'pt;color:'+hbEsc(el.color||'#1d2327')+';text-align:'+hbEsc(el.align||'left')+';">'
+                +(el.content||el.text||'{form_title}')
+                +'</div></div>'
+                +'</div>';
         } else if(el.type==='html'){
             h+='<div class="forge-hb-prop-group"><span>HTML-Code</span><textarea data-p="html"></textarea></div>';
             h+='<p style="font-size:11px;color:#888;margin:0">HTML wird direkt gerendert. Kein Script-Tag.</p>';
         }
 
-        h+='<div style="margin-top:auto;padding-top:10px;border-top:1px solid #e2e4e7;">'
+        h+='<div style="padding-top:10px;border-top:1px solid #e2e4e7;">'
             +'<button type="button" class="button" id="hb-delete-btn" style="color:#d63638;width:100%"><i class="fa-solid fa-trash"></i> Element löschen</button>'
             +'</div>';
 
@@ -1029,15 +1249,221 @@ class PDFLayoutEditor
             if(ta) ta.value = el.html||'';
         }
 
-        /* Bind prop inputs */
-        hbProps.querySelectorAll('[data-p]').forEach(function(inp){
-            var ev = (inp.tagName==='SELECT'||inp.type==='checkbox'||inp.type==='color') ? 'change' : 'input';
+        /* Rich-text editor (title element) */
+        var titleEd   = hbProps.querySelector('.forge-hb-title-editor');
+        var savedRange = null;
+
+        /* Save selection whenever focus might leave the editor */
+        if(titleEd){
+            hbProps.addEventListener('mousedown', function(e){
+                if(titleEd.contains(e.target)) return;
+                var sel=window.getSelection();
+                if(sel && sel.rangeCount && titleEd.contains(sel.anchorNode)){
+                    savedRange = sel.getRangeAt(0).cloneRange();
+                }
+            }, true);
+        }
+
+        function hbRestoreRange(){
+            if(!savedRange || !titleEd) return false;
+            titleEd.focus();
+            var sel=window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(savedRange);
+            return !savedRange.collapsed;
+        }
+
+        function hbApplySpan(props){
+            if(!titleEd) return;
+            var hasRange=hbRestoreRange();
+            if(!hasRange){ return; }
+            var sel=window.getSelection();
+            var range=sel.getRangeAt(0);
+            var span=document.createElement('span');
+            Object.keys(props).forEach(function(k){
+                if(k.indexOf('data-')===0) span.setAttribute(k, props[k]);
+                else span.style[k]=props[k];
+            });
+            try{ range.surroundContents(span); }
+            catch(ex){
+                var frag=range.extractContents();
+                span.appendChild(frag);
+                range.insertNode(span);
+            }
+            el.content=titleEd.innerHTML; hbRender();
+        }
+
+        /* execCommand buttons — mousedown+preventDefault keeps editor focus intact */
+        hbProps.querySelectorAll('button[data-cmd]').forEach(function(btn){
+            btn.addEventListener('mousedown', function(e){
+                e.preventDefault();
+                if(titleEd) titleEd.focus();
+                document.execCommand(btn.dataset.cmd, false, null);
+                setTimeout(function(){
+                    if(titleEd){ el.content=titleEd.innerHTML; hbRender(); hbSyncToolbarState(); }
+                }, 0);
+            });
+        });
+
+        /* Superscript / Subscript — use spans so line-height is unaffected */
+        hbProps.querySelectorAll('button[data-valign]').forEach(function(btn){
+            btn.addEventListener('mousedown', function(e){
+                e.preventDefault();
+                var va = btn.dataset.valign;
+                hbRestoreRange();
+                var sel = window.getSelection();
+                if(!sel || !sel.rangeCount || !titleEd) return;
+
+                /* Find all existing [data-va=va] spans that overlap the selection */
+                var existing = Array.prototype.slice.call(
+                    titleEd.querySelectorAll('span[data-va="'+va+'"]')
+                ).filter(function(s){
+                    return sel.containsNode(s, true);
+                });
+
+                if(existing.length){
+                    /* Unwrap every matched span */
+                    existing.forEach(function(s){
+                        var frag=document.createDocumentFragment();
+                        while(s.firstChild) frag.appendChild(s.firstChild);
+                        s.parentNode.replaceChild(frag, s);
+                    });
+                } else if(!sel.getRangeAt(0).collapsed){
+                    hbApplySpan({verticalAlign:va, fontSize:'75%', 'data-va':va});
+                }
+                el.content=titleEd.innerHTML; hbRender(); hbSyncToolbarState();
+            });
+        });
+
+        /* Underline-style split button */
+        var ulChevron = hbProps.querySelector('[data-action="ul-menu"]');
+        var ulMenu    = hbProps.querySelector('.forge-hb-ul-menu');
+        if(ulChevron && ulMenu){
+            ulChevron.addEventListener('mousedown', function(e){
+                e.preventDefault(); ulMenu.hidden=!ulMenu.hidden;
+            });
+            ulMenu.querySelectorAll('[data-ul-style]').forEach(function(opt){
+                opt.addEventListener('mousedown', function(e){
+                    e.preventDefault();
+                    ulMenu.hidden=true;
+                    if(!titleEd) return;
+                    titleEd.focus();
+                    var sel=window.getSelection();
+                    if(sel && sel.rangeCount && !sel.getRangeAt(0).collapsed){
+                        var range=sel.getRangeAt(0);
+                        var span=document.createElement('span');
+                        span.style.cssText='text-decoration:underline;text-decoration-style:'+opt.dataset.ulStyle;
+                        try{ range.surroundContents(span); }
+                        catch(ex){ document.execCommand('underline',false,null); }
+                    } else {
+                        document.execCommand('underline',false,null);
+                    }
+                    el.content=titleEd.innerHTML; hbRender();
+                });
+            });
+            /* Close menu on outside click */
+            document.addEventListener('mousedown', function hbUlClose(e){
+                if(!ulMenu.contains(e.target) && e.target!==ulChevron){
+                    ulMenu.hidden=true;
+                    document.removeEventListener('mousedown', hbUlClose);
+                }
+            });
+        }
+
+        /* Alignment & other element-level toolbar buttons (data-p on <button>) */
+        hbProps.querySelectorAll('button[data-p]').forEach(function(btn){
+            btn.addEventListener('mousedown', function(e){
+                e.preventDefault();
+                el[btn.dataset.p]=btn.dataset.val;
+                if(titleEd) titleEd.style.textAlign=el.align||'left';
+                hbRender(); hbRenderProps();
+            });
+        });
+
+        /* Font-size select: per-selection if text is selected, else element-level */
+        var szSel=hbProps.querySelector('[data-sz]');
+        if(szSel){
+            szSel.addEventListener('change', function(){
+                var sz=parseInt(szSel.value)||18;
+                var hadRange=hbRestoreRange();
+                if(hadRange){
+                    hbApplySpan({fontSize:sz+'pt'});
+                } else {
+                    el.size=sz;
+                    if(titleEd) titleEd.style.fontSize=sz+'pt';
+                    hbRender();
+                }
+            });
+        }
+
+        /* Live toolbar state (bold/italic/underline active when cursor is inside) */
+        function hbSyncToolbarState(){
+            if(!titleEd) return;
+            ['bold','italic','underline','strikeThrough'].forEach(function(cmd){
+                var btn=hbProps.querySelector('button[data-cmd="'+cmd+'"]');
+                if(!btn) return;
+                try{ btn.classList.toggle('forge-hb-tb-btn--active',
+                    document.queryCommandState(cmd)); }
+                catch(ex){}
+            });
+            /* valign: active if cursor is inside OR selection contains a [data-va] span */
+            ['super','sub'].forEach(function(va){
+                var btn=hbProps.querySelector('button[data-valign="'+va+'"]');
+                if(!btn) return;
+                var sel=window.getSelection();
+                var active=false;
+                if(sel&&sel.rangeCount){
+                    /* cursor inside a span? */
+                    var node=sel.anchorNode;
+                    if(node&&node.nodeType===3) node=node.parentNode;
+                    if(node&&node.closest) active=!!node.closest('span[data-va="'+va+'"]');
+                    /* selection contains a span? */
+                    if(!active&&titleEd){
+                        active=Array.prototype.some.call(
+                            titleEd.querySelectorAll('span[data-va="'+va+'"]'),
+                            function(s){ return sel.containsNode(s,true); }
+                        );
+                    }
+                }
+                btn.classList.toggle('forge-hb-tb-btn--active', active);
+            });
+        }
+        document.addEventListener('selectionchange', function hbSC(){
+            if(!titleEd || !document.body.contains(titleEd)){
+                document.removeEventListener('selectionchange', hbSC); return;
+            }
+            var sel=window.getSelection();
+            if(sel&&sel.rangeCount&&titleEd.contains(sel.anchorNode)){
+                hbSyncToolbarState();
+            }
+        });
+
+        /* Color input: per-selection when text is selected, element-level otherwise */
+        hbProps.querySelectorAll('input[data-p="color"]').forEach(function(inp){
+            inp.addEventListener('change', function(){
+                var v=inp.value;
+                var hadRange=hbRestoreRange();
+                if(hadRange){
+                    hbApplySpan({color:v});
+                } else {
+                    el.color=v;
+                    if(titleEd) titleEd.style.color=v;
+                    hbRender();
+                }
+            });
+        });
+
+        /* Other element-level inputs (grid coords etc.) */
+        hbProps.querySelectorAll('input[data-p]:not([data-p="color"])').forEach(function(inp){
+            var ev = inp.type==='color' ? 'change' : 'input';
             inp.addEventListener(ev, function(){
                 var p=inp.dataset.p, v;
-                if(inp.type==='checkbox') v=inp.checked;
-                else if(inp.type==='number') v=parseInt(inp.value)||0;
+                if(inp.type==='number') v=parseInt(inp.value)||0;
                 else v=inp.value;
                 el[p]=v;
+                if(titleEd){
+                    if(p==='size') titleEd.style.fontSize=v+'pt';
+                }
                 /* clamp grid coords */
                 el.x=Math.max(0,Math.min(HB_COLS-el.w,el.x));
                 el.y=Math.max(0,el.y);
@@ -1046,6 +1472,31 @@ class PDFLayoutEditor
                 hbRender();
             });
         });
+
+        /* Image fit buttons */
+        hbProps.querySelectorAll('button[data-fit]').forEach(function(btn){
+            btn.addEventListener('click', function(){
+                el.fit=btn.dataset.fit;
+                hbProps.querySelectorAll('button[data-fit]').forEach(function(b){
+                    b.classList.toggle('forge-hb-fit-btn--active', b===btn);
+                });
+                hbRender();
+            });
+        });
+
+        /* Select inputs (remaining selects) */
+        hbProps.querySelectorAll('select[data-p]').forEach(function(sel){
+            sel.addEventListener('change', function(){
+                el[sel.dataset.p]=sel.value; hbRender();
+            });
+        });
+
+        /* Contenteditable live update */
+        if(titleEd){
+            titleEd.addEventListener('input', function(){
+                el.content=titleEd.innerHTML; hbRender();
+            });
+        }
 
         /* Media picker (change image button inside props) */
         var mpBtn=document.getElementById('hb-media-pick');
@@ -1111,7 +1562,7 @@ class PDFLayoutEditor
             var order = s.section_order || [];
             var hidden = s.section_hidden || [];
             var ff = (function(){ var fm={'dejavusans':'Arial,Helvetica,sans-serif','dejavuserif':"'Times New Roman',Times,serif",'dejavusansmono':"'DejaVu Sans Mono','Courier New',monospace",'freemono':"'Courier New',Courier,monospace"}; return fm[s.font_family]||'Arial,sans-serif'; })();
-            var fs = s.font_size_body+'pt';
+            var fs = pt(s.font_size_body);
             var pad = mm(s.margin_top)+' '+mm(s.margin_right)+' '+mm(s.margin_bottom)+' '+mm(s.margin_left);
             result += '<div style="font-family:'+ff+';font-size:'+fs+';color:#222;padding:'+pad+';box-sizing:border-box;">';
             order.forEach(function(slug){
@@ -1140,12 +1591,12 @@ class PDFLayoutEditor
                         var hp2 = (el.h * HB_CELL)+'px';
                         result += '<div style="position:absolute;left:'+lp+';top:'+tp+';width:'+wp2+';height:'+hp2+';overflow:hidden;">';
                         if(el.type==='image' && el.src){
-                            result += '<img src="'+hbEsc(el.src)+'" style="width:100%;height:auto;display:block;">';
+                            result += '<img src="'+hbEsc(el.src)
+                                +'" style="width:100%;height:auto;max-height:100%;display:block;">';
                         } else if(el.type==='title'){
-                            var fspx=Math.round((el.size||18)*0.75);
-                            var txt=hbEsc((el.text||'{form_title}').replace('{form_title}','Beispielformular'));
+                            var pcnt = (el.content||el.text||'{form_title}').replace(/\{form_title\}/g,'Beispielformular');
                             result += '<div style="width:100%;height:100%;display:flex;align-items:center;">'
-                                +'<span style="width:100%;font-size:'+fspx+'px;font-weight:'+(el.bold?'bold':'normal')+';color:'+hbEsc(el.color||s.primary_color)+';text-align:'+hbEsc(el.align||'left')+';">'+txt+'</span></div>';
+                                +'<span style="width:100%;font-size:'+(el.size||18)+'pt;color:'+hbEsc(el.color||'#1d2327')+';text-align:'+hbEsc(el.align||'left')+';">'+pcnt+'</span></div>';
                         }
                         result += '</div>';
                     });
@@ -1167,34 +1618,110 @@ class PDFLayoutEditor
         return _origBuild(s);
     };
 
+    window.forgePdfUpdatePreview = updatePreview;
     updatePreview();
+}());
+
+/* ---- AJAX save for #forge-pdf-layout-form (no page reload) ---- */
+(function(){
+    var form = document.getElementById('forge-pdf-layout-form');
+    if (!form) return;
+    function showNotice(msg, isError) {
+        var existing = document.querySelector('.forge-settings-notice');
+        if (existing) existing.remove();
+        var n = document.createElement('div');
+        n.className = 'forge-settings-notice forge-settings-notice--'
+            + (isError ? 'error' : 'success');
+        n.innerHTML = '<i class="fa-solid fa-'
+            + (isError ? 'circle-xmark' : 'circle-check') + '"></i> ' + msg;
+        var topbar = document.querySelector('.forge-settings-topbar');
+        var ref = topbar || form;
+        ref.parentNode.insertBefore(n, ref);
+        n.scrollIntoView({behavior:'smooth', block:'nearest'});
+        if (!isError) {
+            setTimeout(function() {
+                n.style.transition = 'opacity .4s';
+                n.style.opacity = '0';
+                setTimeout(function() { n.remove(); }, 420);
+            }, 3000);
+        }
+    }
+    form.addEventListener('submit', function(e){
+        e.preventDefault();
+        var btn = document.querySelector('[form="forge-pdf-layout-form"][type="submit"]')
+            || form.querySelector('button[type="submit"]');
+        var origHtml = btn ? btn.innerHTML : '';
+        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="forge-spinner"></span> Speichern…'; }
+        var fd = new FormData(form);
+        fd.set('action', 'forge_save_pdf_layout');
+        requestAnimationFrame(function(){ requestAnimationFrame(function(){
+        fetch('<?php echo esc_js(admin_url('admin-ajax.php')); ?>', {method:'POST', body:fd})
+            .then(function(r){ return r.json(); })
+            .then(function(data){
+                if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+                if (data.success) {
+                    showNotice(data.data.message, false);
+                } else {
+                    showNotice((data.data && data.data.message) || 'Fehler beim Speichern.', true);
+                }
+            })
+            .catch(function(){
+                if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+                showNotice('Netzwerkfehler.', true);
+            });
+        }); }); // requestAnimationFrame double-frame
+    });
 }());
 </script>
         <?php
     }
 
+    /**
+     * AJAX handler that saves PDF layout settings.
+     *
+     * @return void
+     */
+    public static function handleSave(): void
+    {
+        if (!\ForgeForms\Plugin::userCan('edit_pdf_layout')) {
+            wp_send_json_error(['message' => 'Forbidden'], 403);
+        }
+        check_ajax_referer('forge_pdf_layout', 'forge_pdf_layout_nonce');
+        self::save();
+        wp_send_json_success(['message' => 'Layout gespeichert.']);
+    }
+
+    /**
+     * Saves PDF layout settings from POST data.
+     *
+     * @return void
+     */
     private static function save(): void
     {
         $defs = self::defaults();
         $labels = self::$section_labels;
 
-        $order = array_values(array_filter(
-            array_map('sanitize_key', explode(',', wp_unslash($_POST['section_order'] ?? ''))),
-            fn($s) => isset($labels[$s])
-        ));
-        $hidden = array_values(array_filter(
-            array_map('sanitize_key', explode(',', wp_unslash($_POST['section_hidden'] ?? ''))),
-            fn($s) => isset($labels[$s])
-        ));
+        $order = array_values(
+            array_filter(
+                array_map('sanitize_key', explode(',', wp_unslash($_POST['section_order'] ?? ''))),
+                fn($s) => isset($labels[$s])
+            )
+        );
+        $hidden = array_values(
+            array_filter(
+                array_map('sanitize_key', explode(',', wp_unslash($_POST['section_hidden'] ?? ''))),
+                fn($s) => isset($labels[$s])
+            )
+        );
 
         if (empty($order)) {
             $order = $defs['section_order'];
         }
 
-        update_option('forge_forms_pdf_layout', [
+        update_option(
+            'forge_forms_pdf_layout', [
             'logo_url'        => esc_url_raw(wp_unslash($_POST['logo_url'] ?? '')),
             'logo_width'      => min(400, max(40, (int) ($_POST['logo_width'] ?? 180))),
-            'primary_color'   => sanitize_hex_color($_POST['primary_color']   ?? '') ?: $defs['primary_color'],
             'accent_color'    => sanitize_hex_color($_POST['accent_color']    ?? '') ?: $defs['accent_color'],
             'separator_color' => sanitize_hex_color($_POST['separator_color'] ?? '') ?: $defs['separator_color'],
             'font_family'     => sanitize_key($_POST['font_family'] ?? 'dejavusans'),
@@ -1210,9 +1737,17 @@ class PDFLayoutEditor
             'header_layout'   => self::sanitizeHeaderLayout(
                 json_decode(wp_unslash($_POST['header_layout_json'] ?? '{}'), true) ?: []
             ),
-        ]);
+            ]
+        );
     }
 
+    /**
+     * Sanitizes the header layout grid configuration.
+     *
+     * @param array $raw Raw header layout data from POST.
+     *
+     * @return array Sanitized header layout array.
+     */
     private static function sanitizeHeaderLayout(array $raw): array
     {
         $rows = min(30, max(2, (int) ($raw['rows'] ?? 8)));
@@ -1235,7 +1770,7 @@ class PDFLayoutEditor
                 $item['size']  = min(72, max(6, (int) ($el['size'] ?? 18)));
                 $item['bold']  = !empty($el['bold']);
                 $item['align'] = in_array($el['align'] ?? '', ['left', 'center', 'right'], true) ? $el['align'] : 'left';
-                $item['color'] = sanitize_hex_color($el['color'] ?? '') ?: '#1a3a5c';
+                $item['color'] = sanitize_hex_color($el['color'] ?? '') ?: '#1d2327';
             } elseif ($type === 'image') {
                 $item['src'] = esc_url_raw($el['src'] ?? '');
                 $item['fit'] = in_array($el['fit'] ?? '', ['contain', 'cover', 'fill'], true) ? $el['fit'] : 'contain';
@@ -1248,8 +1783,81 @@ class PDFLayoutEditor
     }
 
     /**
+     * Sample submission data shared by the server-rendered PDF preview and
+     * the browser-side HTML preview, so both show identical content. Sized
+     * to run roughly 1.5–2 A4 pages at the default layout settings.
+     *
+     * @return array Dummy mapped-field entries.
+     */
+    public static function dummyFields(): array
+    {
+        $nachricht = 'Beispieltext für die PDF-Vorschau. Dieser Absatz '
+            . 'demonstriert, wie längere Freitext-Eingaben im fertigen '
+            . 'Dokument umbrechen und wie viel Platz sie einnehmen. Er '
+            . 'enthält mehrere Sätze, damit sich die Vorschau über eine '
+            . 'realistische Textmenge erstreckt, wie sie auch bei echten '
+            . 'Formular-Einsendungen vorkommt.';
+        $anmerkungen = 'Hier folgt ein weiterer Beispielabsatz mit '
+            . 'zusätzlichen Anmerkungen, damit die Vorschau insgesamt '
+            . 'mehrere Seiten umfasst und Layout-Einstellungen wie Ränder, '
+            . 'Schriftgröße und Abschnittsreihenfolge realistisch '
+            . 'beurteilt werden können.';
+
+        return [
+            ['type' => 'text', 'label' => 'Vorname', 'value' => 'Max'],
+            ['type' => 'text', 'label' => 'Nachname', 'value' => 'Mustermann'],
+            [
+                'type'  => 'email',
+                'label' => 'E-Mail',
+                'value' => 'max.mustermann@example.de',
+            ],
+            ['type' => 'text', 'label' => 'Telefon', 'value' => '+49 151 23456789'],
+            [
+                'type'  => 'text',
+                'label' => 'Anschrift',
+                'value' => 'Musterstraße 12, 10115 Berlin',
+            ],
+            ['type' => 'text', 'label' => 'Geburtsdatum', 'value' => '14.03.1990'],
+            ['type' => 'text', 'label' => 'Anliegen', 'value' => 'Mitgliedsantrag'],
+            [
+                'type'  => 'text',
+                'label' => 'Mitgliedschaftsart',
+                'value' => 'Fördermitglied',
+            ],
+            ['type' => 'textarea', 'label' => 'Nachricht', 'value' => $nachricht],
+            [
+                'type'  => 'textarea',
+                'label' => 'Zusätzliche Anmerkungen',
+                'value' => $anmerkungen,
+            ],
+            [
+                'type'  => 'signature',
+                'label' => 'Unterschrift',
+                'value' => '[Beispielunterschrift]',
+                'materialized_files' => [[
+                    'name'   => 'unterschrift.png',
+                    'mime'   => 'image/png',
+                    'base64' => self::dummySignaturePng(),
+                ]],
+            ],
+            [
+                'type'  => 'upload',
+                'label' => 'Anhang',
+                'value' => 'beispiel-dokument.png',
+                'materialized_files' => [[
+                    'name'   => 'beispiel-dokument.png',
+                    'mime'   => 'image/png',
+                    'base64' => self::dummyUploadPng(),
+                ]],
+            ],
+        ];
+    }
+
+    /**
      * Generate a 300×80 PNG showing a handwriting-style squiggle (signature placeholder).
      * Falls back to a solid-colour rectangle if GD is unavailable.
+     *
+     * @return string Base64-encoded dummy signature PNG.
      */
     private static function dummySignaturePng(): string
     {
@@ -1276,6 +1884,8 @@ class PDFLayoutEditor
 
     /**
      * Generate a 300×80 PNG showing a document icon (upload placeholder).
+     *
+     * @return string Base64-encoded dummy upload PNG.
      */
     private static function dummyUploadPng(): string
     {
@@ -1308,7 +1918,11 @@ class PDFLayoutEditor
         return base64_encode((string) $raw);
     }
 
-    /** Minimal valid 1×1 white PNG for environments without GD. */
+    /**
+     * Minimal valid 1×1 white PNG for environments without GD.
+     *
+     * @return string Base64-encoded 1×1 white PNG fallback.
+     */
     private static function dummyFallbackPng(): string
     {
         return 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==';

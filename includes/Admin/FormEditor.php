@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Admin drag-and-drop form builder page.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/form-forge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -18,8 +26,16 @@ defined('ABSPATH') || exit;
 use ForgeForms\Form\FormModel;
 use ForgeForms\Fields\FieldRegistry;
 
+/**
+ * Admin drag-and-drop form builder page controller.
+ */
 class FormEditor
 {
+    /**
+     * Registers admin hooks for the form editor page.
+     *
+     * @return void
+     */
     public static function init(): void
     {
         \add_action('admin_menu', [self::class, 'menu']);
@@ -28,6 +44,13 @@ class FormEditor
         \add_filter('admin_body_class', [self::class, 'bodyClass']);
     }
 
+    /**
+     * Appends a CSS class on the editor page.
+     *
+     * @param string $classes Existing admin body classes.
+     *
+     * @return string Modified body class string.
+     */
     public static function bodyClass(string $classes): string
     {
         if (isset($_GET['page']) && $_GET['page'] === 'forge-forms-editor') {
@@ -36,6 +59,11 @@ class FormEditor
         return $classes;
     }
 
+    /**
+     * Registers the editor submenu page.
+     *
+     * @return void
+     */
     public static function menu(): void
     {
         if (\ForgeForms\Plugin::userCan('edit_forms')) {
@@ -50,6 +78,11 @@ class FormEditor
         }
     }
 
+    /**
+     * Renders the drag-and-drop builder page HTML.
+     *
+     * @return void
+     */
     public static function render(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
@@ -189,6 +222,11 @@ class FormEditor
         <?php
     }
 
+    /**
+     * AJAX handler that returns a complete HTML preview of the form.
+     *
+     * @return void
+     */
     public static function ajaxPreview(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
@@ -272,10 +310,18 @@ class FormEditor
             . 'ajaxUrl:"",ibanBicUrl:"",'
             . 'i18n:{submitting:"Wird gesendet…",error_server:"Serverfehler."}'
             . '};';
-        if (!empty($inits))        { $globals .= 'window.ForgeFieldInits={'   . implode(',', $inits)        . '};'; }
-        if (!empty($pairs))        { $globals .= 'window.ForgeValidators={'    . implode(',', $pairs)        . '};'; }
-        if (!empty($empty_checks)) { $globals .= 'window.ForgeEmptyChecks={'  . implode(',', $empty_checks) . '};'; }
-        if (!empty($skip))         { $globals .= 'window.ForgeSkipValidation=[' . implode(',', $skip)       . '];'; }
+        if (!empty($inits)) {
+            $globals .= 'window.ForgeFieldInits={' . implode(',', $inits) . '};';
+        }
+        if (!empty($pairs)) {
+            $globals .= 'window.ForgeValidators={' . implode(',', $pairs) . '};';
+        }
+        if (!empty($empty_checks)) {
+            $globals .= 'window.ForgeEmptyChecks={' . implode(',', $empty_checks) . '};';
+        }
+        if (!empty($skip)) {
+            $globals .= 'window.ForgeSkipValidation=[' . implode(',', $skip) . '];';
+        }
 
         $toolbar_css = '
 #forge-preview-toolbar{
@@ -396,6 +442,11 @@ window.fetch = function (url, opts) {
         \wp_send_json_success(['html' => $page]);
     }
 
+    /**
+     * AJAX handler that saves form data.
+     *
+     * @return void
+     */
     public static function ajaxSave(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
@@ -403,18 +454,22 @@ window.fetch = function (url, opts) {
         }
         \check_ajax_referer('forge_forms_admin_nonce', 'nonce');
 
-        $raw = json_decode(\wp_unslash($_POST['form_data'] ?? ''), true);
+        $encoded = \wp_unslash($_POST['form_data'] ?? '');
+        $json    = base64_decode($encoded, true);
+        $raw     = ($json !== false) ? json_decode($json, true) : null;
         if (!is_array($raw)) {
             \wp_send_json_error(['message' => 'Invalid form data'], 400);
         }
 
         $form_id = (int)($raw['id'] ?? 0);
-        $result  = FormModel::save([
+        $result  = FormModel::save(
+            [
             'title'         => \sanitize_text_field($raw['title']              ?? ''),
             'fields'        => self::sanitizeFields($raw['fields']             ?? []),
             'notifications' => self::sanitizeNotifications($raw['notifications'] ?? []),
             'settings'      => self::sanitizeSettings($raw['settings']         ?? []),
-        ], $form_id);
+            ], $form_id
+        );
 
         if (\is_wp_error($result)) {
             \wp_send_json_error(['message' => $result->get_error_message()], 500);
@@ -430,12 +485,21 @@ window.fetch = function (url, opts) {
         }
         \update_option('forge_forms_pdf_settings', $pdf_settings);
 
-        \wp_send_json_success([
+        \wp_send_json_success(
+            [
             'message' => 'Formular gespeichert.',
             'form_id' => $result,
-        ]);
+            ]
+        );
     }
 
+    /**
+     * Sanitizes the fields array from the builder.
+     *
+     * @param array $fields Raw fields array from the builder.
+     *
+     * @return array Sanitized fields array.
+     */
     private static function sanitizeFields(array $fields): array
     {
         $clean = [];
@@ -477,6 +541,13 @@ window.fetch = function (url, opts) {
         return $clean;
     }
 
+    /**
+     * Sanitizes the notifications array.
+     *
+     * @param array $notifications Raw notifications array.
+     *
+     * @return array Sanitized notifications array.
+     */
     private static function sanitizeNotifications(array $notifications): array
     {
         $clean = [];
@@ -493,7 +564,10 @@ window.fetch = function (url, opts) {
                     'field_id' => \sanitize_key($rule['field_id'] ?? ''),
                     'operator' => \sanitize_key($rule['operator'] ?? 'equals'),
                     'value'    => \sanitize_text_field($rule['value'] ?? ''),
-                    'email'    => \sanitize_email($rule['email'] ?? ''),
+                    /* May be a literal address or a {field_id}/{admin_email}
+                       placeholder resolved at send time — sanitize_email()
+                       would strip the braces, so keep it as plain text. */
+                    'email'    => \sanitize_text_field($rule['email'] ?? ''),
                 ];
             }
             $clean[] = [
@@ -503,11 +577,12 @@ window.fetch = function (url, opts) {
                     ? $n['recipient_mode'] : 'single',
                 'to'               => \sanitize_text_field($n['to']         ?? ''),
                 'routing_rules'    => $routing_rules,
-                'routing_fallback' => \sanitize_email($n['routing_fallback'] ?? ''),
+                'routing_fallback' =>
+                    \sanitize_text_field($n['routing_fallback'] ?? ''),
                 'reply_to'         => \sanitize_text_field($n['reply_to']   ?? ''),
                 'subject'          => \sanitize_text_field($n['subject']    ?? ''),
-                'body'             => \wp_kses_post($n['body']              ?? ''),
-                'body_html'        => !empty($n['body_html']),
+                /* Body is always HTML, authored via the Visual or Code view. */
+                'body'             => self::_sanitizeEmailBody($n['body'] ?? ''),
                 'from_name'        => \sanitize_text_field($n['from_name']  ?? ''),
                 'from_email'       => \sanitize_email($n['from_email']      ?? ''),
                 'cc'               => \sanitize_text_field($n['cc']         ?? ''),
@@ -520,6 +595,13 @@ window.fetch = function (url, opts) {
         return $clean;
     }
 
+    /**
+     * Sanitizes the form settings array.
+     *
+     * @param array $settings Raw settings array.
+     *
+     * @return array Sanitized settings array.
+     */
     private static function sanitizeSettings(array $settings): array
     {
         $rules = [];
@@ -548,6 +630,91 @@ window.fetch = function (url, opts) {
         ];
     }
 
+    /**
+     * Sanitizes an HTML email body for admin-authored notification templates.
+     *
+     * Uses targeted regex instead of wp_kses because wp_kses passes all style
+     * attributes through safecss_filter_attr, which drops valid email CSS
+     * properties (overflow, border-radius, display:inline-block, etc.).
+     * Only genuinely dangerous constructs are removed: script elements,
+     * inline event-handler attributes, and javascript:/vbscript: URIs.
+     *
+     * @param string $html Raw HTML body from the notification editor.
+     *
+     * @return string Sanitized HTML.
+     */
+    private static function _sanitizeEmailBody(string $html): string
+    {
+        $before = $html;
+
+        $passes = [
+            'script-tags'   => '/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/is',
+            'event-handlers' =>
+                '/\s+on[a-z]+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i',
+            'js-uris'
+                => '/\b(href|src|action)\s*=\s*(["\'])\s*'
+                . '(?:javascript|vbscript)\s*:[^"\']*\2/i',
+        ];
+
+        $replacements = ['script-tags' => '', 'event-handlers' => ''];
+        $replacements['js-uris'] = '$1=$2#$2';
+
+        foreach ($passes as $label => $pattern) {
+            $after = preg_replace($pattern, $replacements[$label], $html);
+            if ($after !== $html) {
+                preg_match_all($pattern, $html, $m);
+                \ForgeForms\forge_log(
+                    'ForgeForms _sanitizeEmailBody [' . $label . '] removed '
+                    . count($m[0]) . ' match(es): '
+                    . substr(implode(' | ', $m[0]), 0, 300)
+                );
+            }
+            $html = $after;
+        }
+
+        // If the body is a full HTML document and the user appended content
+        // after </html> (e.g. {all_fields} tacked on at the end), that content
+        // ends up outside the document structure and breaks email clients.
+        // Move any such orphaned content to just before </body> instead.
+        $close_pos = strripos($html, '</html>');
+        if ($close_pos !== false) {
+            $orphan = trim(substr($html, $close_pos + 7));
+            if ($orphan !== '') {
+                $html = substr($html, 0, $close_pos + 7);
+                $body_close = strripos($html, '</body>');
+                if ($body_close !== false) {
+                    $html = substr($html, 0, $body_close)
+                        . "\n" . $orphan . "\n"
+                        . substr($html, $body_close);
+                    \ForgeForms\forge_log(
+                        'ForgeForms _sanitizeEmailBody: moved orphaned content'
+                        . ' from after </html> to before </body>: '
+                        . substr($orphan, 0, 100)
+                    );
+                }
+            }
+        }
+
+        if ($html !== $before) {
+            \ForgeForms\forge_log(
+                'ForgeForms _sanitizeEmailBody: input length '
+                . strlen($before) . ' → output length ' . strlen($html)
+            );
+        } else {
+            \ForgeForms\forge_log(
+                'ForgeForms _sanitizeEmailBody: nothing stripped '
+                . '(input length ' . strlen($html) . ')'
+            );
+        }
+
+        return $html;
+    }
+
+    /**
+     * Returns the default notification configuration array.
+     *
+     * @return array Default notification configuration.
+     */
     private static function defaultNotification(): array
     {
         return [
@@ -558,8 +725,8 @@ window.fetch = function (url, opts) {
             'routing_rules'    => [],
             'routing_fallback' => '',
             'subject'          => 'Neuer Eintrag: {form_title}',
-            'body'             => "Ein neuer Eintrag ist eingegangen.\n\n{all_fields}",
-            'body_html'        => false,
+            'body'             =>
+                'Ein neuer Eintrag ist eingegangen.<br><br>{all_fields}',
             'from_name'        => '{site_name}',
             'from_email'       => '{admin_email}',
             'reply_to'         => '{email}',

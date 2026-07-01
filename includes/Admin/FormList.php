@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Admin list table displaying all saved forms.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -17,8 +25,16 @@ defined('ABSPATH') || exit;
 
 use ForgeForms\Form\FormModel;
 
+/**
+ * Admin list table displaying all saved forms.
+ */
 class FormList
 {
+    /**
+     * Registers admin hooks for the form list page.
+     *
+     * @return void
+     */
     public static function init(): void
     {
         add_action('admin_menu', [self::class, 'menu']);
@@ -28,9 +44,17 @@ class FormList
         add_action('wp_ajax_forge_forms_bulk_duplicate', [self::class, 'ajaxBulkDuplicate']);
         add_action('wp_ajax_forge_forms_export', [self::class, 'ajaxExport']);
         add_action('wp_ajax_forge_forms_import', [self::class, 'ajaxImport']);
+        add_action('wp_ajax_forge_forms_render_row', [self::class, 'ajaxRenderRow']);
         add_filter('admin_body_class', [self::class, 'bodyClass']);
     }
 
+    /**
+     * Appends a CSS class on the list page.
+     *
+     * @param string $classes Existing admin body classes.
+     *
+     * @return string Modified body class string.
+     */
     public static function bodyClass(string $classes): string
     {
         if (isset($_GET['page']) && $_GET['page'] === 'forge-forms') {
@@ -39,6 +63,11 @@ class FormList
         return $classes;
     }
 
+    /**
+     * Registers the main menu page and list submenu.
+     *
+     * @return void
+     */
     public static function menu(): void
     {
         if (\ForgeForms\Plugin::userCan('view_forms')) {
@@ -64,6 +93,11 @@ class FormList
         }
     }
 
+    /**
+     * Renders the admin form list page.
+     *
+     * @return void
+     */
     public static function render(): void
     {
         if (!\ForgeForms\Plugin::userCan('view_forms')) {
@@ -258,110 +292,8 @@ class FormList
                 if (openDd) { openDd.hidden = true; openDd = null; }
             }
 
-            document.querySelectorAll('.forge-row-menu-btn').forEach(function(btn) {
-                var dd = btn.nextElementSibling;
-                document.body.appendChild(dd);
-
-                btn.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    var alreadyOpen = (openDd === dd && !dd.hidden);
-                    closeAllDropdowns();
-                    if (alreadyOpen) return;
-
-                    var rect = btn.getBoundingClientRect();
-                    dd.style.bottom = 'auto';
-                    dd.style.top    = (rect.bottom + 4) + 'px';
-                    dd.style.left   = 'auto';
-                    dd.style.right  = (window.innerWidth - rect.right) + 'px';
-                    dd.hidden = false;
-                    openDd = dd;
-
-                    /* Flip upward if dropdown overflows viewport bottom */
-                    var ddH = dd.getBoundingClientRect().height;
-                    if (rect.bottom + 4 + ddH > window.innerHeight - 8) {
-                        dd.style.top    = 'auto';
-                        dd.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
-                    }
-                });
-            });
-
             document.addEventListener('click', closeAllDropdowns);
             document.addEventListener('scroll', closeAllDropdowns, true);
-
-            /* ── Copy shortcode ── */
-            document.querySelectorAll('.forge-copy-shortcode').forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    var code = this.dataset.code;
-                    navigator.clipboard.writeText(code).then(function() {
-                        btn.textContent = '✓ Kopiert!';
-                        setTimeout(function() { btn.textContent = '📋 Shortcode kopieren'; }, 1500);
-                    });
-                    closeAllDropdowns();
-                });
-            });
-
-            /* ── Duplicate ── */
-            document.querySelectorAll('.forge-duplicate-form').forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    closeAllDropdowns();
-                    var formId = this.dataset.id;
-                    var nonce  = this.dataset.nonce;
-                    btn.disabled = true;
-                    fetch(ajaxurl, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                        body: new URLSearchParams({
-                            action: 'forge_forms_duplicate',
-                            form_id: formId,
-                            nonce: nonce
-                        })
-                    })
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
-                        if (data.success) {
-                            window.location.reload();
-                        } else {
-                            alert((data.data && data.data.message) || 'Fehler');
-                            btn.disabled = false;
-                        }
-                    });
-                });
-            });
-
-            /* ── Single delete ── */
-            document.querySelectorAll('.forge-delete-form').forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    closeAllDropdowns();
-                    var formId = this.dataset.id;
-                    var nonce  = this.dataset.nonce;
-                    var cb     = document.querySelector('.forge-row-check[value="' + formId + '"]');
-                    var rowEl  = cb ? cb.closest('.forge-form-row') : null;
-                    showDeleteModal('Formular wirklich löschen?').then(function(confirmed) {
-                        if (!confirmed) return;
-                    fetch(ajaxurl, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                        body: new URLSearchParams({
-                            action: 'forge_forms_delete',
-                            form_id: formId,
-                            nonce: nonce
-                        })
-                    })
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
-                        if (data.success) {
-                            if (rowEl) {
-                                rowEl.style.transition = 'opacity .2s';
-                                rowEl.style.opacity = '0';
-                                setTimeout(function() { rowEl.remove(); checkEmpty(); updateBulkBar(); }, 220);
-                            }
-                        } else {
-                            alert((data.data && data.data.message) || 'Fehler');
-                        }
-                    });
-                    }); // showDeleteModal
-                });
-            });
 
             /* ── Live search ── */
             var searchInput = document.getElementById('forge-form-search');
@@ -483,9 +415,141 @@ class FormList
                 }
             }
 
-            document.querySelectorAll('.forge-row-check').forEach(function(cb) {
-                cb.addEventListener('change', updateBulkBar);
-            });
+            /* ── Per-row event binding (also called after dynamic injection) ── */
+            function bindRow(row) {
+                /* Grab all references before dd is hoisted to body */
+                var menuBtn = row.querySelector('.forge-row-menu-btn');
+                var copyBtn = row.querySelector('.forge-copy-shortcode');
+                var dupBtn  = row.querySelector('.forge-duplicate-form');
+                var delBtn  = row.querySelector('.forge-delete-form');
+                var expBtn  = row.querySelector('.forge-export-form');
+                var cb      = row.querySelector('.forge-row-check');
+
+                if (menuBtn) {
+                    var dd = menuBtn.nextElementSibling;
+                    document.body.appendChild(dd);
+                    menuBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        var alreadyOpen = (openDd === dd && !dd.hidden);
+                        closeAllDropdowns();
+                        if (alreadyOpen) return;
+                        var rect = menuBtn.getBoundingClientRect();
+                        dd.style.bottom = 'auto';
+                        dd.style.top    = (rect.bottom + 4) + 'px';
+                        dd.style.left   = 'auto';
+                        dd.style.right  = (window.innerWidth - rect.right) + 'px';
+                        dd.hidden = false;
+                        openDd = dd;
+                        var ddH = dd.getBoundingClientRect().height;
+                        if (rect.bottom + 4 + ddH > window.innerHeight - 8) {
+                            dd.style.top    = 'auto';
+                            dd.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+                        }
+                    });
+                }
+
+                if (copyBtn) {
+                    copyBtn.addEventListener('click', function() {
+                        navigator.clipboard.writeText(copyBtn.dataset.code).then(function() {
+                            copyBtn.textContent = '✓ Kopiert!';
+                            setTimeout(function() { copyBtn.textContent = '📋 Shortcode kopieren'; }, 1500);
+                        });
+                        closeAllDropdowns();
+                    });
+                }
+
+                if (dupBtn) {
+                    dupBtn.addEventListener('click', function() {
+                        closeAllDropdowns();
+                        var formId = dupBtn.dataset.id;
+                        var nonce  = dupBtn.dataset.nonce;
+                        dupBtn.disabled = true;
+                        fetch(ajaxurl, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                            body: new URLSearchParams({
+                                action: 'forge_forms_duplicate',
+                                form_id: formId,
+                                nonce: nonce
+                            })
+                        })
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            dupBtn.disabled = false;
+                            if (data.success && data.data.html) {
+                                var tmp = document.createElement('div');
+                                tmp.innerHTML = data.data.html.trim();
+                                var newRow = tmp.firstElementChild;
+                                var list = document.getElementById('forge-form-list');
+                                if (list && newRow) {
+                                    list.insertBefore(newRow, list.firstChild);
+                                    bindRow(newRow);
+                                }
+                            } else {
+                                alert((data.data && data.data.message) || 'Fehler');
+                            }
+                        });
+                    });
+                }
+
+                if (delBtn) {
+                    delBtn.addEventListener('click', function() {
+                        closeAllDropdowns();
+                        var formId = delBtn.dataset.id;
+                        var nonce  = delBtn.dataset.nonce;
+                        var rowEl  = row;
+                        showDeleteModal('Formular wirklich löschen?').then(function(confirmed) {
+                            if (!confirmed) return;
+                            fetch(ajaxurl, {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                                body: new URLSearchParams({
+                                    action: 'forge_forms_delete',
+                                    form_id: formId,
+                                    nonce: nonce
+                                })
+                            })
+                            .then(function(r) { return r.json(); })
+                            .then(function(data) {
+                                if (data.success) {
+                                    if (rowEl) fadeRemoveRow(rowEl, updateBulkBar);
+                                } else {
+                                    alert((data.data && data.data.message) || 'Fehler');
+                                }
+                            });
+                        });
+                    });
+                }
+
+                if (expBtn) {
+                    expBtn.addEventListener('click', function() {
+                        closeAllDropdowns();
+                        showExportLoading();
+                        fetch(ajaxurl, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                            body: new URLSearchParams({
+                                action: 'forge_forms_export',
+                                form_id: expBtn.dataset.id,
+                                nonce: expBtn.dataset.nonce
+                            })
+                        })
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            if (data.success) {
+                                showExportResult(data.data.string);
+                            } else {
+                                closeExportModal();
+                                alert((data.data && data.data.message) || 'Fehler');
+                            }
+                        });
+                    });
+                }
+
+                if (cb) cb.addEventListener('change', updateBulkBar);
+            }
+
+            document.querySelectorAll('.forge-form-row').forEach(bindRow);
 
             if (selectAll) {
                 selectAll.addEventListener('change', function() {
@@ -556,11 +620,11 @@ class FormList
                         })
                         .then(function(r) { return r.json(); })
                         .then(function(data) {
-                            if (data.success) {
+                            bulkApply.disabled = false;
+                            if (data.success && data.data.created && data.data.created.length) {
                                 window.location.reload();
-                            } else {
+                            } else if (!data.success) {
                                 alert((data.data && data.data.message) || 'Fehler');
-                                bulkApply.disabled = false;
                             }
                         });
                     }
@@ -613,32 +677,6 @@ class FormList
                 }, 220);
             }
 
-            document.querySelectorAll('.forge-export-form').forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    closeAllDropdowns();
-                    var formId = this.dataset.id;
-                    var nonce  = this.dataset.nonce;
-                    showExportLoading();
-                    fetch(ajaxurl, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                        body: new URLSearchParams({
-                            action: 'forge_forms_export',
-                            form_id: formId,
-                            nonce: nonce
-                        })
-                    })
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
-                        if (data.success) {
-                            showExportResult(data.data.string);
-                        } else {
-                            closeExportModal();
-                            alert((data.data && data.data.message) || 'Fehler');
-                        }
-                    });
-                });
-            });
 
             if (exportCopy) {
                 exportCopy.addEventListener('click', function() {
@@ -679,8 +717,16 @@ class FormList
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     importSubmit.disabled = false;
-                    if (data.success) {
-                        window.location.reload();
+                    if (data.success && data.data.html) {
+                        var tmp = document.createElement('div');
+                        tmp.innerHTML = data.data.html.trim();
+                        var newRow = tmp.firstElementChild;
+                        var list = document.getElementById('forge-form-list');
+                        if (list && newRow) {
+                            list.insertBefore(newRow, list.firstChild);
+                            bindRow(newRow);
+                        }
+                        if (importInput) importInput.value = '';
                     } else {
                         alert((data.data && data.data.message) || 'Importfehler');
                         if (importInput) importInput.value = '';
@@ -775,6 +821,11 @@ class FormList
         <?php
     }
 
+    /**
+     * AJAX handler to delete a single form.
+     *
+     * @return void
+     */
     public static function ajaxDelete(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
@@ -788,6 +839,103 @@ class FormList
         wp_send_json_success(['message' => 'Formular gelöscht.']);
     }
 
+    /**
+     * Renders the HTML for a single form-list row.
+     *
+     * @param \ForgeForms\Form\FormModel $form The form model instance.
+     *
+     * @return string Row HTML.
+     */
+    private static function _renderRow(\ForgeForms\Form\FormModel $form): string
+    {
+        $edit_url  = admin_url('admin.php?page=forge-forms-editor&form_id=' . $form->id);
+        $shortcode = '[forge_form id="' . $form->id . '"]';
+        $count     = count($form->fields);
+        $del_nonce = wp_create_nonce('forge_forms_delete_' . $form->id);
+        $dup_nonce = wp_create_nonce('forge_forms_duplicate_' . $form->id);
+        $exp_nonce = wp_create_nonce('forge_forms_export_' . $form->id);
+        ob_start();
+        ?>
+        <div class="forge-form-row" data-title="<?php echo esc_attr(strtolower($form->title)); ?>">
+            <label class="forge-row-check-wrap">
+                <input type="checkbox" class="forge-row-check"
+                       value="<?php echo $form->id; ?>"
+                       data-del-nonce="<?php echo esc_attr($del_nonce); ?>"
+                       data-dup-nonce="<?php echo esc_attr($dup_nonce); ?>">
+            </label>
+            <div class="forge-form-row-icon">
+                <i class="fa-solid fa-table-list"></i>
+            </div>
+            <div class="forge-form-row-main">
+                <a href="<?php echo esc_url($edit_url); ?>" class="forge-form-row-title">
+                    <?php echo esc_html($form->title); ?>
+                </a>
+                <div class="forge-form-row-meta">
+                    <span><?php echo $count; ?> Feld<?php echo $count !== 1 ? 'er' : ''; ?></span>
+                    <span class="forge-meta-sep">&middot;</span>
+                    <code class="forge-form-row-code"><?php echo esc_html($shortcode); ?></code>
+                </div>
+            </div>
+            <div class="forge-form-row-actions">
+                <a href="<?php echo esc_url($edit_url); ?>" class="button forge-btn-edit">
+                    Bearbeiten
+                </a>
+                <div class="forge-row-menu-wrap">
+                    <button class="button forge-row-menu-btn" title="Weitere Aktionen">&#8942;</button>
+                    <div class="forge-row-dropdown" hidden>
+                        <button class="forge-dd-item forge-copy-shortcode"
+                                data-code="<?php echo esc_attr($shortcode); ?>">
+                            <i class="fa-solid fa-clipboard"></i> Shortcode kopieren
+                        </button>
+                        <button class="forge-dd-item forge-duplicate-form"
+                                data-id="<?php echo $form->id; ?>"
+                                data-nonce="<?php echo esc_attr($dup_nonce); ?>">
+                            <i class="fa-solid fa-copy"></i> Duplizieren
+                        </button>
+                        <div class="forge-dd-sep"></div>
+                        <button class="forge-dd-item forge-export-form"
+                                data-id="<?php echo $form->id; ?>"
+                                data-nonce="<?php echo esc_attr($exp_nonce); ?>">
+                            <i class="fa-solid fa-file-export"></i> Exportieren
+                        </button>
+                        <div class="forge-dd-sep"></div>
+                        <button class="forge-dd-item forge-dd-item--danger forge-delete-form"
+                                data-id="<?php echo $form->id; ?>"
+                                data-nonce="<?php echo esc_attr($del_nonce); ?>">
+                            <i class="fa-solid fa-trash"></i> Löschen
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php
+        return (string) ob_get_clean();
+    }
+
+    /**
+     * AJAX handler that returns the rendered HTML for a single form row.
+     *
+     * @return void
+     */
+    public static function ajaxRenderRow(): void
+    {
+        if (!\ForgeForms\Plugin::userCan('edit_forms')) {
+            wp_send_json_error(['message' => 'Forbidden'], 403);
+        }
+        $form_id = (int) ($_POST['form_id'] ?? 0);
+        check_ajax_referer('forge_forms_render_row_' . $form_id, 'nonce');
+        $form = \ForgeForms\Form\FormModel::get($form_id);
+        if (!$form) {
+            wp_send_json_error(['message' => 'Form not found.'], 404);
+        }
+        wp_send_json_success(['html' => self::_renderRow($form)]);
+    }
+
+    /**
+     * AJAX handler to duplicate a single form.
+     *
+     * @return void
+     */
     public static function ajaxDuplicate(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
@@ -801,9 +949,18 @@ class FormList
         if (is_wp_error($result)) {
             wp_send_json_error(['message' => $result->get_error_message()], 500);
         }
-        wp_send_json_success(['message' => 'Formular dupliziert.', 'new_id' => $result]);
+        $new_form = FormModel::get((int) $result);
+        $row_html = $new_form ? self::_renderRow($new_form) : '';
+        wp_send_json_success(
+            ['message' => 'Formular dupliziert.', 'new_id' => $result, 'html' => $row_html]
+        );
     }
 
+    /**
+     * AJAX handler to delete multiple forms at once.
+     *
+     * @return void
+     */
     public static function ajaxBulkDelete(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
@@ -827,6 +984,11 @@ class FormList
         wp_send_json_success(['deleted' => $deleted]);
     }
 
+    /**
+     * AJAX handler to duplicate multiple forms at once.
+     *
+     * @return void
+     */
     public static function ajaxBulkDuplicate(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
@@ -852,6 +1014,11 @@ class FormList
         wp_send_json_success(['created' => $created]);
     }
 
+    /**
+     * AJAX handler that exports a form as a compressed base64 string.
+     *
+     * @return void
+     */
     public static function ajaxExport(): void
     {
         if (!\ForgeForms\Plugin::userCan('view_forms')) {
@@ -880,6 +1047,11 @@ class FormList
         wp_send_json_success(['string' => $string]);
     }
 
+    /**
+     * AJAX handler that imports a form from a compressed base64 string.
+     *
+     * @return void
+     */
     public static function ajaxImport(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
@@ -907,8 +1079,7 @@ class FormList
             wp_send_json_error(['message' => 'Dekomprimierung fehlgeschlagen.'], 400);
         }
         $payload = json_decode($json, true);
-        if (
-            !is_array($payload)
+        if (!is_array($payload)
             || !isset($payload['v'], $payload['t'], $payload['f'])
             || !in_array((int)$payload['v'], [1, 2], true)
         ) {
@@ -918,19 +1089,29 @@ class FormList
         if ((int)$payload['v'] === 2) {
             $fields = self::restoreFieldDefaults($fields);
         }
-        $result = FormModel::save([
+        $result = FormModel::save(
+            [
             'title'         => sanitize_text_field($payload['t']),
             'fields'        => $fields,
             'notifications' => is_array($payload['n'] ?? null) ? $payload['n'] : [],
             'settings'      => is_array($payload['s'] ?? null) ? $payload['s'] : [],
-        ]);
+            ]
+        );
         if (is_wp_error($result)) {
             wp_send_json_error(['message' => $result->get_error_message()], 500);
         }
-        wp_send_json_success(['new_id' => $result]);
+        $new_form = FormModel::get((int) $result);
+        $row_html = $new_form ? self::_renderRow($new_form) : '';
+        wp_send_json_success(['new_id' => $result, 'html' => $row_html]);
     }
 
-    /** Remove field config keys that match the field type's defaults. */
+    /**
+     * Remove field config keys that match the field type's defaults.
+     *
+     * @param array $fields Fields array from the form model.
+     *
+     * @return array Compacted fields array without redundant keys.
+     */
     private static function stripFieldDefaults(array $fields): array
     {
         $out = [];
@@ -956,7 +1137,13 @@ class FormList
         return $out;
     }
 
-    /** Re-merge field defaults stripped during export. */
+    /**
+     * Re-merge field defaults stripped during export.
+     *
+     * @param array $fields Compacted fields array from import payload.
+     *
+     * @return array Fields array with defaults restored.
+     */
     private static function restoreFieldDefaults(array $fields): array
     {
         $out = [];

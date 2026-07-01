@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Star rating input field.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,8 +23,16 @@ namespace ForgeForms\Fields;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Star rating input field.
+ */
 class RatingField extends BaseField
 {
+    /**
+     * Returns field-specific CSS styles.
+     *
+     * @return string
+     */
     public function getStyles(): string
     {
         return <<<'CSS'
@@ -62,20 +78,41 @@ class RatingField extends BaseField
 CSS;
     }
 
+    /**
+     * Returns the field type label.
+     *
+     * @return string
+     */
     public function getLabel(): string
     {
         return 'Bewertung';
     }
+
+    /**
+     * Returns the Font Awesome icon class.
+     *
+     * @return string
+     */
     public function getIcon(): string
     {
         return 'fa-solid fa-star';
     }
 
+    /**
+     * Returns the client-side empty-check function for the required validator.
+     *
+     * @return array
+     */
     public function getClientEmptyCheck(): array
     {
         return ['fn' => "function(f){return !f.querySelector('.forge-rating-group input:checked');}"];
     }
 
+    /**
+     * Returns client-side initialization JavaScript function body.
+     *
+     * @return string
+     */
     public function getClientInit(): string
     {
         return <<<'JS'
@@ -124,6 +161,15 @@ CSS;
         'diamond' => ['filled' => '◆', 'empty' => '◇'],
     ];
 
+    /**
+     * Renders the field HTML.
+     *
+     * @param array  $config   Field configuration.
+     * @param string $field_id Unique field identifier.
+     * @param mixed  $value    Current field value.
+     *
+     * @return string Rendered HTML.
+     */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         $max       = (int)($config['max'] ?? 5);
@@ -192,6 +238,14 @@ CSS;
         return $this->wrap($field_id, $config, $inner);
     }
 
+    /**
+     * Maps the field value to a human-readable string for email and PDF output.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return string Human-readable representation.
+     */
     public function map(mixed $value, array $config): string
     {
         if (empty($value)) {
@@ -200,17 +254,29 @@ CSS;
         return $value . ' / ' . (int)($config['max'] ?? 5);
     }
 
+    /**
+     * Returns the default field configuration.
+     *
+     * @return array
+     */
     public function getDefaultConfig(): array
     {
-        return array_merge(parent::getDefaultConfig(), [
+        return array_merge(
+            parent::getDefaultConfig(), [
             'max'             => 5,
             'icon_type'       => 'star',
             'allow_half'      => false,
             'icon_source'     => false,
             'custom_icon_url' => '',
-        ]);
+            ]
+        );
     }
 
+    /**
+     * Returns the general settings schema for the field editor.
+     *
+     * @return array
+     */
     public function getGeneralSchema(): array
     {
         return [

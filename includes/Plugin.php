@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Main plugin class that registers all hooks and bootstraps the plugin.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,6 +23,13 @@ namespace ForgeForms;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Logs a debug message when WP_DEBUG is enabled.
+ *
+ * @param string $message The message to log.
+ *
+ * @return void
+ */
 function forge_log(string $message): void
 {
     if (defined('WP_DEBUG') && WP_DEBUG) {
@@ -22,10 +37,18 @@ function forge_log(string $message): void
     }
 }
 
+/**
+ * Bootstraps the FormForge plugin: loads dependencies, registers CPT, and wires all hooks.
+ */
 class Plugin
 {
     private static bool $initialized = false;
 
+    /**
+     * Bootstraps the plugin on first call; subsequent calls are no-ops.
+     *
+     * @return void
+     */
     public static function init(): void
     {
         if (self::$initialized) {
@@ -37,6 +60,11 @@ class Plugin
         self::hooks();
     }
 
+    /**
+     * Requires all plugin PHP files; loads admin files when in admin context.
+     *
+     * @return void
+     */
     private static function load(): void
     {
         $files = [
@@ -81,7 +109,7 @@ class Plugin
         ];
 
         foreach ($files as $file) {
-            require_once FORGE_FORMS_PATH . 'includes/' . $file;
+            include_once FORGE_FORMS_PATH . 'includes/' . $file;
         }
 
         if (is_admin()) {
@@ -90,11 +118,16 @@ class Plugin
                 'Admin/PDFLayoutEditor.php', 'Admin/Verificationpage.php',
             ];
             foreach ($adminFiles as $file) {
-                require_once FORGE_FORMS_PATH . 'includes/' . $file;
+                include_once FORGE_FORMS_PATH . 'includes/' . $file;
             }
         }
     }
 
+    /**
+     * Registers all WordPress actions, filters, and shortcodes.
+     *
+     * @return void
+     */
     private static function hooks(): void
     {
         /* Register CPT */
@@ -134,6 +167,11 @@ class Plugin
         }
     }
 
+    /**
+     * AJAX handler that proxies IBAN/BIC lookup to openiban.com.
+     *
+     * @return void
+     */
     public static function ajaxIbanBic(): void
     {
         $iban = preg_replace('/[^A-Z0-9]/', '', strtoupper(sanitize_text_field(wp_unslash($_POST['iban'] ?? ''))));
@@ -154,16 +192,24 @@ class Plugin
         $valid = !empty($body['valid']);
         $bic   = $body['bankData']['bic'] ?? '';
 
-        wp_send_json_success([
+        wp_send_json_success(
+            [
             'valid'          => $valid,
             'bic'            => $valid ? sanitize_text_field($bic) : '',
             'bankCodeFound'  => !empty($body['checkResults']['bankCodeCheck']),
-        ]);
+            ]
+        );
     }
 
+    /**
+     * Registers the forge_form custom post type.
+     *
+     * @return void
+     */
     public static function registerCpt(): void
     {
-        register_post_type('forge_form', [
+        register_post_type(
+            'forge_form', [
             'label'               => 'Forms',
             'labels'              => [
                 'name'          => 'FormForge',
@@ -179,13 +225,15 @@ class Plugin
             'capability_type'     => 'post',
             'capabilities'        => ['create_posts' => 'manage_options'],
             'map_meta_cap'        => true,
-        ]);
+            ]
+        );
     }
 
     /**
-     * Adds an inline warning to the plugin list delete link via JS confirmation.
+     * Adds an inline JS confirmation to the plugin list delete link.
      *
-     * @param string[] $links
+     * @param string[] $links Plugin action links array.
+     *
      * @return string[]
      */
     public static function addDeleteWarningLink(array $links): array
@@ -206,11 +254,15 @@ class Plugin
     }
 
     /**
-     * Checks if the given user (defaults to current) has a specific FormForge capability.
+     * Checks if the given user has a specific FormForge capability.
      *
-     * Valid caps: view_forms, edit_forms, edit_pdf_layout, use_verifier, settings
+     * Valid caps: view_forms, edit_forms, edit_pdf_layout, use_verifier, settings.
+     * Administrators always pass; user-specific override wins over role setting.
      *
-     * Administrators always pass. User-specific override wins over role setting.
+     * @param string $cap     The capability slug to check.
+     * @param int    $user_id User ID, or 0 for the current user.
+     *
+     * @return bool
      */
     public static function userCan(string $cap, int $user_id = 0): bool
     {
@@ -239,6 +291,11 @@ class Plugin
         return false;
     }
 
+    /**
+     * Redirects admins to settings page until PDF seal setup is complete.
+     *
+     * @return void
+     */
     public static function maybeSealSetupRedirect(): void
     {
         if (!current_user_can('manage_options')) {

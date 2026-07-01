@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Multi-line text area input field.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,17 +23,40 @@ namespace ForgeForms\Fields;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Multi-line textarea input field.
+ */
 class TextareaField extends BaseField
 {
+    /**
+     * Returns the field type label.
+     *
+     * @return string
+     */
     public function getLabel(): string
     {
         return 'Textbereich';
     }
+
+    /**
+     * Returns the Font Awesome icon class.
+     *
+     * @return string
+     */
     public function getIcon(): string
     {
         return 'fa-solid fa-align-left';
     }
 
+    /**
+     * Renders the field HTML.
+     *
+     * @param array  $config   Field configuration.
+     * @param string $field_id Unique field identifier.
+     * @param mixed  $value    Current field value.
+     *
+     * @return string Rendered HTML.
+     */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         $req   = !empty($config['required']) ? ' required aria-required="true"' : '';
@@ -42,6 +73,14 @@ class TextareaField extends BaseField
         return $this->wrap($field_id, $config, $inner);
     }
 
+    /**
+     * Validates the submitted value.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return bool|string True on valid, error message string on invalid.
+     */
     public function validate(mixed $value, array $config): bool|string
     {
         $base = parent::validate($value, $config);
@@ -59,6 +98,11 @@ class TextareaField extends BaseField
         return true;
     }
 
+    /**
+     * Returns client-side validation rules.
+     *
+     * @return array
+     */
     public function getClientValidation(): array
     {
         return [['rule' => 'textarea-word-limit', 'fn' => <<<'JS'
@@ -74,18 +118,31 @@ class TextareaField extends BaseField
             JS]];
     }
 
+    /**
+     * Returns the default field configuration.
+     *
+     * @return array
+     */
     public function getDefaultConfig(): array
     {
-        return array_merge(parent::getDefaultConfig(), [
+        return array_merge(
+            parent::getDefaultConfig(), [
             'rows'       => 5,
             'limit_type' => 'chars',
             'limit_max'  => '',
-        ]);
+            ]
+        );
     }
 
+    /**
+     * Returns the general settings schema for the field editor.
+     *
+     * @return array
+     */
     public function getGeneralSchema(): array
     {
-        return array_merge($this->baseGeneralEntries(), [
+        return array_merge(
+            $this->baseGeneralEntries(), [
             [
                 'key'   => 'rows',
                 'type'  => 'number',
@@ -93,6 +150,7 @@ class TextareaField extends BaseField
                 'hint'  => 'Sichtbare Höhe des Feldes (Anzahl Textzeilen)',
             ],
             ['key' => 'limit_type', 'type' => 'limit_row', 'label' => 'Begrenzung', 'count_key' => 'limit_max'],
-        ]);
+            ]
+        );
     }
 }

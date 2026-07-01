@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Google reCAPTCHA v2 field.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,17 +23,40 @@ namespace ForgeForms\Fields;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Google reCAPTCHA v2 field.
+ */
 class CaptchaField extends BaseField
 {
+    /**
+     * Returns the field type label.
+     *
+     * @return string
+     */
     public function getLabel(): string
     {
         return 'CAPTCHA';
     }
+
+    /**
+     * Returns the Font Awesome icon class.
+     *
+     * @return string
+     */
     public function getIcon(): string
     {
         return 'fa-solid fa-robot';
     }
 
+    /**
+     * Renders the field HTML.
+     *
+     * @param array  $config   Field configuration.
+     * @param string $field_id Unique field identifier.
+     * @param mixed  $value    Current field value.
+     *
+     * @return string Rendered HTML.
+     */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         $site_key = get_option('forge_forms_recaptcha_site_key', '');
@@ -39,6 +70,14 @@ class CaptchaField extends BaseField
         return $this->wrap($field_id, $config, $inner);
     }
 
+    /**
+     * Validates the submitted value.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return bool|string True on valid, error message string on invalid.
+     */
     public function validate(mixed $value, array $config): bool|string
     {
         $secret = get_option('forge_forms_recaptcha_secret_key', '');
@@ -46,9 +85,11 @@ class CaptchaField extends BaseField
             return 'Bitte bestätigen Sie das CAPTCHA.';
         }
 
-        $response = wp_remote_post('https://www.google.com/recaptcha/api/siteverify', [
+        $response = wp_remote_post(
+            'https://www.google.com/recaptcha/api/siteverify', [
             'body' => ['secret' => $secret, 'response' => sanitize_text_field((string)$value)],
-        ]);
+            ]
+        );
 
         if (is_wp_error($response)) {
             return 'CAPTCHA-Überprüfung fehlgeschlagen.';
@@ -61,16 +102,34 @@ class CaptchaField extends BaseField
         return true;
     }
 
+    /**
+     * Maps the field value to a human-readable string for email and PDF output.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return string Human-readable representation.
+     */
     public function map(mixed $value, array $config): string
     {
         return '[CAPTCHA bestätigt]';
     }
 
+    /**
+     * Returns the default field configuration.
+     *
+     * @return array
+     */
     public function getDefaultConfig(): array
     {
         return ['label' => 'CAPTCHA', 'required' => true, 'description' => ''];
     }
 
+    /**
+     * Returns the general settings schema for the field editor.
+     *
+     * @return array
+     */
     public function getGeneralSchema(): array
     {
         return [];

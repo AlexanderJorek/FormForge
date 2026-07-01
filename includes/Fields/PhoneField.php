@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Phone number input field.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,18 +23,36 @@ namespace ForgeForms\Fields;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Phone number input field.
+ */
 class PhoneField extends BaseField
 {
+    /**
+     * Returns the field type label.
+     *
+     * @return string
+     */
     public function getLabel(): string
     {
         return 'Telefon';
     }
+
+    /**
+     * Returns the Font Awesome icon class.
+     *
+     * @return string
+     */
     public function getIcon(): string
     {
         return 'fa-solid fa-phone';
     }
 
-
+    /**
+     * Returns client-side validation rules.
+     *
+     * @return array
+     */
     public function getClientValidation(): array
     {
         return [['rule' => 'phone', 'fn' => <<<'JS'
@@ -57,6 +83,15 @@ class PhoneField extends BaseField
             JS]];
     }
 
+    /**
+     * Renders the field HTML.
+     *
+     * @param array  $config   Field configuration.
+     * @param string $field_id Unique field identifier.
+     * @param mixed  $value    Current field value.
+     *
+     * @return string Rendered HTML.
+     */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         $mode  = $config['phone_mode'] ?? '';
@@ -75,6 +110,14 @@ class PhoneField extends BaseField
         return $this->wrap($field_id, $config, '<input' . $attrs . '>');
     }
 
+    /**
+     * Validates the submitted value.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return bool|string True on valid, error message string on invalid.
+     */
     public function validate(mixed $value, array $config): bool|string
     {
         $base = parent::validate($value, $config);
@@ -89,53 +132,67 @@ class PhoneField extends BaseField
         $mode = $config['phone_mode'] ?? '';
 
         switch ($mode) {
-            case 'any':
-                if (!preg_match('/^\+?[0-9]{7,15}$/', $v)) {
-                    return 'Bitte geben Sie eine gültige Telefonnummer ein.';
-                }
-                break;
+        case 'any':
+            if (!preg_match('/^\+?[0-9]{7,15}$/', $v)) {
+                return 'Bitte geben Sie eine gültige Telefonnummer ein.';
+            }
+            break;
 
-            case 'countries':
-                if (!str_starts_with($v, '+')) {
-                    return 'Bitte geben Sie die Nummer mit internationaler Vorwahl (+...) ein.';
+        case 'countries':
+            if (!str_starts_with($v, '+')) {
+                return 'Bitte geben Sie die Nummer mit internationaler Vorwahl (+...) ein.';
+            }
+            $digits = substr($v, 1);
+            $list   = (array)($config['phone_country_list'] ?? []); /* e.g. ['+49', '+43'] */
+            $cmode  = $config['phone_country_mode'] ?? 'allow';
+            $in     = false;
+            /* Sort by code length descending so longer codes (e.g. +358) match before shorter (+35) */
+            $sorted = $list;
+            usort(
+                $sorted, static function ($a, $b) {
+                        return strlen($b) - strlen($a);
                 }
-                $digits = substr($v, 1);
-                $list   = (array)($config['phone_country_list'] ?? []); /* e.g. ['+49', '+43'] */
-                $cmode  = $config['phone_country_mode'] ?? 'allow';
-                $in     = false;
-                /* Sort by code length descending so longer codes (e.g. +358) match before shorter (+35) */
-                $sorted = $list;
-                usort($sorted, static function ($a, $b) {
-                    return strlen($b) - strlen($a);
-                });
-                foreach ($sorted as $entry) {
-                    $code = ltrim((string)$entry, '+');
-                    if (str_starts_with($digits, $code)) {
-                        $in = true;
-                        break;
-                    }
+            );
+            foreach ($sorted as $entry) {
+                $code = ltrim((string)$entry, '+');
+                if (str_starts_with($digits, $code)) {
+                    $in = true;
+                    break;
                 }
-                if ($cmode === 'allow' && !$in) {
-                    return 'Diese Telefonnummer ist für Ihr Land nicht zugelassen.';
-                }
-                if ($cmode === 'disallow' && $in) {
-                    return 'Diese Telefonnummer ist für Ihr Land nicht zugelassen.';
-                }
-                break;
+            }
+            if ($cmode === 'allow' && !$in) {
+                return 'Diese Telefonnummer ist für Ihr Land nicht zugelassen.';
+            }
+            if ($cmode === 'disallow' && $in) {
+                return 'Diese Telefonnummer ist für Ihr Land nicht zugelassen.';
+            }
+            break;
         }
 
         return true;
     }
 
+    /**
+     * Returns the default field configuration.
+     *
+     * @return array
+     */
     public function getDefaultConfig(): array
     {
-        return array_merge(parent::getDefaultConfig(), [
+        return array_merge(
+            parent::getDefaultConfig(), [
             'phone_mode'         => '',
             'phone_country_mode' => 'allow',
             'phone_country_list' => [],
-        ]);
+            ]
+        );
     }
 
+    /**
+     * Returns the general settings schema for the field editor.
+     *
+     * @return array
+     */
     public function getGeneralSchema(): array
     {
         return $this->baseGeneralEntries();

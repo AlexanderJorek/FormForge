@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Admin editor for reusable select-field option lists.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  */
 
 namespace ForgeForms\Admin;
@@ -14,8 +22,16 @@ use ForgeForms\Form\FormModel;
 use ForgeForms\Form\FormSelectModel;
 use ForgeForms\Form\FormRenderer;
 
+/**
+ * Admin editor for reusable select-field option lists.
+ */
 class FormSelectList
 {
+    /**
+     * Registers admin hooks for the form-select list page.
+     *
+     * @return void
+     */
     public static function init(): void
     {
         add_action('admin_menu', [self::class, 'menu']);
@@ -24,6 +40,13 @@ class FormSelectList
         add_filter('admin_body_class', [self::class, 'bodyClass']);
     }
 
+    /**
+     * Appends a CSS class on the form-select page.
+     *
+     * @param string $classes Existing admin body classes.
+     *
+     * @return string Modified body class string.
+     */
     public static function bodyClass(string $classes): string
     {
         if (isset($_GET['page']) && $_GET['page'] === 'forge-forms-select') {
@@ -32,6 +55,11 @@ class FormSelectList
         return $classes;
     }
 
+    /**
+     * Registers the Formular-Auswahl submenu page.
+     *
+     * @return void
+     */
     public static function menu(): void
     {
         if (\ForgeForms\Plugin::userCan('edit_forms')) {
@@ -50,6 +78,11 @@ class FormSelectList
     /* Admin page                                                           */
     /* ------------------------------------------------------------------ */
 
+    /**
+     * Renders the admin form-select list page.
+     *
+     * @return void
+     */
     public static function render(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
@@ -207,16 +240,8 @@ class FormSelectList
 
         <script>
         window._forgeFselSaveNonce = <?php echo wp_json_encode($save_nonce); ?>;
-        window._forgeAllForms     = <?php echo wp_json_encode(
-            array_map(fn($f) => ['id' => $f->id, 'title' => $f->title], $all_forms)
-        ); ?>;
-        window._forgeFselData     = <?php echo wp_json_encode(
-            array_map(fn($s) => [
-                'id'    => $s->id,
-                'title' => $s->title,
-                'items' => $s->items,
-            ], $selects)
-        ); ?>;
+        window._forgeAllForms     = <?php echo wp_json_encode(array_map(fn($f) => ['id' => $f->id, 'title' => $f->title], $all_forms)); ?>;
+        window._forgeFselData     = <?php echo wp_json_encode(array_map(fn($s) => ['id' => $s->id, 'title' => $s->title, 'items' => $s->items], $selects)); ?>;
         </script>
         <script>
         (function () {
@@ -279,6 +304,13 @@ class FormSelectList
         <?php
     }
 
+    /**
+     * Renders a single form-select list row.
+     *
+     * @param FormSelectModel $fsel The form-select model instance to render.
+     *
+     * @return void
+     */
     private static function renderRow(FormSelectModel $fsel): void
     {
         $shortcode = '[forge_form_select id="' . $fsel->id . '"]';
@@ -337,6 +369,11 @@ class FormSelectList
     /* AJAX handlers                                                        */
     /* ------------------------------------------------------------------ */
 
+    /**
+     * AJAX handler to save or create a form-select entry.
+     *
+     * @return void
+     */
     public static function ajaxSave(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
@@ -358,15 +395,21 @@ class FormSelectList
         self::renderRow($fsel);
         $row_html = ob_get_clean();
 
-        wp_send_json_success([
-            'id'      => $new_id,
-            'html'    => $row_html,
-            'is_new'  => $id === 0,
-            'title'   => $fsel->title,
-            'items'   => $fsel->items,
-        ]);
+        $response = [
+            'id'     => $new_id,
+            'html'   => $row_html,
+            'is_new' => $id === 0,
+            'title'  => $fsel->title,
+            'items'  => $fsel->items,
+        ];
+        wp_send_json_success($response);
     }
 
+    /**
+     * AJAX handler to delete a form-select entry.
+     *
+     * @return void
+     */
     public static function ajaxDelete(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
@@ -383,6 +426,13 @@ class FormSelectList
     /* Frontend shortcode                                                   */
     /* ------------------------------------------------------------------ */
 
+    /**
+     * Renders the forge_form_select shortcode output.
+     *
+     * @param array $atts Shortcode attributes.
+     *
+     * @return string Rendered HTML output.
+     */
     public static function shortcode(array $atts): string
     {
         $atts = shortcode_atts(['id' => 0], $atts);
@@ -427,7 +477,9 @@ class FormSelectList
                 <div class="fsel-options" role="listbox" hidden>
                 <?php foreach ($fsel->items as $i => $item) :
                     $form  = FormModel::get($item['form_id']);
-                    if (!$form) { continue; }
+                    if (!$form) {
+                        continue;
+                    }
                     $label = $item['label'] !== '' ? $item['label'] : $form->title;
                     $desc  = $item['description'];
                     ?>
@@ -450,7 +502,9 @@ class FormSelectList
             <div class="fsel-forms">
                 <?php foreach ($fsel->items as $i => $item) :
                     $form = FormModel::get($item['form_id']);
-                    if (!$form) { continue; }
+                    if (!$form) {
+                        continue;
+                    }
                     ?>
                     <div class="fsel-form<?php echo $i !== $fav_idx ? ' fsel-form--hidden' : ''; ?>"
                          data-idx="<?php echo esc_attr($i); ?>">
@@ -467,6 +521,11 @@ class FormSelectList
     /* Inline JS                                                            */
     /* ------------------------------------------------------------------ */
 
+    /**
+     * Outputs the inline JS that drives the form-select admin UI.
+     *
+     * @return void
+     */
     private static function renderScript(): void
     {
         ?>

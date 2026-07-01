@@ -136,9 +136,7 @@
                 if (footer) {
                     footer.style.display = (idx === pages.length - 1) ? '' : 'none';
                 }
-                if (window.ForgeSignature) {
-                    window.ForgeSignature.init(pages[idx]);
-                }
+
             }
 
             function showPage(idx, scroll) {

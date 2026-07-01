@@ -1,9 +1,17 @@
 <?php
 
 /**
+ * Enqueues and manages front-end CSS and JS assets.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
  * @package   FormForge
+ * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,8 +23,16 @@ namespace ForgeForms\Utils;
 
 defined('ABSPATH') || exit;
 
+/**
+ * Enqueues front-end and admin CSS/JS assets for FormForge.
+ */
 class Assets
 {
+    /**
+     * Enqueues front-end CSS and JS for pages containing a forge form.
+     *
+     * @return void
+     */
     public static function enqueueFront(): void
     {
         if (!self::pageHasForm()) {
@@ -53,14 +69,16 @@ class Assets
             true
         );
 
-        \wp_localize_script('forge-forms-front', 'ForgeForms', [
+        \wp_localize_script(
+            'forge-forms-front', 'ForgeForms', [
             'ajaxUrl'    => \admin_url('admin-ajax.php'),
             'ibanBicUrl' => \admin_url('admin-ajax.php'),
             'i18n'       => [
                 'submitting'   => 'Wird gesendet…',
                 'error_server' => 'Serverfehler. Bitte versuchen Sie es erneut.',
             ],
-        ]);
+            ]
+        );
 
         /* Collect field-specific CSS from each field's getStyles().
          * Deduplicates by class name (first definition wins — same type won't
@@ -170,6 +188,13 @@ class Assets
         }
     }
 
+    /**
+     * Enqueues admin CSS and JS for FormForge admin pages.
+     *
+     * @param string $hook Current admin page hook suffix.
+     *
+     * @return void
+     */
     public static function enqueueAdmin(string $hook): void
     {
         /* Form editor page */
@@ -221,9 +246,21 @@ class Assets
                 $hover = '#1d2327';
             }
             \wp_add_inline_style('forge-forms-admin', ':root { --forge-hover-color: ' . $hover . '; }');
-            if (str_contains($hook, 'forge-forms-settings')) {
+            $needs_picker = str_contains($hook, 'forge-forms-settings')
+                         || str_contains($hook, 'forge-forms-pdf-layout');
+            if ($needs_picker) {
                 \wp_enqueue_style('wp-color-picker');
                 \wp_enqueue_script('wp-color-picker');
+            }
+            if (str_contains($hook, 'forge-forms-pdf-layout')) {
+                $fn = 'window.forgePdfUpdatePreview';
+                $cb = 'if(' . $fn . ')setTimeout(' . $fn . ',0);';
+                $picker_js = 'jQuery(function($){'
+                    . '$(".forge-iris-input").wpColorPicker({'
+                    . 'change:function(){' . $cb . '},'
+                    . 'clear:function(){' . $cb . '}'
+                    . '});});';
+                \wp_add_inline_script('wp-color-picker', $picker_js);
             }
         }
 
@@ -249,14 +286,21 @@ class Assets
                 FORGE_FORMS_VERSION,
                 true
             );
-            \wp_localize_script('forge-forms-verification', 'ForgeVerifier', [
+            \wp_localize_script(
+                'forge-forms-verification', 'ForgeVerifier', [
                 'ajaxUrl'     => \admin_url('admin-ajax.php'),
                 'nonce'       => \wp_create_nonce('forge_verifier_nonce'),
                 'pdfJsWorker' => FORGE_FORMS_URL . 'assets/vendor/pdfjs/pdf.worker.js',
-            ]);
+                ]
+            );
         }
     }
 
+    /**
+     * Returns true when the current post contains a [forge_form] shortcode.
+     *
+     * @return bool True when a forge form shortcode is present in the post content.
+     */
     private static function pageHasForm(): bool
     {
         global $post;
@@ -266,6 +310,11 @@ class Assets
         return str_contains((string)$post->post_content, '[forge_form');
     }
 
+    /**
+     * Returns true when the current post contains a [forge_form_select] shortcode.
+     *
+     * @return bool True when a [forge_form_select] shortcode is found in the post.
+     */
     private static function pageHasFormSelect(): bool
     {
         global $post;
