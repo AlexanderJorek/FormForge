@@ -185,4 +185,51 @@ class FieldRegistry
         }
         return $groups;
     }
+
+    /**
+     * Maps raw form submission values to a normalized array for PDF/email.
+     *
+     * Iterates form fields, calls each handler's mapNormalized(), and merges
+     * all returned entries. Fields that produce no output (pagebreak, empty html)
+     * return an empty array and are silently skipped.
+     *
+     * @param array $fields     Form field configuration array.
+     * @param array $raw_values Raw submitted POST values.
+     * @param array $files      Uploaded files ($_FILES).
+     *
+     * @return array Normalized mapped values.
+     */
+    public static function mapSubmission(
+        array $fields,
+        array $raw_values,
+        array $files = []
+    ): array {
+        $mapped  = [];
+        $context = ['files' => $files, 'raw_values' => $raw_values];
+
+        foreach ($fields as $field_cfg) {
+            $field_id   = $field_cfg['id']   ?? '';
+            $field_type = $field_cfg['type'] ?? '';
+            $label      = $field_cfg['label'] ?? $field_id;
+
+            if (!$field_id || !$field_type) {
+                continue;
+            }
+
+            $handler = self::get($field_type);
+            if (!$handler) {
+                continue;
+            }
+
+            $value   = $raw_values[$field_id] ?? null;
+            $entries = $handler->mapNormalized(
+                $field_id, $label, $value, $field_cfg, $context
+            );
+            foreach ($entries as $key => $entry) {
+                $mapped[$key] = $entry;
+            }
+        }
+
+        return $mapped;
+    }
 }

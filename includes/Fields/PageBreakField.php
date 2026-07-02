@@ -175,6 +175,27 @@ CSS;
     }
 
     /**
+     * Layout-only: produces no output in the submission mapping.
+     *
+     * @param string $field_id Field identifier.
+     * @param string $label    Field label.
+     * @param mixed  $value    Raw submitted value.
+     * @param array  $config   Field configuration.
+     * @param array  $context  Submission context.
+     *
+     * @return array<string, array>
+     */
+    public function mapNormalized(
+        string $field_id,
+        string $label,
+        mixed $value,
+        array $config,
+        array $context
+    ): array {
+        return [];
+    }
+
+    /**
      * Maps the field value to a human-readable string for email and PDF output.
      *
      * @param mixed $value  Submitted value.

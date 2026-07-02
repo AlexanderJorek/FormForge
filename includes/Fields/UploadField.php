@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 /**
  * File upload field.
@@ -83,7 +83,48 @@ class UploadField extends BaseField
 .forge-upload-icon { font-size: 28px; color: var(--forge-text-subtle); line-height: 1; }
 .forge-upload-prompt { font-size: 14px; color: var(--forge-text-muted); }
 .forge-upload-link { color: var(--forge-accent); text-decoration: underline; }
-.forge-upload-filename { font-size: 13px; font-weight: 600; color: var(--forge-text); }
+.forge-upload-error {
+    font-size: 13px;
+    color: var(--forge-error, #cc1818);
+    min-height: 1.2em;
+    margin-top: 4px;
+}
+.forge-upload-filelist {
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.forge-upload-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px 3px 10px;
+    background: var(--forge-accent-light, #e8f0fe);
+    border: 1px solid var(--forge-accent, #2271b1);
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--forge-text, #1d2327);
+    max-width: 240px;
+}
+.forge-upload-chip-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.forge-upload-chip-remove {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0 2px;
+    line-height: 1;
+    font-size: 16px;
+    color: var(--forge-text-muted, #646970);
+}
+.forge-upload-chip-remove:hover { color: var(--forge-error, #cc1818); }
 CSS;
     }
 
@@ -118,19 +159,160 @@ CSS;
         function (root) {
             root.querySelectorAll('.forge-upload-zone').forEach(function (zone) {
                 var input    = zone.querySelector('.forge-upload-input');
-                var nameEl   = zone.querySelector('.forge-upload-filename');
+                var errEl    = zone.parentNode
+                    ? zone.parentNode.querySelector('.forge-upload-error') : null;
+                var listEl   = zone.parentNode
+                    ? zone.parentNode.querySelector('.forge-upload-filelist') : null;
                 var multiple = zone.dataset.multiple === '1';
-                function showNames(files) {
-                    if (!nameEl || !files || !files.length) return;
-                    nameEl.textContent = Array.from(files).map(function (f) { return f.name; }).join(', ');
+                var maxFiles = parseInt(zone.dataset.maxFiles || '0', 10);
+
+                function showError(msg) {
+                    if (!errEl) return;
+                    errEl.textContent = msg;
+                    errEl.style.color = '';
                 }
+                function showNotice(msg) {
+                    if (!errEl) return;
+                    errEl.textContent = msg;
+                    errEl.style.color = 'var(--forge-warning, #996600)';
+                }
+                function clearError() {
+                    if (!errEl) return;
+                    errEl.textContent = '';
+                    errEl.style.color = '';
+                }
+                function publishCount(n) {
+                    zone.dataset.forgeFileCount = String(n);
+                }
+                function renderChips(files) {
+                    if (!listEl) return;
+                    listEl.innerHTML = '';
+                    clearError();
+                    if (!files || !files.length) { publishCount(0); return; }
+                    publishCount(files.length);
+                    Array.from(files).forEach(function (file, idx) {
+                        var li   = document.createElement('li');
+                        li.className = 'forge-upload-chip';
+                        var nm  = document.createElement('span');
+                        nm.className   = 'forge-upload-chip-name';
+                        nm.textContent = file.name;
+                        nm.title       = file.name;
+                        var btn = document.createElement('button');
+                        btn.type      = 'button';
+                        btn.className = 'forge-upload-chip-remove';
+                        btn.setAttribute(
+                            'aria-label', 'Entfernen: ' + file.name
+                        );
+                        btn.textContent = '×';
+                        btn.addEventListener('click', function () {
+                            try {
+                                var dt = new DataTransfer();
+                                Array.from(input.files).forEach(function (f, i) {
+                                    if (i !== idx) dt.items.add(f);
+                                });
+                                input.files = dt.files;
+                                renderChips(input.files);
+                            } catch (e) { /* DataTransfer not supported */ }
+                        });
+                        li.appendChild(nm);
+                        li.appendChild(btn);
+                        listEl.appendChild(li);
+                    });
+                }
+                function filterAllowed(fileList) {
+                    var accept = (input ? input.accept : '') || '';
+                    if (!accept) return Array.from(fileList);
+                    var parts = accept.split(',').map(function (s) {
+                        return s.trim().toLowerCase();
+                    });
+                    return Array.from(fileList).filter(function (f) {
+                        var ext  = '.' + f.name.split('.').pop().toLowerCase();
+                        var mime = (f.type || '').toLowerCase();
+                        return parts.some(function (p) {
+                            if (p.charAt(0) === '.') return p === ext;
+                            if (p.slice(-2) === '/*') {
+                                return mime.indexOf(p.slice(0, -1)) === 0;
+                            }
+                            return p === mime;
+                        });
+                    });
+                }
+                function checkLimit(files) {
+                    if (maxFiles > 0 && files.length > maxFiles) {
+                        showError(
+                            'Zu viele Dateien. Maximal ' + maxFiles + ' erlaubt.'
+                        );
+                        return false;
+                    }
+                    return true;
+                }
+                function applyFiles(fileList) {
+                    var all     = Array.from(fileList);
+                    var allowed = filterAllowed(fileList);
+                    if (!multiple && allowed.length > 1) {
+                        allowed = [allowed[0]];
+                    }
+                    if (!allowed.length) {
+                        showError('Keine erlaubten Dateitypen in der Auswahl.');
+                        return;
+                    }
+                    if (!checkLimit(allowed)) return;
+                    try {
+                        var dt = new DataTransfer();
+                        allowed.forEach(function (f) { dt.items.add(f); });
+                        input.files = dt.files;
+                        renderChips(input.files);
+                        var skipped = all.length - allowed.length;
+                        if (skipped > 0) {
+                            showNotice(
+                                skipped + ' Datei'
+                                + (skipped === 1 ? ' wurde' : 'en wurden')
+                                + ' aufgrund des Dateityps übersprungen.'
+                            );
+                        }
+                    } catch (e) { /* DataTransfer not supported */ }
+                }
+                publishCount(0);
                 if (input) {
-                    input.addEventListener('change', function () { showNames(this.files); });
+                    input.addEventListener('change', function () {
+                        applyFiles(this.files);
+                    });
                     var form = input.closest('form');
                     if (form) {
                         form.addEventListener('reset', function () {
-                            if (nameEl) { nameEl.textContent = ''; }
+                            renderChips(null);
                         });
+                        if (!form.dataset.forgeOverflowBound) {
+                            form.dataset.forgeOverflowBound = '1';
+                            form.addEventListener('forge:upload-overflow', function (ev) {
+                                var firstField = null;
+                                form.querySelectorAll('.forge-upload-zone').forEach(
+                                    function (z) {
+                                        var zi = z.querySelector('.forge-upload-input');
+                                        var ze = z.parentNode
+                                            ? z.parentNode.querySelector(
+                                                '.forge-upload-error'
+                                            ) : null;
+                                        if (!ze || !zi || !zi.files || !zi.files.length) {
+                                            return;
+                                        }
+                                        ze.textContent = 'Zu viele Dateien insgesamt ('
+                                            + ev.detail.total + '). Max. '
+                                            + ev.detail.max + ' pro Einsendung.';
+                                        if (!firstField) {
+                                            firstField = z.closest('.forge-field') || z;
+                                        }
+                                    }
+                                );
+                                if (firstField) {
+                                    var top = firstField.getBoundingClientRect().top
+                                        + window.pageYOffset - 80;
+                                    window.scrollTo(0, Math.max(0, top));
+                                    firstField.setAttribute('tabindex', '-1');
+                                    firstField.focus({ preventScroll: true });
+                                }
+                            });
+                        }
                     }
                 }
                 zone.addEventListener('dragover', function (e) {
@@ -143,20 +325,8 @@ CSS;
                 zone.addEventListener('drop', function (e) {
                     e.preventDefault();
                     zone.classList.remove('forge-upload-zone--drag');
-                    if (!input) return;
-                    var files = e.dataTransfer.files;
-                    if (!files || !files.length) return;
-                    if (!multiple && files.length > 1) {
-                        var single = new DataTransfer();
-                        single.items.add(files[0]);
-                        files = single.files;
-                    }
-                    try {
-                        var transfer = new DataTransfer();
-                        Array.from(files).forEach(function (f) { transfer.items.add(f); });
-                        input.files = transfer.files;
-                        showNames(input.files);
-                    } catch (err) { /* DataTransfer not supported */ }
+                    if (!input || !e.dataTransfer.files.length) return;
+                    applyFiles(e.dataTransfer.files);
                 });
             });
         }
@@ -179,24 +349,31 @@ CSS;
         $accept   = $this->buildAccept($config);
         $acc_attr = $accept !== '' ? ' accept="' . esc_attr($accept) . '"' : '';
 
-        $max    = (int)($config['max_size_mb'] ?? 10);
-        $inner  = '<div class="forge-upload-zone" data-multiple="' . ($multiple ? '1' : '0') . '">';
+        $max      = (int)($config['max_size_mb'] ?? 10);
+        $max_files = $multiple ? max(1, (int)(ini_get('max_file_uploads') ?: 20)) : 1;
+        $inner  = '<div class="forge-upload-zone"'
+            . ' data-multiple="' . ($multiple ? '1' : '0') . '"'
+            . ' data-max-files="' . $max_files . '"'
+            . '>';
         $inner .= '<input type="file" id="' . esc_attr($field_id) . '" name="'
             . esc_attr($field_id) . ($multiple ? '[]' : '') . '"'
             . ' class="forge-upload-input"' . $acc_attr . $multiple . $req . '>';
         $inner .= '<div class="forge-upload-zone-body" aria-hidden="true">'
             . '<span class="forge-upload-icon">↑</span>'
-            . '<span class="forge-upload-prompt">'
-            . 'Datei hier ablegen oder <span class="forge-upload-link">klicken zum Auswählen</span>'
+            . '<span class="forge-upload-prompt">Datei hier ablegen oder '
+            . '<span class="forge-upload-link">klicken zum Auswählen</span>'
             . '</span>'
-            . '<span class="forge-upload-filename"></span>'
             . '</div>';
         $inner .= '</div>';
+        $inner .= '<div class="forge-upload-error" role="alert"></div>';
+        $inner .= '<ul class="forge-upload-filelist" aria-live="polite"></ul>';
 
         if ($accept !== '') {
-            $inner .= '<p class="forge-field-hint">Erlaubte Dateitypen: ' . esc_html($accept) . '</p>';
+            $inner .= '<p class="forge-field-hint">'
+                . 'Erlaubte Dateitypen: ' . esc_html($accept) . '</p>';
         }
-        $inner .= '<p class="forge-field-hint">Maximale Dateigröße: ' . $max . ' MB</p>';
+        $inner .= '<p class="forge-field-hint">'
+            . 'Maximale Dateigröße: ' . $max . ' MB</p>';
 
         return $this->wrap($field_id, $config, $inner);
     }
@@ -262,7 +439,8 @@ CSS;
             foreach ($names as $name) {
                 $ext = strtolower(pathinfo((string)$name, PATHINFO_EXTENSION));
                 if (in_array($ext, self::BLOCKED_TYPES, true)) {
-                    return 'Dateityp ".' . esc_html($ext) . '" ist aus Sicherheitsgründen nicht erlaubt.';
+                    return 'Dateityp ".' . esc_html($ext)
+                        . '" ist aus Sicherheitsgründen nicht erlaubt.';
                 }
             }
         }
@@ -284,6 +462,132 @@ CSS;
             return $value;
         }
         return '[Kein Eintrag]';
+    }
+
+    /**
+     * Returns a normalized entry with materialized uploaded files.
+     *
+     * @param string $field_id Field identifier.
+     * @param string $label    Field label.
+     * @param mixed  $value    Raw submitted value.
+     * @param array  $config   Field configuration.
+     * @param array  $context  Submission context (carries 'files').
+     *
+     * @return array<string, array>
+     */
+    public function mapNormalized(
+        string $field_id,
+        string $label,
+        mixed $value,
+        array $config,
+        array $context
+    ): array {
+        $file_data = ($context['files'] ?? [])[$field_id] ?? null;
+
+        if (!$file_data || (is_array($file_data) && empty($file_data['name']))) {
+            return [$field_id => [
+                'label'              => $label,
+                'type'               => 'upload',
+                'value'              => '[Kein Eintrag]',
+                'materialized_files' => [],
+            ]];
+        }
+
+        $files_list = [];
+        if (isset($file_data['name']) && is_array($file_data['name'])) {
+            foreach ($file_data['name'] as $i => $name) {
+                if ($file_data['error'][$i] === UPLOAD_ERR_OK) {
+                    $files_list[] = [
+                        'name'     => $name,
+                        'tmp_name' => $file_data['tmp_name'][$i],
+                        'type'     => $file_data['type'][$i],
+                        'size'     => $file_data['size'][$i],
+                        'error'    => UPLOAD_ERR_OK,
+                    ];
+                }
+            }
+        } elseif (
+            isset($file_data['tmp_name'])
+            && $file_data['error'] === UPLOAD_ERR_OK
+        ) {
+            $files_list[] = $file_data;
+        }
+
+        $info_parts   = [];
+        $materialized = [];
+
+        foreach ($files_list as $file) {
+            $tmp  = $file['tmp_name'] ?? '';
+            $name = sanitize_file_name($file['name'] ?? 'unknown');
+            $mime = sanitize_mime_type(
+                $file['type'] ?? 'application/octet-stream'
+            );
+            $size = (int)($file['size'] ?? 0);
+
+            $info_parts[] = sprintf(
+                '%s (%s, %s KB)',
+                $name,
+                $mime,
+                round($size / 1024, 1)
+            );
+
+            if (!$tmp || !is_readable($tmp) || !is_uploaded_file($tmp)) {
+                \ForgeForms\forge_log(
+                    "ForgeForms: Upload file not readable: {$name}"
+                );
+                continue;
+            }
+
+            $binary = file_get_contents($tmp);
+            if ($binary === false) {
+                continue;
+            }
+
+            $finfo = new \finfo(FILEINFO_MIME_TYPE);
+            $mime  = sanitize_mime_type(
+                $finfo->file($tmp) ?: 'application/octet-stream'
+            );
+
+            $materialized[] = [
+                'name'   => $name,
+                'mime'   => $mime,
+                'size'   => strlen($binary),
+                'sha256' => hash('sha256', $binary),
+                'base64' => base64_encode($binary),
+            ];
+        }
+
+        return [$field_id => [
+            'label'              => $label,
+            'type'               => 'upload',
+            'value'              => $info_parts
+                ? implode('; ', $info_parts) : '[Kein Eintrag]',
+            'materialized_files' => $materialized,
+        ]];
+    }
+
+    /**
+     * Override: show filename as text; embed images inline.
+     * Non-image files (PDF, Word, audio, video, archives) show filename only.
+     *
+     * @param array $field Normalized entry from FieldRegistry::mapSubmission().
+     *
+     * @return array PDF render descriptor.
+     */
+    public function pdfData(array $field): array
+    {
+        $desc = $this->pdf($field);
+
+        foreach ($field['materialized_files'] ?? [] as $file) {
+            $mime   = $file['mime'] ?? '';
+            $binary = !empty($file['base64']) ? base64_decode($file['base64'], true) : false;
+            if ($binary === false || !str_starts_with($mime, 'image/')) {
+                continue;
+            }
+            $desc->attachImage($binary, (string)($file['name'] ?? 'upload'), $mime);
+        }
+
+        return $desc->build();
     }
 
     /**
@@ -330,18 +634,24 @@ CSS;
         $blocked = implode(', .', self::BLOCKED_TYPES);
         $notice  = 'Aus Sicherheitsgründen gesperrt: .' . $blocked
             . '. Diese Typen können nicht freigegeben werden.';
+        $nd = 'Diese Dateien werden im PDF nur als Dateiname angezeigt '
+            . 'und können nicht kryptografisch verifiziert werden.';
         return [
             ['type' => 'notice', 'level' => 'warning', 'text' => $notice],
             ['key' => 'allow_images',
              'type' => 'checkbox', 'label' => 'Bilder (jpg, png, gif, bmp, tiff, webp)'],
             ['key' => 'allow_documents',
-             'type' => 'checkbox', 'label' => 'Dokumente (pdf, doc, docx, xls, xlsx, odt, ppt, pptx, txt)'],
+             'type' => 'checkbox', 'label' => 'Dokumente (pdf, doc, docx, xls, xlsx, odt, ppt, pptx, txt)',
+             'disclaimer' => $nd],
             ['key' => 'allow_audio',
-             'type' => 'checkbox', 'label' => 'Audio (mp3, ogg, wav, m4a, flac)'],
+             'type' => 'checkbox', 'label' => 'Audio (mp3, ogg, wav, m4a, flac)',
+             'disclaimer' => $nd],
             ['key' => 'allow_video',
-             'type' => 'checkbox', 'label' => 'Video (mp4, mov, avi, wmv, mkv)'],
+             'type' => 'checkbox', 'label' => 'Video (mp4, mov, avi, wmv, mkv)',
+             'disclaimer' => $nd],
             ['key' => 'allow_archives',
-             'type' => 'checkbox', 'label' => 'Archive (zip, tar, gz, 7z)'],
+             'type' => 'checkbox', 'label' => 'Archive (zip, tar, gz, 7z)',
+             'disclaimer' => $nd],
             ['key' => 'allowed_types', 'type' => 'text',
              'label' => 'Zusätzliche Typen', 'hint' => 'z.B. .pdf,.docx'],
         ];

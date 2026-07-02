@@ -1762,7 +1762,8 @@ function buildAdvancedTab(idx, field) {
                         function (v) { change(schema_entry.key, v); }, schema_entry.hint || '');
                 } else if (schema_entry.type === 'checkbox') {
                     spCheckbox(panel, schema_entry.key, schema_entry.label, !!cur2,
-                        function (v) { change(schema_entry.key, v); });
+                        function (v) { change(schema_entry.key, v); },
+                        schema_entry.disclaimer || '');
                 } else if (schema_entry.type === 'media_upload') {
                     spMediaUpload(panel, schema_entry.key, schema_entry.label, cur2,
                         function (v) { change(schema_entry.key, v); }, schema_entry.hint || '');
@@ -2167,7 +2168,47 @@ function spTextarea(parent, key, label, value, onChange, hint) {
 }
 
 /* Toggle switch — used for all simple on/off settings fields */
-function spCheckbox(parent, key, label, checked, onChange) {
+function spInfoIcon(text) {
+    var wrap = document.createElement('span');
+    wrap.className = 'forge-info-icon';
+    wrap.setAttribute('aria-label', text);
+    wrap.setAttribute('role', 'button');
+    wrap.setAttribute('tabindex', '0');
+    var icon = document.createElement('i');
+    icon.className = 'fa-solid fa-circle-info';
+    wrap.appendChild(icon);
+
+    var tip = document.createElement('span');
+    tip.className   = 'forge-info-tooltip';
+    tip.textContent = text;
+    wrap.appendChild(tip);
+
+    var open = false;
+    function show() { tip.classList.add('forge-info-tooltip--visible'); }
+    function hide() { tip.classList.remove('forge-info-tooltip--visible'); open = false; }
+
+    wrap.addEventListener('mouseenter', show);
+    wrap.addEventListener('mouseleave', hide);
+    wrap.addEventListener('focus',      show);
+    wrap.addEventListener('blur',       hide);
+    wrap.addEventListener('click', function (e) {
+        e.preventDefault();
+        open = !open;
+        open ? show() : hide();
+    });
+    wrap.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            open = !open;
+            open ? show() : hide();
+        }
+        if (e.key === 'Escape') { hide(); }
+    });
+
+    return wrap;
+}
+
+function spCheckbox(parent, key, label, checked, onChange, disclaimer) {
     var row = document.createElement('div');
     row.className = 'forge-sp-toggle-row';
 
@@ -2190,6 +2231,9 @@ function spCheckbox(parent, key, label, checked, onChange) {
     textLbl.className   = 'forge-toggle-label';
     textLbl.htmlFor     = 'forge-sp-' + key;
     textLbl.textContent = label;
+    if (disclaimer) {
+        textLbl.appendChild(spInfoIcon(disclaimer));
+    }
 
     row.appendChild(toggleLbl);
     row.appendChild(textLbl);

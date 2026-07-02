@@ -226,6 +226,112 @@ abstract class BaseField
     }
 
     /**
+     * Returns what the Generator needs to render this field in the PDF.
+     *
+     * The default is correct for every plain text field: show the escaped
+     * value as a labeled row in the main body, no images or attachments.
+     * Only override this when your field needs raw HTML, attaches a file,
+     * or should appear in the media section below the text fields.
+     * Use $this->pdf($field) to build the return value — see _ExampleField.php.
+     *
+     * @param array $field Normalized entry from FieldRegistry::mapSubmission().
+     *
+     * @return array PDF render descriptor.
+     */
+    public function pdfData(array $field): array
+    {
+        return $this->pdf($field)->build();
+    }
+
+    /**
+     * Creates a PdfDescriptor pre-filled with this field's escaped text value.
+     * Chain methods on it, then call ->build() to get the array pdfData() returns.
+     *
+     * @param array $field Normalized entry from FieldRegistry::mapSubmission().
+     *
+     * @return \ForgeForms\PDF\PdfDescriptor
+     */
+    protected function pdf(array $field): \ForgeForms\PDF\PdfDescriptor
+    {
+        return new \ForgeForms\PDF\PdfDescriptor(
+            esc_html((string)($field['value'] ?? ''))
+        );
+    }
+
+    /**
+     * Maps the field's submitted value to one or more normalized output entries.
+     *
+     * Returns array<string, array> keyed by output key → normalized entry.
+     * Default wraps map() in a single entry keyed by $field_id.
+     * Override for multi-entry fields (SEPA) or fields that materialize files.
+     *
+     * $context carries: ['files' => $_FILES subset, 'raw_values' => raw POST values]
+     *
+     * @param string $field_id Field identifier.
+     * @param string $label    Field label.
+     * @param mixed  $value    Raw submitted value.
+     * @param array  $config   Field configuration.
+     * @param array  $context  Submission context.
+     *
+     * @return array<string, array>
+     */
+    public function mapNormalized(
+        string $field_id,
+        string $label,
+        mixed $value,
+        array $config,
+        array $context
+    ): array {
+        return [$field_id => [
+            'label' => $label,
+            'type'  => $config['type'] ?? '',
+            'value' => $this->map($value, $config),
+        ]];
+    }
+
+    /**
+     * Materializes a base64 data-URI signature into a file descriptor array.
+     *
+     * @param mixed  $value    Raw signature value (data: URI).
+     * @param string $filename Output filename hint.
+     *
+     * @return array File descriptor array, or empty array if invalid.
+     */
+    protected static function materializeSignature(
+        mixed $value,
+        string $filename = 'signature.png'
+    ): array {
+        if (empty($value) || !str_starts_with((string)$value, 'data:image/')) {
+            return [];
+        }
+        $b64 = preg_replace('#^data:image/[^;]+;base64,#', '', (string)$value);
+        $b64 = str_replace(' ', '+', $b64);
+        $b64 = preg_replace('/[^A-Za-z0-9+\/=]/', '', $b64);
+        $pad = strlen($b64) % 4;
+        if ($pad) {
+            $b64 .= str_repeat('=', 4 - $pad);
+        }
+        $binary = base64_decode($b64, true);
+        if ($binary === false) {
+            return [];
+        }
+        if (str_starts_with($binary, "\x89PNG")) {
+            $mime = 'image/png';
+        } elseif (str_starts_with($binary, "\xff\xd8")) {
+            $mime = 'image/jpeg';
+        } else {
+            return [];
+        }
+        return [[
+            'name'   => $filename,
+            'mime'   => $mime,
+            'size'   => strlen($binary),
+            'sha256' => hash('sha256', $binary),
+            'base64' => base64_encode($binary),
+        ]];
+    }
+
+    /**
      * Checks whether a submitted value is considered empty.
      *
      * @param mixed $value The value to check.

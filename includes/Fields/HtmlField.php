@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 /**
  * Static HTML content field for layout and display purposes.
@@ -100,6 +100,35 @@ CSS;
     }
 
     /**
+     * Returns the sanitized HTML content as a single labeled entry.
+     *
+     * @param string $field_id Field identifier.
+     * @param string $label    Field label.
+     * @param mixed  $value    Raw submitted value (unused).
+     * @param array  $config   Field configuration.
+     * @param array  $context  Submission context (unused).
+     *
+     * @return array<string, array>
+     */
+    public function mapNormalized(
+        string $field_id,
+        string $label,
+        mixed $value,
+        array $config,
+        array $context
+    ): array {
+        $html = wp_kses_post($config['html_content'] ?? '');
+        if ($html === '') {
+            return [];
+        }
+        return [$field_id => [
+            'label' => $label ?: null,
+            'type'  => 'html',
+            'value' => $html,
+        ]];
+    }
+
+    /**
      * Maps the field value to a human-readable string for email and PDF output.
      *
      * @param mixed $value  Submitted value.
@@ -110,6 +139,23 @@ CSS;
     public function map(mixed $value, array $config): string
     {
         return wp_strip_all_tags($config['html_content'] ?? '');
+    }
+
+    /**
+     * Override: the stored value is already HTML, so it must not be escaped.
+     * If the form author left the label blank, skip the label row entirely.
+     *
+     * @param array $field Normalized entry from FieldRegistry::mapSubmission().
+     *
+     * @return array PDF render descriptor.
+     */
+    public function pdfData(array $field): array
+    {
+        $desc = $this->pdf($field)->rawHtml((string)($field['value'] ?? ''));
+        if (empty($field['label'])) {
+            $desc->unlabeled();
+        }
+        return $desc->build();
     }
 
     /**

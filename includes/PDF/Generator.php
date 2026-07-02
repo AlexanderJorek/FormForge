@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 /**
  * Generates PDF documents from form submissions using mPDF.
@@ -24,8 +24,208 @@ namespace ForgeForms\PDF;
 use Mpdf\Mpdf;
 use Mpdf\MpdfException;
 use Mpdf\HTMLParserMode;
+use ForgeForms\Fields\FieldRegistry;
 
 defined('ABSPATH') || exit;
+
+/**
+ * Static image and storage helpers used internally by Generator and PdfDescriptor.
+ */
+class PdfUtils
+{
+    /**
+     * Computes a perceptual thumbnail hash of an image for stable cross-pass comparison.
+     *
+     * Downscales the image to an 8×8 pixel grid and hashes the quantised RGB
+     * values, producing a hash that is stable across PDF rendering passes.
+     * Returns null when the GD extension is unavailable or the image cannot
+     * be decoded.
+     *
+     * @param string $binary Raw binary image data.
+     *
+     * @return string|null SHA-256 hash of the thumbnail pixels, or null on failure.
+     */
+    public static function thumbnailHash(string $binary): ?string
+    {
+        if (!function_exists('imagecreatefromstring')) {
+            \ForgeForms\forge_log(
+                'ForgeForms: GD extension unavailable — '
+                . 'image verification uses raw hash (degraded mode).'
+            );
+            return null;
+        }
+        $gd = @imagecreatefromstring($binary);
+        if ($gd === false) {
+            return null;
+        }
+        $thumb = imagecreatetruecolor(8, 8);
+        imagealphablending($thumb, false);
+        imagecopyresampled(
+            $thumb, $gd, 0, 0, 0, 0, 8, 8, imagesx($gd), imagesy($gd)
+        );
+        $pixels = '';
+        for ($ty = 0; $ty < 8; $ty++) {
+            for ($tx = 0; $tx < 8; $tx++) {
+                $c       = imagecolorat($thumb, $tx, $ty);
+                $pixels .= chr((($c >> 16) & 0xFF) & ~7)
+                         . chr((($c >> 8)  & 0xFF) & ~7)
+                         . chr(($c         & 0xFF) & ~7);
+            }
+        }
+        return hash('sha256', $pixels);
+    }
+
+    /**
+     * Returns the absolute path to the embed storage directory, creating it if needed.
+     *
+     * @return string Absolute filesystem path.
+     */
+    public static function getEmbedStorageDir(): string
+    {
+        $dir = wp_upload_dir()['basedir'] . '/forge-secure-pdf/embed';
+        if (!is_dir($dir)) {
+            wp_mkdir_p($dir);
+            file_put_contents($dir . '/index.php', '<?php // Silence is golden ?>');
+        }
+        return $dir;
+    }
+}
+
+/**
+ * Fluent builder that field classes use to describe their PDF output.
+ *
+ * Start from BaseField::pdf($field), chain methods for anything non-default,
+ * then call build(). Generator consumes the resulting array.
+ *
+ * Usage:
+ *   return $this->pdf($field)->attachImage($binary, 'sig.png')->build();
+ */
+class PdfDescriptor
+{
+    /**
+     * Cell HTML content.
+     *
+     * @var string
+     */
+    private $_cellHtml;
+
+    /**
+     * Whether to render with a label row.
+     *
+     * @var bool
+     */
+    private $_labeled = true;
+
+    /**
+     * Keyed binary image data for mPDF imageVars.
+     *
+     * @var array
+     */
+    private $_imageVars = [];
+
+    /**
+     * File descriptors for the HMAC seal.
+     *
+     * @var array
+     */
+    private $_sealedUploads = [];
+
+    /**
+     * @param string $defaultCellHtml Escaped value text — the starting cell content.
+     */
+    public function __construct(string $defaultCellHtml)
+    {
+        $this->_cellHtml = $defaultCellHtml;
+    }
+
+    /**
+     * Replaces the cell text with an already-escaped string.
+     *
+     * @param string $escaped Pre-escaped HTML or empty string.
+     *
+     * @return static
+     */
+    public function text(string $escaped): static
+    {
+        $this->_cellHtml = $escaped;
+        return $this;
+    }
+
+    /**
+     * Sets the cell content to raw HTML (no escaping applied).
+     *
+     * @param string $html Raw HTML string.
+     *
+     * @return static
+     */
+    public function rawHtml(string $html): static
+    {
+        $this->_cellHtml = $html;
+        return $this;
+    }
+
+    /**
+     * Renders without a label row — just a plain block.
+     *
+     * @return static
+     */
+    public function unlabeled(): static
+    {
+        $this->_labeled = false;
+        return $this;
+    }
+
+    /**
+     * Embeds an image in the PDF and records its fingerprint in the seal.
+     * TIFF images are converted to PNG first — mPDF does not support TIFF natively.
+     *
+     * @param string $binary   Raw binary image data.
+     * @param string $filename Display name used in the seal.
+     * @param string $mime     MIME type (default 'image/png').
+     *
+     * @return static
+     */
+    public function attachImage(
+        string $binary,
+        string $filename,
+        string $mime = 'image/png'
+    ): static {
+        if ($mime === 'image/tiff') {
+            $gd = @imagecreatefromstring($binary);
+            if ($gd !== false) {
+                ob_start();
+                imagepng($gd);
+                $binary   = (string) ob_get_clean();
+                $mime     = 'image/png';
+                $filename = preg_replace('/\.tiff?$/i', '.png', $filename);
+            }
+        }
+
+        $key = 'img' . bin2hex(random_bytes(8));
+        $this->_imageVars[$key] = $binary;
+        $this->_sealedUploads[] = [
+            'name'   => $filename,
+            'mime'   => $mime,
+            'sha256' => PdfUtils::thumbnailHash($binary) ?? hash('sha256', $binary),
+        ];
+        return $this;
+    }
+
+    /**
+     * Returns the array that Generator::generate() consumes.
+     *
+     * @return array PDF render descriptor.
+     */
+    public function build(): array
+    {
+        return [
+            'cell_html'      => $this->_cellHtml,
+            'labeled'        => $this->_labeled,
+            'image_vars'     => $this->_imageVars,
+            'sealed_uploads' => $this->_sealedUploads,
+        ];
+    }
+}
 
 /**
  * Generates PDF documents from form submission data and embeds an HMAC seal.
@@ -35,7 +235,7 @@ class Generator
     /**
      * Generates a PDF from normalized submission data and returns its path.
      *
-     * @param array  $mapped     Normalized field data from SubmissionMapper::map().
+     * @param array  $mapped     Normalized field data from FieldRegistry::mapSubmission().
      * @param int    $form_id    The form identifier.
      * @param string $form_title Human-readable form title used in the PDF header.
      *
@@ -50,7 +250,6 @@ class Generator
 
         $layout = include FORGE_FORMS_PATH . 'pdf-templates/layout.php';
 
-        $embedded_pdfs  = [];
         $image_vars     = [];
         $sealed_uploads = [];
 
@@ -64,109 +263,50 @@ class Generator
         ];
 
         $full_data      = ['metadata' => $metadata, 'fields' => $mapped];
-        $default_order  = ['header', 'fields', 'signatures', 'metadata', 'legal', 'footer'];
+        $default_order  = ['header', 'fields', 'metadata', 'legal', 'footer'];
         $section_order  = $layout['section_order']  ?? $default_order;
         $section_hidden = $layout['section_hidden'] ?? [];
 
-        $fields_html = '';  // regular form fields
-        $sigs_html   = '';  // upload + signature fields only
+        $fields_html = '';
 
         foreach ($mapped as $key => $field) {
-            $field_id  = 'field_' . $key;
-            $field_type = $field['type'] ?? '';
-            $is_media   = in_array($field_type, ['upload', 'signature'], true);
-
-            if ($field_type === 'html') {
-                $start = '<span style="font-size:0.1px;line-height:0.1px;color:#000;position:absolute;">'
-                    . '[FORGE_PDF_FIELD_' . $field_id . ']</span>';
-                $end   = '<span style="font-size:0.1px;line-height:0.1px;color:#000;position:absolute;">'
-                    . '[FORGE_PDF_FIELD_END]</span>';
-                if (!empty($field['label'])) {
-                    $fields_html .= $layout['field']($field['label'], $start . $field['value'] . $end);
-                } else {
-                    $fields_html .= '<div class="field-block">' . $start . $field['value'] . $end . '</div>';
-                }
+            if (!isset($field['value'])) {
                 continue;
             }
 
-            if (!isset($field['label'], $field['value'])) {
-                continue;
+            $field_id = 'field_' . $key;
+            $handler  = FieldRegistry::get($field['type'] ?? '');
+            $pdf      = $handler ? $handler->pdfData($field) : [
+                'cell_html'      => esc_html((string)($field['value'] ?? '')),
+                'labeled'        => true,
+                'image_vars'     => [],
+                'sealed_uploads' => [],
+            ];
+
+            $cell_html = $pdf['cell_html'];
+            foreach (array_keys($pdf['image_vars']) as $var) {
+                $cell_html .= $layout['image']($var);
             }
 
-            // Signature image is self-explanatory; suppress redundant text label.
-            $cell_html = $field_type === 'signature'
-                ? ''
-                : esc_html($field['value']);
-
-            if ($is_media && !empty($field['materialized_files'])) {
-                foreach ($field['materialized_files'] as $file) {
-                    $mime = $file['mime'] ?? '';
-                    $name = $file['name'] ?? 'file';
-
-                    if ($mime === 'application/pdf' && !empty($file['base64'])) {
-                        $binary = base64_decode($file['base64'], true);
-                        if ($binary === false) {
-                            continue;
-                        }
-
-                        $embed_dir  = self::getEmbedStorageDir();
-                        $safe_name  = preg_replace('/[^a-zA-Z0-9._-]/', '_', $name);
-                        $temp_path  = $embed_dir . '/' . bin2hex(random_bytes(8)) . '_' . $safe_name;
-
-                        if (file_put_contents($temp_path, $binary) === false) {
-                            continue;
-                        }
-
-                        $sealed_uploads[] = [
-                            'name'   => $safe_name,
-                            'mime'   => 'application/pdf',
-                            'sha256' => hash('sha256', $binary),
-                        ];
-                        $embedded_pdfs[$safe_name] = [
-                            'path' => $temp_path,
-                            'name' => $safe_name,
-                            'mime' => 'application/pdf',
-                        ];
-                        continue;
-                    }
-
-                    if (str_starts_with($mime, 'image/') && !empty($file['base64'])) {
-                        $binary = base64_decode($file['base64'], true);
-                        if ($binary === false) {
-                            continue;
-                        }
-
-                        $sealed_uploads[] = [
-                            'name'   => (string)$name,
-                            'mime'   => (string)$mime,
-                            'sha256' => self::thumbnailHash($binary) ?? hash('sha256', $binary),
-                        ];
-
-                        $image_var = 'img' . bin2hex(random_bytes(8));
-                        $image_vars[$image_var] = $binary;
-                        $cell_html .= $layout['image']($image_var);
-                    }
-                }
-            }
+            $image_vars     = array_merge($image_vars,     $pdf['image_vars']);
+            $sealed_uploads = array_merge($sealed_uploads, $pdf['sealed_uploads']);
 
             $start     = '<span style="font-size:0.1px;line-height:0.1px;color:#000;position:absolute;">'
                 . '[FORGE_PDF_FIELD_' . $field_id . ']</span>';
             $end       = '<span style="font-size:0.1px;line-height:0.1px;color:#000;position:absolute;">'
                 . '[FORGE_PDF_FIELD_END]</span>';
             $cell_html = $start . $cell_html . $end;
-            $block = $layout['field']($field['label'], $cell_html);
 
-            if ($is_media) {
-                $sigs_html .= $block;
-            } else {
-                $fields_html .= $block;
-            }
+            $fields_html .= ($pdf['labeled'] ?? true)
+                ? $layout['field']($field['label'] ?? '', $cell_html)
+                : '<div class="field-block">' . $cell_html . '</div>';
         }
 
         /* ---- Assemble HTML in section order ---- */
         $html        = '<base href="">';
         $html       .= $layout['base_css']();
-        $header_html = '';
+        $header_html        = '';
+        $fields_html_output = false;
 
         foreach ($section_order as $slug) {
             if (in_array($slug, $section_hidden, true)) {
@@ -175,10 +315,13 @@ class Generator
             if ($slug === 'header') {
                 $header_html = $layout['header']($title);
                 $html       .= $header_html;
-            } elseif ($slug === 'fields') {
-                $html .= $fields_html;
-            } elseif ($slug === 'signatures') {
-                $html .= $sigs_html;
+            } elseif ($slug === 'fields' || $slug === 'signatures') {
+                /* 'signatures' is a legacy slug — both map to $fields_html.
+                   Guard against it appearing twice in saved section_order. */
+                if (!$fields_html_output) {
+                    $html              .= $fields_html;
+                    $fields_html_output = true;
+                }
             } elseif ($slug === 'metadata') {
                 $html .= $layout['document_metadata']($full_data);
             } elseif ($slug === 'legal' && isset($layout['legal_notice'])) {
@@ -350,12 +493,6 @@ class Generator
             $final_path = $pdf_dir . "/Entry_{$form_name_clean}_{$date_time}.pdf";
             $mpdf->Output($final_path, \Mpdf\Output\Destination::FILE);
 
-            foreach ($embedded_pdfs as $pdf) {
-                if (!empty($pdf['path']) && file_exists($pdf['path'])) {
-                    @unlink($pdf['path']);
-                }
-            }
-
             ini_set('pcre.backtrack_limit', (string)$prev_backtrack);
             return $final_path;
         } catch (MpdfException $e) {
@@ -398,21 +535,6 @@ class Generator
     }
 
     /**
-     * Returns the absolute path to the embed storage directory, creating it if needed.
-     *
-     * @return string Absolute filesystem path to the embed directory.
-     */
-    private static function getEmbedStorageDir(): string
-    {
-        $dir = wp_upload_dir()['basedir'] . '/forge-secure-pdf/embed';
-        if (!is_dir($dir)) {
-            wp_mkdir_p($dir);
-            file_put_contents($dir . '/index.php', '<?php // Silence is golden ?>');
-        }
-        return $dir;
-    }
-
-    /**
      * Builds SHA-256 fingerprint records for all PDF template asset files.
      *
      * @return array Array of fingerprint entries, each with name, mime, and sha256 keys.
@@ -434,7 +556,7 @@ class Generator
                 return;
             }
             $mime = $finfo->file($real) ?: 'application/octet-stream';
-            $th   = str_starts_with($mime, 'image/') ? self::thumbnailHash($data) : null;
+            $th   = str_starts_with($mime, 'image/') ? PdfUtils::thumbnailHash($data) : null;
             $template[] = ['name' => $name, 'mime' => $mime, 'sha256' => $th ?? hash('sha256', $data)];
         };
 
@@ -569,47 +691,6 @@ class Generator
         }
 
         return $hashes;
-    }
-
-    /**
-     * Computes a perceptual thumbnail hash of an image for stable cross-pass comparison.
-     *
-     * Downscales the image to an 8x8 pixel grid and hashes the quantised RGB
-     * values, producing a hash that is stable across PDF rendering passes.
-     * Returns null when the GD extension is unavailable or the image cannot be decoded.
-     *
-     * @param string $binary Raw binary image data.
-     *
-     * @return string|null SHA-256 hash of the thumbnail pixels, or null on failure.
-     */
-    private static function thumbnailHash(string $binary): ?string
-    {
-        if (!function_exists('imagecreatefromstring')) {
-            \ForgeForms\forge_log(
-                'ForgeForms Generator: GD extension unavailable — '
-                . 'image verification uses raw hash (degraded mode).'
-            );
-            return null;
-        }
-        $gd = @imagecreatefromstring($binary);
-        if ($gd === false) {
-            return null;
-        }
-        $thumb = imagecreatetruecolor(8, 8);
-        imagealphablending($thumb, false); // raw RGB area-average — matches DeviceRGB XObject (no alpha)
-        imagecopyresampled($thumb, $gd, 0, 0, 0, 0, 8, 8, imagesx($gd), imagesy($gd));
-        imagedestroy($gd);
-        $pixels = '';
-        for ($ty = 0; $ty < 8; $ty++) {
-            for ($tx = 0; $tx < 8; $tx++) {
-                $c       = imagecolorat($thumb, $tx, $ty);
-                $pixels .= chr((($c >> 16) & 0xFF) & ~7)
-                         . chr((($c >> 8)  & 0xFF) & ~7)
-                         . chr(($c         & 0xFF) & ~7);
-            }
-        }
-        imagedestroy($thumb);
-        return hash('sha256', $pixels);
     }
 
     /**
@@ -771,7 +852,7 @@ class Generator
     /**
      * Builds the normalized fields array used as seal input from mapped submission data.
      *
-     * @param array $mapped Normalized field data from SubmissionMapper::map().
+     * @param array $mapped Normalized field data from FieldRegistry::mapSubmission().
      *
      * @return array Array of label/value pairs with normalized string values.
      */

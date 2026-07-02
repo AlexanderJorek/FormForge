@@ -247,6 +247,35 @@
                     return;
                 }
 
+                /* Cross-field file count guard.
+                   Sums data-forge-file-count across all file-bearing elements.
+                   phpMax reflects PHP's max_file_uploads limit (set via data-max-files). */
+                var overflowDetected = false;
+                (function () {
+                    var counters = form.querySelectorAll('[data-forge-file-count]');
+                    if (!counters.length) { return; }
+                    var phpMax = parseInt(form.dataset.forgeFileMax || '0', 10);
+                    if (!phpMax) {
+                        form.querySelectorAll('[data-max-files]').forEach(function (z) {
+                            var m = parseInt(z.dataset.maxFiles || '0', 10);
+                            if (m > phpMax) { phpMax = m; }
+                        });
+                    }
+                    if (!phpMax) { return; }
+                    var total = 0;
+                    counters.forEach(function (el) {
+                        total += parseInt(el.dataset.forgeFileCount || '0', 10);
+                    });
+                    if (total > phpMax) {
+                        form.dispatchEvent(new CustomEvent('forge:upload-overflow', {
+                            bubbles: false, cancelable: false,
+                            detail: { total: total, max: phpMax },
+                        }));
+                        overflowDetected = true;
+                    }
+                }());
+                if (overflowDetected) { return; }
+
                 var origLabel = label ? label.textContent : '';
 
                 if (btn) btn.disabled = true;

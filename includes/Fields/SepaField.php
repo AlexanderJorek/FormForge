@@ -323,6 +323,85 @@ CSS;
                     this.value = this.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 11);
                 });
             });
+            /* Signature canvas init — self-contained so SepaField has no dependency
+               on SignatureField being registered. Sets data-forge-file-count so
+               front.js can include SEPA signatures in the total file count. */
+            var sepaSigSel = '.forge-sepa-mandate .forge-signature-wrap';
+            root.querySelectorAll(sepaSigSel).forEach(function (wrap) {
+                if (wrap._forgeCanvasInited) return;
+                wrap._forgeCanvasInited = true;
+                var canvas   = wrap.querySelector('.forge-signature-canvas');
+                var input    = wrap.querySelector('input[type="hidden"]');
+                var clearBtn = wrap.querySelector('.forge-signature-clear');
+                if (!canvas || !input) return;
+                var ctx    = canvas.getContext('2d');
+                var stroke = parseFloat(wrap.dataset.stroke || '2');
+                var fmt    = wrap.dataset.format || 'png';
+                var drawing = false;
+                function resize() {
+                    var rect  = canvas.getBoundingClientRect();
+                    var ratio = window.devicePixelRatio || 1;
+                    var cssW  = rect.width  || canvas.offsetWidth;
+                    var fallH = parseFloat(canvas.getAttribute('height') || '160');
+                    var cssH  = rect.height || canvas.offsetHeight || fallH;
+                    if (!cssW || !cssH) return;
+                    canvas.width  = Math.round(cssW * ratio);
+                    canvas.height = Math.round(cssH * ratio);
+                    ctx.scale(ratio, ratio);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, cssW, cssH);
+                    ctx.strokeStyle = '#1d2327';
+                    ctx.lineWidth   = stroke;
+                    ctx.lineCap     = 'round';
+                    ctx.lineJoin    = 'round';
+                }
+                function pos(e) {
+                    var rect = canvas.getBoundingClientRect();
+                    var src  = e.touches ? e.touches[0] : e;
+                    return { x: src.clientX - rect.left, y: src.clientY - rect.top };
+                }
+                function start(e) {
+                    e.preventDefault();
+                    drawing = true;
+                    var p = pos(e);
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y);
+                }
+                function move(e) {
+                    if (!drawing) return;
+                    e.preventDefault();
+                    var p = pos(e);
+                    ctx.lineTo(p.x, p.y);
+                    ctx.stroke();
+                }
+                function end() {
+                    if (!drawing) return;
+                    drawing = false;
+                    var mime = fmt === 'jpeg' ? 'image/jpeg' : 'image/png';
+                    input.value = canvas.toDataURL(mime);
+                }
+                canvas.addEventListener('mousedown',  start, { passive: false });
+                canvas.addEventListener('mousemove',  move,  { passive: false });
+                document.addEventListener('mouseup',  end);
+                canvas.addEventListener('touchstart', start, { passive: false });
+                canvas.addEventListener('touchmove',  move,  { passive: false });
+                canvas.addEventListener('touchend',   end);
+                if (clearBtn) {
+                    clearBtn.addEventListener('click', function () {
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        input.value = '';
+                        wrap.dataset.forgeFileCount = '0';
+                    });
+                }
+                resize();
+                window.addEventListener('resize', resize);
+                if (typeof ResizeObserver !== 'undefined') {
+                    new ResizeObserver(function (entries) {
+                        if (entries[0].contentRect.width > 0) resize();
+                    }).observe(canvas);
+                }
+            });
         }
         JS;
     }
@@ -525,6 +604,76 @@ CSS;
         }
 
         return true;
+    }
+
+    /**
+     * Returns normalized entries for IBAN, BIC, Kontoinhaber, and signature.
+     *
+     * @param string $field_id Field identifier.
+     * @param string $label    Field label.
+     * @param mixed  $value    Raw submitted value.
+     * @param array  $config   Field configuration.
+     * @param array  $context  Submission context.
+     *
+     * @return array<string, array>
+     */
+    public function mapNormalized(
+        string $field_id,
+        string $label,
+        mixed $value,
+        array $config,
+        array $context
+    ): array {
+        if (!is_array($value)) {
+            return [$field_id => [
+                'label'              => $label,
+                'type'               => 'sepa',
+                'value'              => '[Kein Eintrag]',
+                'materialized_files' => [],
+            ]];
+        }
+
+        $iban   = strtoupper(
+            preg_replace('/\s/', '', (string)($value['iban'] ?? ''))
+        );
+        $bic    = strtoupper((string)($value['bic']    ?? ''));
+        $holder = (string)($value['holder'] ?? '');
+
+        $entries = [
+            $field_id . '_iban' => [
+                'label' => $config['iban_label'] ?? 'IBAN',
+                'type'  => 'sepa',
+                'value' => $iban !== ''
+                    ? chunk_split($iban, 4, ' ') : '[Kein Eintrag]',
+            ],
+            $field_id . '_bic' => [
+                'label' => $config['bic_label'] ?? 'BIC',
+                'type'  => 'sepa',
+                'value' => $bic !== '' ? $bic : '[Kein Eintrag]',
+            ],
+            $field_id . '_holder' => [
+                'label' => $config['holder_label'] ?? 'Kontoinhaber',
+                'type'  => 'sepa',
+                'value' => $holder !== '' ? $holder : '[Kein Eintrag]',
+            ],
+        ];
+
+        $sig_val = $value['sig'] ?? '';
+        if ($sig_val !== '') {
+            $materialized = self::materializeSignature(
+                $sig_val,
+                'sepa-signature.png'
+            );
+            $entries[$field_id . '_sig'] = [
+                'label'              => $config['sig_label'] ?? 'Unterschrift',
+                'type'               => 'signature',
+                'value'              => $materialized
+                    ? 'Erfasste Unterschrift' : '[Kein Eintrag]',
+                'materialized_files' => $materialized,
+            ];
+        }
+
+        return $entries;
     }
 
     /**

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 /**
  * Canvas-based signature capture field.
@@ -134,6 +134,8 @@ CSS;
         return <<<'JS'
         function (root) {
             function initSignature(wrap) {
+                if (wrap._forgeCanvasInited) return;
+                wrap._forgeCanvasInited = true;
                 var canvas   = wrap.querySelector('.forge-signature-canvas');
                 var input    = wrap.querySelector('input[type="hidden"]');
                 var clearBtn = wrap.querySelector('.forge-signature-clear');
@@ -293,6 +295,58 @@ CSS;
     public function map(mixed $value, array $config): string
     {
         return empty($value) ? '[Kein Eintrag]' : 'Erfasste Unterschrift';
+    }
+
+    /**
+     * Returns a normalized entry with the materialized signature image.
+     *
+     * @param string $field_id Field identifier.
+     * @param string $label    Field label.
+     * @param mixed  $value    Raw submitted value.
+     * @param array  $config   Field configuration.
+     * @param array  $context  Submission context.
+     *
+     * @return array<string, array>
+     */
+    public function mapNormalized(
+        string $field_id,
+        string $label,
+        mixed $value,
+        array $config,
+        array $context
+    ): array {
+        $materialized = self::materializeSignature($value);
+        return [$field_id => [
+            'label'              => $label,
+            'type'               => 'signature',
+            'value'              => $materialized
+                ? 'Erfasste Unterschrift' : '[Kein Eintrag]',
+            'materialized_files' => $materialized,
+        ]];
+    }
+
+    /**
+     * Override: show only the drawn image, not the placeholder text.
+     * The image goes in the media section below the text fields.
+     *
+     * @param array $field Normalized entry from FieldRegistry::mapSubmission().
+     *
+     * @return array PDF render descriptor.
+     */
+    public function pdfData(array $field): array
+    {
+        $desc = $this->pdf($field)->text('');
+
+        foreach ($field['materialized_files'] ?? [] as $file) {
+            $mime   = $file['mime'] ?? '';
+            $binary = !empty($file['base64']) ? base64_decode($file['base64'], true) : false;
+            if ($binary === false || !str_starts_with($mime, 'image/')) {
+                continue;
+            }
+            $desc->attachImage($binary, (string)($file['name'] ?? 'signature.png'), $mime);
+        }
+
+        return $desc->build();
     }
 
     /**

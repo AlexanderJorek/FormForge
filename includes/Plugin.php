@@ -102,9 +102,8 @@ class Plugin
             'Form/FormProcessor.php',
             'Form/FormRenderer.php',
             'PDF/HashSeal.php',
-            'PDF/SubmissionMapper.php',
             'PDF/Generator.php',
-            'PDF/MailSender.php',
+            'Form/MailSender.php',
             'Utils/Assets.php',
         ];
 
@@ -149,7 +148,12 @@ class Plugin
         add_action('wp_ajax_nopriv_forge_iban_bic', [self::class, 'ajaxIbanBic']);
 
         /* PDF mail hook */
-        add_action('forge_forms_submission', [PDF\MailSender::class, 'onSubmission'], 10, 3);
+        add_action(
+            'forge_forms_submission',
+            [Form\MailSender::class, 'onSubmission'],
+            10,
+            3
+        );
 
         /* Assets */
         add_action('wp_enqueue_scripts', [Utils\Assets::class, 'enqueueFront']);

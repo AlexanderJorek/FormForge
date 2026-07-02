@@ -19,10 +19,11 @@
  * of the License, or (at your option) any later version.
  */
 
-namespace ForgeForms\PDF;
+namespace ForgeForms\Form;
 
 use ForgeForms\Form\FormModel;
 use ForgeForms\Admin\FormSettings;
+use ForgeForms\PDF\Generator;
 
 defined('ABSPATH') || exit;
 
@@ -38,7 +39,7 @@ class MailSender
      * attaching the PDF to those with attach_pdf = true.
      *
      * @param int       $form_id The form post ID.
-     * @param array     $mapped  Normalized field data from SubmissionMapper::map().
+     * @param array     $mapped  Normalized field data from FieldRegistry::mapSubmission().
      * @param FormModel $form    The form model object.
      *
      * @return void
@@ -69,8 +70,13 @@ class MailSender
         /* ---- Generate PDF once ---- */
         $pdf_path = Generator::generate($mapped, $form_id, $form->title);
 
+        /* ---- Materialize uploads for mail attachment (split by type) ---- */
+        $uploads = self::_materializeUploadAttachments($mapped);
+
         if ($pdf_path === false) {
-            \ForgeForms\forge_log("ForgeForms MailSender: PDF generation failed for form {$form_id}");
+            \ForgeForms\forge_log(
+                "ForgeForms MailSender: PDF generation failed for form {$form_id}"
+            );
         }
 
         $global_from_email = get_option('forge_forms_from_email')
@@ -99,8 +105,9 @@ class MailSender
                 continue;
             }
 
-            $should_attach = !empty($notif['attach_pdf'])
+            $should_attach         = !empty($notif['attach_pdf'])
                 || FormSettings::shouldAttachPdf($form_id, $notif['slug'] ?? '');
+            $should_attach_uploads = !empty($notif['attach_uploads']);
 
             $subject = self::replacePlaceholders(
                 $notif['subject'] ?? 'Neue Einsendung',
@@ -133,7 +140,11 @@ class MailSender
                 'From: ' . $from_name . ' <' . $from_email . '>',
             ];
 
-            $reply_to = self::resolveRecipient($notif['reply_to'] ?? '', $mapped, $form);
+            $reply_to = self::resolveRecipient(
+                $notif['reply_to'] ?? '',
+                $mapped,
+                $form
+            );
             if ($reply_to) {
                 $headers[] = 'Reply-To: ' . $reply_to;
             }
@@ -141,6 +152,23 @@ class MailSender
             $attachments = [];
             if ($should_attach && $pdf_path && file_exists($pdf_path)) {
                 $attachments[] = $pdf_path;
+                /* Non-images can't be embedded in the PDF visually — always
+                   attach them alongside it so nothing is silently dropped. */
+                foreach ($uploads['others'] as $p) {
+                    $attachments[] = $p;
+                }
+                /* Images are embedded in the PDF already; only attach as
+                   separate files when the admin also enables attach_uploads. */
+                if ($should_attach_uploads) {
+                    foreach ($uploads['images'] as $p) {
+                        $attachments[] = $p;
+                    }
+                }
+            } elseif ($should_attach_uploads) {
+                /* No PDF — attach everything once. */
+                foreach (array_merge($uploads['images'], $uploads['others']) as $p) {
+                    $attachments[] = $p;
+                }
             }
 
             /* Plain text is never authored or stored — it's derived from the
@@ -169,14 +197,74 @@ class MailSender
             );
         }
 
-        /* ---- Clean up PDF after all emails sent ---- */
+        /* ---- Clean up PDF and upload temp dir after all emails sent ---- */
         register_shutdown_function(
-            static function () use ($pdf_path): void {
+            static function () use ($pdf_path, $uploads): void {
                 if ($pdf_path && file_exists($pdf_path)) {
                     @unlink($pdf_path);
                 }
+                $tmp_dir = $uploads['tmp_dir'] ?? '';
+                if ($tmp_dir !== '' && is_dir($tmp_dir)) {
+                    foreach (glob($tmp_dir . '*') ?: [] as $f) {
+                        @unlink($f);
+                    }
+                    @rmdir($tmp_dir);
+                }
             }
         );
+    }
+
+    /**
+     * Writes non-image uploaded files to temp paths so wp_mail() can attach them.
+     * Each path preserves the original filename so mail clients display it right.
+     * Caller is responsible for unlinking after send.
+     *
+     * @param array $mapped Normalized submission data.
+     *
+     * @return array Absolute paths to materialized temp files.
+     */
+    private static function _materializeUploadAttachments(array $mapped): array
+    {
+        $result  = ['images' => [], 'others' => [], 'tmp_dir' => ''];
+
+        /* Use a per-request unique directory so original filenames are
+           preserved for mail clients and concurrent requests can never
+           collide on the same path (wp_unique_filename is not atomic). */
+        $tmp_dir = get_temp_dir() . 'forge_' . wp_generate_uuid4() . DIRECTORY_SEPARATOR;
+        if (!wp_mkdir_p($tmp_dir)) {
+            \ForgeForms\forge_log("ForgeForms: could not create temp dir {$tmp_dir}");
+            return $result;
+        }
+        $result['tmp_dir'] = $tmp_dir;
+
+        foreach ($mapped as $field) {
+            if (($field['type'] ?? '') !== 'upload') {
+                continue;
+            }
+            foreach ($field['materialized_files'] ?? [] as $file) {
+                $b64    = $file['base64'] ?? '';
+                $binary = $b64 !== '' ? base64_decode($b64, true) : false;
+                if ($binary === false) {
+                    continue;
+                }
+                $mime = $file['mime'] ?? '';
+                $name = sanitize_file_name($file['name'] ?? 'upload');
+                $dest = $tmp_dir . $name;
+                if (file_put_contents($dest, $binary) === false) {
+                    \ForgeForms\forge_log(
+                        "ForgeForms: failed to write temp file {$dest}"
+                    );
+                    continue;
+                }
+                if (str_starts_with($mime, 'image/')) {
+                    $result['images'][] = $dest;
+                } else {
+                    $result['others'][] = $dest;
+                }
+            }
+        }
+
+        return $result;
     }
 
     /**
@@ -188,17 +276,20 @@ class MailSender
      *
      * @return string Resolved email address, or empty string when invalid.
      */
-    private static function resolveRecipient(string $to, array $mapped, FormModel $form): string
-    {
-        /* Support {admin_email}, {field_id} */
+    private static function resolveRecipient(
+        string $to,
+        array $mapped,
+        FormModel $form
+    ): string {
         $to = self::replacePlaceholders($to, $mapped, $form);
         $to = sanitize_email(trim($to));
         return is_email($to) ? $to : '';
     }
 
     /**
-     * Resolves the recipient for a notification in "routing" mode: walks its
-     * routing_rules in order and returns the email of the first matching
+     * Resolves the recipient for a notification in "routing" mode.
+     *
+     * Walks routing_rules in order and returns the email of the first matching
      * rule, falling back to routing_fallback when none match.
      *
      * @param array     $notif  Notification config (routing_rules, routing_fallback).
@@ -248,8 +339,9 @@ class MailSender
     }
 
     /**
-     * Translates a field's raw option value to its display label, mirroring
-     * how field handlers (e.g. SelectField::map) render submitted values.
+     * Translates a field's raw option value to its display label.
+     *
+     * Mirrors how field handlers (e.g. SelectField::map) render submitted values.
      * Returns the input unchanged for non-choice fields or unknown options.
      *
      * @param FormModel $form     The form model instance.
@@ -326,16 +418,15 @@ class MailSender
      *
      * @return string Text with placeholders replaced.
      */
-    private static function replacePlaceholders(string $text, array $mapped, FormModel $form): string
-    {
-        /* {admin_email} */
+    private static function replacePlaceholders(
+        string $text,
+        array $mapped,
+        FormModel $form
+    ): string {
         $text = str_replace('{admin_email}', get_option('admin_email'), $text);
-        /* {form_title} */
         $text = str_replace('{form_title}', $form->title, $text);
-        /* {site_name} */
         $text = str_replace('{site_name}', get_bloginfo('name'), $text);
 
-        /* {all_fields} — formatted list */
         if (str_contains($text, '{all_fields}')) {
             $all    = '';
             $inline = get_option('forge_forms_field_layout', 'block') === 'inline';
@@ -356,7 +447,6 @@ class MailSender
             $text = str_replace('{all_fields}', $all, $text);
         }
 
-        /* {field_id} placeholders — match any field by its ID; escape for HTML contexts */
         foreach ($mapped as $key => $entry) {
             $safe = esc_html((string)($entry['value'] ?? ''));
             $text = str_replace('{' . $key . '}', $safe, $text);

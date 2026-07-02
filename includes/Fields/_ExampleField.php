@@ -25,33 +25,54 @@
  * 1. Copy this file → YourField.php, rename the class.
  * 2. Implement the three mandatory methods (getLabel, getIcon, render).
  * 3. Register in FieldRegistry::registerDefaults() — the comment there
- *    tells you exactly what to add and where.
+ *    tells you exactly what to add and where. The first argument is the
+ *    type key — it becomes the field type used throughout the builder,
+ *    frontend, and stored form configs.
  *
- * Everything else (validate, map, schema, client validation, frontend init,
- * skip-validation flag) has a safe default in BaseField and only needs
- * overriding when you want custom behaviour.
+ * Everything else (validate, map, settings schema, client-side validation,
+ * client-side init, skip validation) has a sensible default in BaseField
+ * and only needs overriding when you want custom behaviour.
  *
  * ARCHITECTURE SUMMARY
  * ─────────────────────
- * Every field type owns ALL of its traits in one PHP file:
+ * Every field type encapsulates all of its behavior in one PHP file:
  *
  *   render()               → frontend HTML
  *   getStyles()            → field-specific CSS injected inline on the page
- *   getClientInit()        → frontend JS init / interaction  (→ window.ForgeFieldInits)
- *   getClientEmptyCheck()  → frontend "is field blank?" fn   (→ window.ForgeEmptyChecks)
- *   getClientValidation()  → frontend format validators      (→ window.ForgeValidators)
+ *   getClientInit()        → client-side init / interaction
+ *                             (→ window.ForgeFieldInits)
+ *   getClientEmptyCheck()  → client-side empty check
+ *                             (→ window.ForgeEmptyChecks)
+ *   getClientValidation()  → client-side format validators
+ *                             (→ window.ForgeValidators)
  *   skipValidation()       → true for purely presentational fields (pagebreak, html)
- *   getGeneralSchema()     → builder General-tab settings UI
- *   getAdvancedSchema()    → builder Advanced-tab settings UI
+ *   getGeneralSchema()     → settings schema for the General tab
+ *   getAdvancedSchema()    → settings schema for the Advanced tab
  *   hasSettingsPanel()     → false hides the panel entirely (default true)
  *   hasRequired()          → false hides the Required checkbox (default true)
  *   getDefaultConfig()     → initial config when dropped onto canvas
- *   validate()             → server-side value validation
- *   map()                  → value → display string for email / PDF
+ *   validate()             → server-side validation, runs after form submission
+ *   map()                  → value → human-readable string for email / PDF
+ *   mapNormalized()        → value → normalized output entries for PDF/email
+ *                            (override for file-bearing or multi-entry fields)
  *
- * Assets::enqueueFront() collects getStyles() + the three client-* methods
- * and injects them inline before front.js loads. front.js itself contains
- * zero field-specific logic.
+ * Assets::enqueueFront() collects getStyles() and the three client-side
+ * callback methods and injects them inline before front.js loads.
+ * front.js itself contains zero field-specific logic.
+ *
+ * WHEN TO OVERRIDE
+ * ─────────────────
+ * You are building...               Override
+ * ──────────────────────────────────────────────────────────────────────
+ * Any field (always required)       getLabel(), getIcon(), render()
+ * Custom CSS                        getStyles()
+ * Interactive widget                getClientInit()
+ * Custom "blank" check              getClientEmptyCheck()
+ * Format validation                 validate() + getClientValidation()
+ * Composite or formatted value      map()
+ * File-bearing or multi-entry       mapNormalized()
+ * Custom PDF output                 pdfData()
+ * Presentational / no user input    skipValidation()
  */
 
 namespace ForgeForms\Fields;
@@ -64,7 +85,9 @@ defined('ABSPATH') || exit;
 class ExampleField extends BaseField
 {
     // ═══════════════════════════════════════════════════════
-    //  MANDATORY — these three must always be implemented
+    //  MANDATORY — getLabel(), getIcon(), and render() must
+    //  always be implemented. render() has its own section
+    //  below with usage examples.
     // ═══════════════════════════════════════════════════════
 
     /**
@@ -85,6 +108,73 @@ class ExampleField extends BaseField
     public function getIcon(): string
     {
         return 'fa-solid fa-star';
+    }
+
+
+    // ═══════════════════════════════════════════════════════
+    //  RENDER — build the frontend HTML
+    // ═══════════════════════════════════════════════════════
+
+    /**
+     * Renders the field HTML for frontend display.
+     *
+     * @param array  $config   Field config merged with getDefaultConfig() defaults.
+     * @param string $field_id Unique element id/name, e.g. "field-3".
+     * @param mixed  $value    Pre-filled value when re-displaying after a server error.
+     *
+     * @return string
+     */
+    public function render(array $config, string $field_id, mixed $value = null): string
+    {
+        // ── Simple single input ──────────────────────────────────────────
+        // inputAttrs() builds: id, name, class="forge-input", placeholder,
+        // required + aria-required. Pass extra HTML attributes as 4th array.
+        $attrs = $this->inputAttrs(
+            $config, $field_id, 'text', [
+            'value'     => esc_attr((string)($value ?? '')),
+            'maxlength' => (int)($config['maxlength'] ?? 0) ?: false,
+            ]
+        );
+
+        // wrap() adds: outer .forge-field div, label, description, error div,
+        // required class/asterisk, and the data-validate attribute automatically.
+        return $this->wrap($field_id, $config, '<input' . $attrs . '>');
+
+
+        // ── Composite field (multiple sub-inputs, each with its own required) ──
+        // Use this pattern when each sub-part can independently be required
+        // (like Address / Name in expanded mode).
+        //
+        // Rules:
+        //  • Put `required` HTML attr on each individual <input>/<select>
+        //  • Add a .forge-field-error.forge-sub-error div after each input
+        //    (front.js will write the error message there)
+        //  • Add $req_star so the label shows a red *
+        //  • Pass $wrapper_config with required=false to wrap() so the
+        //    global * on the field label is suppressed
+        /*
+        $inner = '<div class="forge-example-group">';
+        foreach (['part_a', 'part_b'] as $k) {
+            $label    = esc_html($config[$k . '_label'] ?? $k);
+            $req      = !empty($config[$k . '_required'])
+                ? ' required aria-required="true"' : '';
+            $req_star = !empty($config[$k . '_required'])
+                ? ' <span class="forge-required" aria-hidden="true">*</span>'
+                : '';
+            $inner .= '<div class="forge-example-sub">';
+            $inner .= '<label class="forge-sub-label">'
+                . $label . $req_star . '</label>';
+            $inner .= '<input type="text"'
+                . ' name="' . esc_attr($field_id) . '[' . $k . ']"'
+                . ' class="forge-input"' . $req . '>';
+            $inner .= '<div class="forge-field-error forge-sub-error"></div>';
+            $inner .= '</div>';
+        }
+        $inner .= '</div>';
+        $wrapper_config             = $config;
+        $wrapper_config['required'] = false;
+        return $this->wrap($field_id, $wrapper_config, $inner);
+        */
     }
 
 
@@ -132,70 +222,7 @@ class ExampleField extends BaseField
 
 
     // ═══════════════════════════════════════════════════════
-    //  RENDER — build the frontend HTML
-    // ═══════════════════════════════════════════════════════
-
-    /**
-     * Renders the field HTML for frontend display.
-     *
-     * @param array  $config   Saved field config merged with getDefaultConfig() defaults.
-     * @param string $field_id Unique element id/name, e.g. "field-3".
-     * @param mixed  $value    Pre-filled value when re-displaying after a server error.
-     *
-     * @return string
-     */
-    public function render(array $config, string $field_id, mixed $value = null): string
-    {
-        // ── Simple single input ──────────────────────────────────────────
-        // inputAttrs() builds: id, name, class="forge-input", placeholder,
-        // required + aria-required. Pass any extra HTML attributes as the 4th array.
-        $attrs = $this->inputAttrs(
-            $config, $field_id, 'text', [
-            'value'     => esc_attr((string)($value ?? '')),
-            'maxlength' => (int)($config['maxlength'] ?? 0) ?: false,  // false = attribute omitted
-            ]
-        );
-
-        // wrap() adds: outer .forge-field div, label, description, error div,
-        // required class/asterisk, and the data-validate attribute automatically.
-        return $this->wrap($field_id, $config, '<input' . $attrs . '>');
-
-
-        // ── Composite field (multiple sub-inputs, each with its own required) ──
-        // Use this pattern when each sub-part can independently be required
-        // (like Address / Name in expanded mode).
-        //
-        // Rules:
-        //  • Put `required` HTML attr on each individual <input>/<select>
-        //  • Add a .forge-field-error.forge-sub-error div after each input
-        //    (front.js will write the error message there)
-        //  • Add $req_star so the label shows a red *
-        //  • Pass $wrapper_config with required=false to wrap() so the
-        //    global * on the field label is suppressed
-        /*
-        $inner = '<div class="forge-example-group">';
-        foreach (['part_a', 'part_b'] as $k) {
-            $label    = esc_html($config[$k . '_label'] ?? $k);
-            $req      = !empty($config[$k . '_required']) ? ' required aria-required="true"' : '';
-            $req_star = !empty($config[$k . '_required'])
-                ? ' <span class="forge-required" aria-hidden="true">*</span>' : '';
-            $inner .= '<div class="forge-example-sub">';
-            $inner .= '<label class="forge-sub-label">' . $label . $req_star . '</label>';
-            $inner .= '<input type="text" name="' . esc_attr($field_id) . '[' . $k . ']"'
-                . ' class="forge-input"' . $req . '>';
-            $inner .= '<div class="forge-field-error forge-sub-error"></div>';
-            $inner .= '</div>';
-        }
-        $inner .= '</div>';
-        $wrapper_config             = $config;
-        $wrapper_config['required'] = false;
-        return $this->wrap($field_id, $wrapper_config, $inner);
-        */
-    }
-
-
-    // ═══════════════════════════════════════════════════════
-    //  VALIDATE — server-side, runs on form submission
+    //  VALIDATE — server-side validation, runs after form submission
     // ═══════════════════════════════════════════════════════
     // Default (BaseField): handles the generic required check automatically.
     // Override only to add format rules on top.
@@ -227,10 +254,31 @@ class ExampleField extends BaseField
 
 
     // ═══════════════════════════════════════════════════════
-    //  MAP — value → readable string for email / PDF
+    //  MAP — value → human-readable string for email / PDF
     // ═══════════════════════════════════════════════════════
-    // Default (BaseField): casts to string, returns '[Kein Eintrag]' when empty.
-    // Override for composite (array) values or custom formatting.
+    //
+    //  map() — Override for composite (array) values or custom formatting.
+    //  Default (BaseField): casts to string, returns '[Kein Eintrag]' when empty.
+    //
+    //  mapNormalized() — Override when your field needs any of:
+    //    • Multiple normalized output entries
+    //      (e.g. SEPA expands to IBAN + BIC + Kontoinhaber)
+    //    • File materialization
+    //      (upload reads $_FILES, signature decodes base64)
+    //    • Custom output keys (default is [$field_id => entry])
+    //
+    //  Signature:
+    //    mapNormalized(field_id, label, value, config, context)
+    //    : array<key, entry>
+    //  $context: ['files' => $_FILES subset, 'raw_values' => raw POST]
+    //  Entry shape:
+    //    ['label' => ..., 'type' => ..., 'value' => ...,
+    //     'materialized_files' => []]
+    //  Return [] to emit no normalized output entries (PageBreakField,
+    //  empty HtmlField).
+    //
+    //  BaseField default wraps map() in a single entry — override only
+    //  when needed.
 
     /**
      * Maps the submitted value to a human-readable string for email/PDF.
@@ -253,7 +301,7 @@ class ExampleField extends BaseField
 
 
     // ═══════════════════════════════════════════════════════
-    //  FRONTEND INIT — interaction logic for this field type
+    //  CLIENT-SIDE INIT — interaction logic for this field type
     // ═══════════════════════════════════════════════════════
     //
     //  Return a JS function string: function(root) { ... }
@@ -264,7 +312,7 @@ class ExampleField extends BaseField
     //  Use querySelectorAll / addEventListener directly. The on() helper
     //  in front.js is scoped to its IIFE and is NOT available here.
     //
-    //  Return '' (default) when no frontend init is needed.
+    //  Return '' (default) when no client-side init is needed.
 
     /**
      * Returns the client-side initialisation script for this field type.
@@ -273,7 +321,7 @@ class ExampleField extends BaseField
      */
     public function getClientInit(): string
     {
-        return ''; // no frontend interaction needed
+        return ''; // no client-side interaction needed
 
         // Override example — attach a click handler to every widget instance:
         /*
@@ -291,7 +339,7 @@ class ExampleField extends BaseField
 
 
     // ═══════════════════════════════════════════════════════
-    //  CLIENT VALIDATION — two separate concerns
+    //  CLIENT-SIDE VALIDATION — two separate concerns
     // ═══════════════════════════════════════════════════════
     //
     //  getClientEmptyCheck()  →  IS THE FIELD BLANK?
@@ -349,7 +397,67 @@ class ExampleField extends BaseField
 
 
     // ═══════════════════════════════════════════════════════
-    //  SKIP VALIDATION FLAG — presentational fields only
+    //  PDF DATA — pdfData() — how this field appears in the generated PDF
+    // ═══════════════════════════════════════════════════════
+    //
+    //  pdfData() tells the Generator what to put in the PDF for this field.
+    //  You almost certainly do NOT need to implement this — BaseField's default
+    //  handles every plain text field correctly out of the box:
+    //
+    //    • Shows the field label and escaped value as a standard row
+    //    • Puts it in the main body of the PDF
+    //    • Includes no images or file attachments
+    //
+    //  Only override when your field needs one of these two things:
+    //    1. The value is raw HTML, not plain text  →  see HtmlField
+    //    2. The field embeds an image in the PDF  →  see SignatureField / UploadField
+    //       (non-image uploads appear as filename text only;
+    //        only attachImage() exists — there is no attachPdf())
+    //
+    //  $this->pdf($field) returns a PdfDescriptor. Chain methods, then build():
+    //
+    //  ->text(string $escaped)
+    //    Replace the default cell text (pre-escaped value) with something else.
+    //    Pass '' to suppress it entirely (e.g. signature — image speaks for itself).
+    //
+    //  ->rawHtml(string $html)
+    //    Use when the value itself IS trusted HTML (HtmlField).
+    //
+    //  ->unlabeled()
+    //    Suppress the label row — only for HTML blocks without a heading.
+    //
+    //  ->attachImage(string $binary, string $filename, string $mime = 'image/png')
+    //    Embeds the image after the cell text and records its perceptual hash
+    //    in the HMAC seal. TIFF is auto-converted to PNG.
+    //    PdfUtils::thumbnailHash($binary) is used internally — no manual call needed.
+    //
+    //  ->build()
+    //    Returns the array Generator consumes. Always call last.
+
+    // Example — a field that also renders a QR code image of its value:
+    /*
+    public function pdfData(array $field): array
+    {
+        $binary = $this->generateQrPng((string)($field['value'] ?? ''));
+        return $this->pdf($field)
+            ->attachImage($binary, 'qr.png')
+            ->build();
+    }
+    */
+
+    // Example — a field whose value is raw HTML (like HtmlField):
+    /*
+    public function pdfData(array $field): array
+    {
+        return $this->pdf($field)
+            ->rawHtml((string)($field['value'] ?? ''))
+            ->build();
+    }
+    */
+
+
+    // ═══════════════════════════════════════════════════════
+    //  SKIP VALIDATION — presentational fields only
     // ═══════════════════════════════════════════════════════
     //
     //  Return true for fields that carry no user input and should never be
@@ -385,7 +493,7 @@ class ExampleField extends BaseField
 
 
     // ═══════════════════════════════════════════════════════
-    //  BUILDER SCHEMA — what the right panel renders
+    //  SETTINGS SCHEMA — what the builder's right-hand panel renders
     // ═══════════════════════════════════════════════════════
     //
     //  ┌──────────────────┬──────────────────────────────────────────────────────┐

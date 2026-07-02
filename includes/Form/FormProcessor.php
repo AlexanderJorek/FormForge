@@ -24,7 +24,6 @@ namespace ForgeForms\Form;
 defined('ABSPATH') || exit;
 
 use ForgeForms\Fields\FieldRegistry;
-use ForgeForms\PDF\SubmissionMapper;
 
 /**
  * Handles forge_form AJAX submissions, validates fields, and fires the
@@ -164,7 +163,7 @@ class FormProcessor
         }
 
         /* ---- Map to human-readable for PDF/email ---- */
-        $mapped = SubmissionMapper::map($form->fields, $raw, $_FILES);
+        $mapped = FieldRegistry::mapSubmission($form->fields, $raw, $_FILES);
 
         /* ---- Fire submission hook (PDF generation + mail happens here) ---- */
         do_action('forge_forms_submission', $form_id, $mapped, $form);
@@ -200,14 +199,12 @@ class FormProcessor
             if (!is_array($raw)) {
                 return null;
             }
-            $sig1_key = $field_id . '-sig1';
-            $sig2_key = $field_id . '-sig2';
+            $sig_raw = wp_unslash($_POST[$field_id . '-sig'] ?? '');
             return [
                 'iban'   => sanitize_text_field(wp_unslash($raw['iban']   ?? '')),
                 'bic'    => sanitize_text_field(wp_unslash($raw['bic']    ?? '')),
                 'holder' => sanitize_text_field(wp_unslash($raw['holder'] ?? '')),
-                'sig1'   => sanitize_text_field(wp_unslash($_POST[$sig1_key] ?? '')),
-                'sig2'   => sanitize_text_field(wp_unslash($_POST[$sig2_key] ?? '')),
+                'sig'    => sanitize_text_field((string)$sig_raw),
             ];
         }
 

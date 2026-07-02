@@ -958,6 +958,55 @@
     margin-top: 0;
 }
 
+/* Info icon + tooltip */
+.forge-info-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 5px;
+    color: #72777c;
+    cursor: pointer;
+    position: relative;
+    vertical-align: middle;
+    user-select: none;
+    font-style: normal;
+}
+.forge-info-icon:hover,
+.forge-info-icon:focus {
+    color: #2271b1;
+    outline: none;
+}
+.forge-info-tooltip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    right: 0;
+    width: 220px;
+    background: #fff;
+    color: #3c434a !important;
+    border: 1px solid #c3c4c7;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+    padding: 8px 10px;
+    border-radius: 4px;
+    white-space: normal;
+    z-index: 9999;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,.12);
+}
+.forge-info-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    right: 4px;
+    border: 5px solid transparent;
+    border-top-color: #c3c4c7;
+}
+.forge-info-tooltip--visible {
+    display: block;
+}
+
 /* Mode + enabled toggle in one row */
 .forge-sp-row-ctrl {
     display: flex;
