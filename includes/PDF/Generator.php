@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 /**
  * Generates PDF documents from form submissions using mPDF.

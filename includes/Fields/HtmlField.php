@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 /**
  * Static HTML content field for layout and display purposes.

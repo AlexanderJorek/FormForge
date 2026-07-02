@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 /**
  * Canvas-based signature capture field.
