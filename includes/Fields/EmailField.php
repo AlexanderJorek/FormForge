@@ -155,6 +155,16 @@ class EmailField extends BaseField
     }
 
     /**
+     * Email fields expose a plain-text value suitable for PDF preview tokens.
+     *
+     * @return bool
+     */
+    public function hasTextPreview(): bool
+    {
+        return true;
+    }
+
+    /**
      * Returns the default field configuration.
      *
      * @return array
@@ -179,7 +189,11 @@ class EmailField extends BaseField
     {
         return array_merge(
             $this->baseGeneralEntries(), [
-            ['key' => 'validate_format', 'type' => 'checkbox', 'label' => 'Auf gültiges E-Mail-Format prüfen'],
+            [
+                'key'   => 'validate_format',
+                'type'  => 'checkbox',
+                'label' => 'Auf gültiges E-Mail-Format prüfen',
+            ],
             ]
         );
     }
@@ -192,16 +206,20 @@ class EmailField extends BaseField
     public function getAdvancedSchema(): array
     {
         return [
-            ['key'    => 'filter_mode',
-             'type'   => 'pill3',
-             'label'  => 'E-Mail-Filter',
-             'values' => ['', 'allow', 'block'],
-             'labels' => ['Aus', 'Erlaubt', 'Gesperrt']],
-            ['key'        => 'filter_patterns',
-             'type'       => 'textarea',
-             'label'      => 'Muster (je Zeile oder mit ; trennen)',
-             'hint'       => '*no-reply* · *.outlook.com · user@example.com',
-             'depends_on' => ['key' => 'filter_mode', 'not' => '']],
+            [
+                'key'    => 'filter_mode',
+                'type'   => 'pill3',
+                'label'  => 'E-Mail-Filter',
+                'values' => ['', 'allow', 'block'],
+                'labels' => ['Aus', 'Erlaubt', 'Gesperrt'],
+            ],
+            [
+                'key'        => 'filter_patterns',
+                'type'       => 'textarea',
+                'label'      => 'Muster (je Zeile oder mit ; trennen)',
+                'hint'       => '*no-reply* · *.outlook.com · user@example.com',
+                'depends_on' => ['key' => 'filter_mode', 'not' => ''],
+            ],
         ];
     }
 }

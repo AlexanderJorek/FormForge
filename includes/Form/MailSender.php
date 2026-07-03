@@ -21,6 +21,7 @@
 
 namespace ForgeForms\Form;
 
+use ForgeForms\Fields\FieldRegistry;
 use ForgeForms\Form\FormModel;
 use ForgeForms\Admin\FormSettings;
 use ForgeForms\PDF\Generator;
@@ -238,9 +239,6 @@ class MailSender
         $result['tmp_dir'] = $tmp_dir;
 
         foreach ($mapped as $field) {
-            if (($field['type'] ?? '') !== 'upload') {
-                continue;
-            }
             foreach ($field['materialized_files'] ?? [] as $file) {
                 $b64    = $file['base64'] ?? '';
                 $binary = $b64 !== '' ? base64_decode($b64, true) : false;
@@ -433,7 +431,8 @@ class MailSender
             foreach ($mapped as $entry) {
                 $label = $entry['label'] ?? '';
                 $value = $entry['value'] ?? '';
-                if (in_array($entry['type'] ?? '', ['html', 'pagebreak'], true)) {
+                $entry_handler = FieldRegistry::get($entry['type'] ?? '');
+                if ($entry_handler && !$entry_handler->includeInEmailSummary()) {
                     continue;
                 }
                 if ($label !== '') {

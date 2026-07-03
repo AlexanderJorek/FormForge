@@ -21,6 +21,8 @@
 
 namespace ForgeForms\Admin;
 
+use ForgeForms\Fields\FieldRegistry;
+
 defined('ABSPATH') || exit;
 
 /**
@@ -265,7 +267,7 @@ class PDFLayoutEditor
         $dummy_text      = array_values(
             array_filter(
                 $dummy_fields,
-                fn($f) => in_array($f['type'], ['text', 'email', 'textarea'], true)
+                fn($f) => (bool)(FieldRegistry::get($f['type'] ?? '')?->hasTextPreview())
             )
         );
         $dummy_signature = self::dummySignaturePng();

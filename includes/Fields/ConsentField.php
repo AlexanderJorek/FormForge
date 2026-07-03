@@ -168,7 +168,11 @@ CSS;
     public function getGeneralSchema(): array
     {
         return [
-            ['key' => 'consent_text', 'type' => 'textarea', 'label' => 'Zustimmungstext'],
+            [
+                'key'   => 'consent_text',
+                'type'  => 'textarea',
+                'label' => 'Zustimmungstext',
+            ],
         ];
     }
 }

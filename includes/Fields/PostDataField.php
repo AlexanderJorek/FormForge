@@ -93,13 +93,33 @@ class PostDataField extends BaseField
     }
 
     /**
+     * Returns the sanitized post-data array submitted as $field_id[key].
+     *
+     * @param string $field_id The field element ID.
+     *
+     * @return mixed
+     */
+    public function extractValue(string $field_id): mixed
+    {
+        $raw = $_POST[$field_id] ?? [];
+        if (!is_array($raw)) {
+            return [];
+        }
+        return array_map(static fn($v) => sanitize_text_field(wp_unslash($v)), $raw);
+    }
+
+    /**
      * Returns the default field configuration.
      *
      * @return array
      */
     public function getDefaultConfig(): array
     {
-        return ['label' => 'Beitragsdaten', 'post_field' => ['post_title'], 'description' => ''];
+        return [
+            'label'       => 'Beitragsdaten',
+            'post_field'  => ['post_title'],
+            'description' => '',
+        ];
     }
 
     /**
@@ -110,11 +130,13 @@ class PostDataField extends BaseField
     public function getGeneralSchema(): array
     {
         return [
-            ['key'    => 'post_field',
-             'type'   => 'pill_multi',
-             'label'  => 'Post-Feld',
-             'values' => ['post_title', 'post_url', 'post_id', 'post_author'],
-             'labels' => ['Titel', 'URL', 'ID', 'Autor']],
+            [
+                'key'    => 'post_field',
+                'type'   => 'pill_multi',
+                'label'  => 'Post-Feld',
+                'values' => ['post_title', 'post_url', 'post_id', 'post_author'],
+                'labels' => ['Titel', 'URL', 'ID', 'Autor'],
+            ],
         ];
     }
 }

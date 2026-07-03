@@ -232,9 +232,24 @@ CSS;
         }
         return array_merge(
             $this->baseGeneralEntries(), [
-            ['key' => 'currency',  'type' => 'select', 'label' => 'Währung', 'options' => $currencyOptions],
-            ['key' => 'min_value', 'type' => 'number', 'label' => 'Mindestwert', 'hint' => 'Leer = kein Minimum'],
-            ['key' => 'max_value', 'type' => 'number', 'label' => 'Maximalwert', 'hint' => 'Leer = kein Maximum'],
+            [
+                'key'     => 'currency',
+                'type'    => 'select',
+                'label'   => 'Währung',
+                'options' => $currencyOptions,
+            ],
+            [
+                'key'   => 'min_value',
+                'type'  => 'number',
+                'label' => 'Mindestwert',
+                'hint'  => 'Leer = kein Minimum',
+            ],
+            [
+                'key'   => 'max_value',
+                'type'  => 'number',
+                'label' => 'Maximalwert',
+                'hint'  => 'Leer = kein Maximum',
+            ],
             ]
         );
     }

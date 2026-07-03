@@ -331,9 +331,21 @@ CSS;
     public function getGeneralSchema(): array
     {
         return [
-            ['key' => 'description',  'type' => 'text',     'label' => 'Beschreibung'],
-            ['key' => 'other_option', 'type' => 'checkbox', 'label' => '"Sonstiges"-Option anzeigen'],
-            ['key' => 'options',      'type' => 'options_list', 'label' => 'Optionen'],
+            [
+                'key'   => 'description',
+                'type'  => 'text',
+                'label' => 'Beschreibung',
+            ],
+            [
+                'key'   => 'other_option',
+                'type'  => 'checkbox',
+                'label' => '"Sonstiges"-Option anzeigen',
+            ],
+            [
+                'key'   => 'options',
+                'type'  => 'options_list',
+                'label' => 'Optionen',
+            ],
         ];
     }
 }

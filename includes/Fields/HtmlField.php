@@ -82,6 +82,16 @@ CSS;
     }
 
     /**
+     * HTML blocks are excluded from the {all_fields} email summary.
+     *
+     * @return bool
+     */
+    public function includeInEmailSummary(): bool
+    {
+        return false;
+    }
+
+    /**
      * Renders the field HTML.
      *
      * @param array  $config   Field configuration.
@@ -181,7 +191,11 @@ CSS;
     public function getGeneralSchema(): array
     {
         return [
-            ['key' => 'html_content', 'type' => 'html_editor', 'label' => 'HTML-Inhalt'],
+            [
+                'key'   => 'html_content',
+                'type'  => 'html_editor',
+                'label' => 'HTML-Inhalt',
+            ],
         ];
     }
 }

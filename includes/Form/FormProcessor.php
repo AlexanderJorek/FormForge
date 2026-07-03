@@ -73,13 +73,18 @@ class FormProcessor
                 continue;
             }
 
+            $handler = FieldRegistry::get($field_type);
+            if (!$handler) {
+                continue;
+            }
+
             /* Layout/presentation-only fields have no submission value */
-            if (in_array($field_type, ['pagebreak', 'html'], true)) {
+            if ($handler->skipValidation()) {
                 continue;
             }
 
             /* Group field: validate children across all submitted copies */
-            if ($field_type === 'group') {
+            if ($handler->isGroupContainer()) {
                 $children   = $field_cfg['children'] ?? [];
                 $group_post = isset($_POST[$field_id]) && is_array($_POST[$field_id])
                     ? $_POST[$field_id] : [];
@@ -102,14 +107,7 @@ class FormProcessor
                             continue;
                         }
                         $raw_v = $copy_data[$child_id] ?? '';
-                        if (is_array($raw_v)) {
-                            $val = array_map(
-                                static fn($v) => sanitize_text_field(wp_unslash($v)),
-                                $raw_v
-                            );
-                        } else {
-                            $val = sanitize_text_field(wp_unslash((string) $raw_v));
-                        }
+                        $val   = $ch->extractFromRaw($raw_v);
                         $sanitized[$copy_idx][$child_id] = $val;
 
                         $ekey = $field_id . '[' . $copy_idx . '][' . $child_id . ']';
@@ -127,13 +125,8 @@ class FormProcessor
                 continue;
             }
 
-            $handler = FieldRegistry::get($field_type);
-            if (!$handler) {
-                continue;
-            }
-
             /* Collect raw value */
-            $value = self::extractValue($field_id, $field_type);
+            $value = $handler->extractValue($field_id);
             $raw[$field_id] = $value;
 
             /* Validate — pass field_id so UploadField can resolve $_FILES correctly */
@@ -146,20 +139,11 @@ class FormProcessor
 
         /* ---- Honeypot check ---- */
         if (!empty($_POST['forge_hp_field'])) {
-            wp_send_json_success(
-                [
-                'message' => $form->settings['success_message'] ?? 'Vielen Dank für Ihre Einsendung!',
-                ]
-            );
+            wp_send_json_success(['message' => $form->settings['success_message'] ?? 'Vielen Dank für Ihre Einsendung!']);
         }
 
         if (!empty($errors)) {
-            wp_send_json_error(
-                [
-                'message' => 'Bitte korrigieren Sie die markierten Felder.',
-                'errors'  => $errors,
-                ], 422
-            );
+            wp_send_json_error(['message' => 'Bitte korrigieren Sie die markierten Felder.', 'errors' => $errors], 422);
         }
 
         /* ---- Map to human-readable for PDF/email ---- */
@@ -171,75 +155,5 @@ class FormProcessor
         /* ---- Respond ---- */
         $success_msg = esc_html($form->settings['success_message'] ?? 'Vielen Dank für Ihre Einsendung!');
         wp_send_json_success(['message' => $success_msg]);
-    }
-
-    /**
-     * Extracts a field value from POST or FILES.
-     *
-     * @param string $field_id   The field element ID.
-     * @param string $field_type The field type slug.
-     *
-     * @return mixed
-     */
-    private static function extractValue(string $field_id, string $field_type): mixed
-    {
-        /* File upload */
-        if ($field_type === 'upload') {
-            return $_FILES[$field_id] ?? null;
-        }
-
-        /* Signature: base64 PNG from hidden input */
-        if ($field_type === 'signature') {
-            return isset($_POST[$field_id]) ? sanitize_text_field(wp_unslash($_POST[$field_id])) : null;
-        }
-
-        /* SEPA: composite field */
-        if ($field_type === 'sepa') {
-            $raw = $_POST[$field_id] ?? [];
-            if (!is_array($raw)) {
-                return null;
-            }
-            $sig_raw = wp_unslash($_POST[$field_id . '-sig'] ?? '');
-            return [
-                'iban'   => sanitize_text_field(wp_unslash($raw['iban']   ?? '')),
-                'bic'    => sanitize_text_field(wp_unslash($raw['bic']    ?? '')),
-                'holder' => sanitize_text_field(wp_unslash($raw['holder'] ?? '')),
-                'sig'    => sanitize_text_field((string)$sig_raw),
-            ];
-        }
-
-        /* Post data: array of hidden fields submitted as field_id[key] */
-        if ($field_type === 'postdata') {
-            $raw = $_POST[$field_id] ?? [];
-            if (!is_array($raw)) {
-                return [];
-            }
-            return array_map(static fn($v) => sanitize_text_field(wp_unslash($v)), $raw);
-        }
-
-        /* Checkbox array */
-        if ($field_type === 'checkbox') {
-            $vals = $_POST[$field_id] ?? [];
-            return is_array($vals)
-                ? array_map(static fn($v) => sanitize_text_field(wp_unslash($v)), $vals)
-                : [];
-        }
-
-        /* Name / address composite */
-        if (in_array($field_type, ['name', 'address'], true)) {
-            $raw = $_POST[$field_id] ?? [];
-            if (!is_array($raw)) {
-                return null;
-            }
-            return array_map(static fn($v) => sanitize_text_field(wp_unslash($v)), $raw);
-        }
-
-        /* Textarea: preserve newlines */
-        if ($field_type === 'textarea') {
-            return isset($_POST[$field_id]) ? sanitize_textarea_field(wp_unslash($_POST[$field_id])) : '';
-        }
-
-        /* Default */
-        return isset($_POST[$field_id]) ? sanitize_text_field(wp_unslash($_POST[$field_id])) : '';
     }
 }

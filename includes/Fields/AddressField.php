@@ -88,12 +88,7 @@ CSS;
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         if (empty($config['expanded'])) {
-            $attrs = $this->inputAttrs(
-                $config,
-                $field_id,
-                'text',
-                ['value' => esc_attr((string)(is_array($value) ? '' : ($value ?? '')))]
-            );
+            $attrs = $this->inputAttrs($config, $field_id, 'text', ['value' => esc_attr((string)(is_array($value) ? '' : ($value ?? '')))]);
             return $this->wrap($field_id, $config, '<input' . $attrs . '>');
         }
 
@@ -110,8 +105,7 @@ CSS;
             $req   = !empty($config[$k . '_required']) ? ' required aria-required="true"' : '';
             $ac    = esc_attr($this->autocompleteToken($k));
 
-            $req_star = !empty($config[$k . '_required'])
-                ? ' <span class="forge-required" aria-hidden="true">*</span>' : '';
+            $req_star = !empty($config[$k . '_required']) ? ' <span class="forge-required" aria-hidden="true">*</span>' : '';
             $inner .= '<div class="forge-address-sub">';
             $inner .= '<label class="forge-sub-label">' . $label . $req_star . '</label>';
             $inner .= '<input type="text"'
@@ -149,6 +143,22 @@ CSS;
             'country' => 'country-name',
             default   => 'on',
         };
+    }
+
+    /**
+     * Returns the sanitized composite subfield array submitted as $field_id[key].
+     *
+     * @param string $field_id The field element ID.
+     *
+     * @return mixed
+     */
+    public function extractValue(string $field_id): mixed
+    {
+        $raw = $_POST[$field_id] ?? [];
+        if (!is_array($raw)) {
+            return null;
+        }
+        return array_map(static fn($v) => sanitize_text_field(wp_unslash($v)), $raw);
     }
 
     /**
@@ -258,14 +268,33 @@ CSS;
     public function getGeneralSchema(): array
     {
         return [
-            ['key' => 'expanded', 'type' => 'bool_seg', 'label' => 'Modus',
-             'false_label' => 'Einzeln', 'true_label' => 'Erweitert', 'rebuild' => true],
-            ['key' => 'placeholder',  'type' => 'text', 'label' => 'Platzhalter',
-             'depends_on' => ['expanded' => false]],
-            ['key' => 'description',  'type' => 'text', 'label' => 'Hinweistext',
-             'depends_on' => ['expanded' => false]],
-            ['key' => 'subfields', 'type' => 'subfields', 'label' => 'Teilfelder',
-             'depends_on' => ['expanded' => true], 'items' => self::SUBFIELDS],
+            [
+                'key'         => 'expanded',
+                'type'        => 'bool_seg',
+                'label'       => 'Modus',
+                'false_label' => 'Einzeln',
+                'true_label'  => 'Erweitert',
+                'rebuild'     => true,
+            ],
+            [
+                'key'        => 'placeholder',
+                'type'       => 'text',
+                'label'      => 'Platzhalter',
+                'depends_on' => ['expanded' => false],
+            ],
+            [
+                'key'        => 'description',
+                'type'       => 'text',
+                'label'      => 'Hinweistext',
+                'depends_on' => ['expanded' => false],
+            ],
+            [
+                'key'        => 'subfields',
+                'type'       => 'subfields',
+                'label'      => 'Teilfelder',
+                'depends_on' => ['expanded' => true],
+                'items'      => self::SUBFIELDS,
+            ],
         ];
     }
 }

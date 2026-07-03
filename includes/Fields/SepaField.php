@@ -565,6 +565,31 @@ CSS;
     }
 
     /**
+     * Returns the composite SEPA array: IBAN, BIC, Kontoinhaber, and signature.
+     *
+     * The signature canvas posts to a separate key ($field_id . '-sig') because
+     * the main composite array is name-indexed as $field_id[iban], $field_id[bic], etc.
+     *
+     * @param string $field_id The field element ID.
+     *
+     * @return mixed
+     */
+    public function extractValue(string $field_id): mixed
+    {
+        $raw = $_POST[$field_id] ?? [];
+        if (!is_array($raw)) {
+            return null;
+        }
+        $sig_raw = wp_unslash($_POST[$field_id . '-sig'] ?? '');
+        return [
+            'iban'   => sanitize_text_field(wp_unslash($raw['iban']   ?? '')),
+            'bic'    => sanitize_text_field(wp_unslash($raw['bic']    ?? '')),
+            'holder' => sanitize_text_field(wp_unslash($raw['holder'] ?? '')),
+            'sig'    => sanitize_text_field((string)$sig_raw),
+        ];
+    }
+
+    /**
      * Validates the submitted value.
      *
      * @param mixed $value  Submitted value.
@@ -658,20 +683,16 @@ CSS;
             ],
         ];
 
-        $sig_val = $value['sig'] ?? '';
-        if ($sig_val !== '') {
-            $materialized = self::materializeSignature(
-                $sig_val,
-                'sepa-signature.png'
-            );
-            $entries[$field_id . '_sig'] = [
-                'label'              => $config['sig_label'] ?? 'Unterschrift',
-                'type'               => 'signature',
-                'value'              => $materialized
-                    ? 'Erfasste Unterschrift' : '[Kein Eintrag]',
-                'materialized_files' => $materialized,
-            ];
-        }
+        $sig_val      = $value['sig'] ?? '';
+        $materialized = $sig_val !== ''
+            ? self::materializeSignature($sig_val, 'sepa-signature.png')
+            : [];
+        $entries[$field_id . '_sig'] = [
+            'label'              => $config['sig_label'] ?? 'Unterschrift',
+            'type'               => 'signature',
+            'value'              => $materialized ? '' : '[Kein Eintrag]',
+            'materialized_files' => $materialized,
+        ];
 
         return $entries;
     }
@@ -740,20 +761,58 @@ CSS;
     {
         $country_options = $this->ibanCountryOptions();
         return [
-            ['key' => 'mandate_title', 'type' => 'text',     'label' => 'Titel des Mandats'],
-            ['key' => 'mandate_text',  'type' => 'textarea', 'label' => 'Mandatstext (HTML erlaubt)'],
-            ['key' => 'mandate_note',  'type' => 'textarea', 'label' => 'Hinweistext (Kleingedrucktes, HTML erlaubt)'],
-            ['key' => 'iban_label',    'type' => 'text',     'label' => 'IBAN-Label'],
-            ['key'     => 'placeholder_country',
-             'type'    => 'select',
-             'label'   => 'Platzhalter-Land (IBAN-Format)',
-             'default' => 'DE',
-             'options' => $country_options],
-            ['key' => 'bic_label',    'type' => 'text', 'label' => 'BIC-Label'],
-            ['key' => 'holder_label', 'type' => 'text', 'label' => 'Kontoinhaber-Label'],
-            ['key' => 'creditor_id',  'type' => 'text', 'label' => 'Gläubiger-ID'],
-            ['key' => 'mandate_ref',  'type' => 'text', 'label' => 'Mandatsreferenz'],
-            ['key' => 'sig_label',    'type' => 'text', 'label' => 'Unterschrift-Label'],
+            [
+                'key'   => 'mandate_title',
+                'type'  => 'text',
+                'label' => 'Titel des Mandats',
+            ],
+            [
+                'key'   => 'mandate_text',
+                'type'  => 'textarea',
+                'label' => 'Mandatstext (HTML erlaubt)',
+            ],
+            [
+                'key'   => 'mandate_note',
+                'type'  => 'textarea',
+                'label' => 'Hinweistext (Kleingedrucktes, HTML erlaubt)',
+            ],
+            [
+                'key'   => 'iban_label',
+                'type'  => 'text',
+                'label' => 'IBAN-Label',
+            ],
+            [
+                'key'     => 'placeholder_country',
+                'type'    => 'select',
+                'label'   => 'Platzhalter-Land (IBAN-Format)',
+                'default' => 'DE',
+                'options' => $country_options,
+            ],
+            [
+                'key'   => 'bic_label',
+                'type'  => 'text',
+                'label' => 'BIC-Label',
+            ],
+            [
+                'key'   => 'holder_label',
+                'type'  => 'text',
+                'label' => 'Kontoinhaber-Label',
+            ],
+            [
+                'key'   => 'creditor_id',
+                'type'  => 'text',
+                'label' => 'Gläubiger-ID',
+            ],
+            [
+                'key'   => 'mandate_ref',
+                'type'  => 'text',
+                'label' => 'Mandatsreferenz',
+            ],
+            [
+                'key'   => 'sig_label',
+                'type'  => 'text',
+                'label' => 'Unterschrift-Label',
+            ],
         ];
     }
 
@@ -765,8 +824,18 @@ CSS;
     public function getAdvancedSchema(): array
     {
         return [
-            ['key' => 'canvas_height', 'type' => 'number', 'label' => 'Unterschrift Höhe (px)', 'default' => 200],
-            ['key' => 'stroke_width',  'type' => 'number', 'label' => 'Strichstärke',           'default' => 2],
+            [
+                'key'     => 'canvas_height',
+                'type'    => 'number',
+                'label'   => 'Unterschrift Höhe (px)',
+                'default' => 200,
+            ],
+            [
+                'key'     => 'stroke_width',
+                'type'    => 'number',
+                'label'   => 'Strichstärke',
+                'default' => 2,
+            ],
         ];
     }
 

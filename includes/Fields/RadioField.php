@@ -227,11 +227,29 @@ CSS;
     public function getGeneralSchema(): array
     {
         return [
-            ['key' => 'layout',       'type' => 'bool_seg',     'label' => 'Anordnung',
-             'false_label' => 'Vertikal', 'true_label' => 'Horizontal', 'swap' => true],
-            ['key' => 'description',  'type' => 'text',         'label' => 'Hinweistext'],
-            ['key' => 'other_option', 'type' => 'checkbox',     'label' => '"Sonstiges"-Option anzeigen'],
-            ['key' => 'options',      'type' => 'options_list', 'label' => 'Optionen'],
+            [
+                'key'         => 'layout',
+                'type'        => 'bool_seg',
+                'label'       => 'Anordnung',
+                'false_label' => 'Vertikal',
+                'true_label'  => 'Horizontal',
+                'swap'        => true,
+            ],
+            [
+                'key'   => 'description',
+                'type'  => 'text',
+                'label' => 'Hinweistext',
+            ],
+            [
+                'key'   => 'other_option',
+                'type'  => 'checkbox',
+                'label' => '"Sonstiges"-Option anzeigen',
+            ],
+            [
+                'key'   => 'options',
+                'type'  => 'options_list',
+                'label' => 'Optionen',
+            ],
         ];
     }
 }

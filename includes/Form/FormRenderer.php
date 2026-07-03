@@ -69,12 +69,21 @@ class FormRenderer
         $submit_label   = esc_html($form->settings['submit_label']   ?? 'Absenden');
         $submit_working = esc_attr($form->settings['submit_working'] ?? 'Wird gesendet…');
         $success_msg    = esc_attr($form->settings['success_message'] ?? 'Vielen Dank!');
-        $has_upload   = self::hasFieldType($form->fields, 'upload');
-        $has_captcha  = self::hasFieldType($form->fields, 'captcha');
 
-        if ($has_captcha) {
-            wp_enqueue_script('google-recaptcha', 'https://www.google.com/recaptcha/api.js', [], null, true);
+        /* Resolve one handler per unique field type; let each field enqueue its own scripts. */
+        $seen_handlers = [];
+        foreach ($form->fields as $f) {
+            $type = $f['type'] ?? '';
+            if ($type && !isset($seen_handlers[$type])) {
+                $h = FieldRegistry::get($type);
+                if ($h) {
+                    $seen_handlers[$type] = $h;
+                    $h->enqueueFrontScripts();
+                }
+            }
         }
+        $has_upload = self::anyFieldHandler($seen_handlers, static fn($h) => $h->needsMultipartEncoding());
+        $has_pages  = self::anyFieldHandler($seen_handlers, static fn($h) => $h->isPageBreak());
 
         ob_start();
         ?>
@@ -88,7 +97,7 @@ class FormRenderer
                 <?php echo $has_upload ? 'enctype="multipart/form-data"' : ''; ?>
                 novalidate
                 data-form-id="<?php echo esc_attr($form_id); ?>"
-                <?php echo self::hasFieldType($form->fields, 'pagebreak') ? 'data-has-pages="true"' : ''; ?>
+                <?php echo $has_pages ? 'data-has-pages="true"' : ''; ?>
             >
                 <input type="hidden" name="action"     value="forge_forms_submit">
                 <input type="hidden" name="form_id"    value="<?php echo $form_id; ?>">
@@ -145,11 +154,12 @@ class FormRenderer
 
         /* If the form has any pagebreaks, wrap everything in page divs.
          * Open page 0 immediately so fields before the first pagebreak are included. */
-        $has_pagebreaks = !$insideGroup && !empty(
-            array_filter(
-                $fields,
-                static fn($f) => ($f['type'] ?? '') === 'pagebreak'
-            )
+        $has_pagebreaks = !$insideGroup && self::anyFieldHandler(
+            array_map(
+                static fn($f) => FieldRegistry::get($f['type'] ?? ''),
+                $fields
+            ),
+            static fn($h) => $h !== null && $h->isPageBreak()
         );
         if ($has_pagebreaks) {
             $html   .= '<div class="forge-form-page forge-page-active" data-page="0">';
@@ -158,53 +168,36 @@ class FormRenderer
         }
 
         while ($i < $count) {
-            $field_cfg  = $fields[$i];
-            $field_id   = $field_cfg['id']   ?? '';
-            $field_type = $field_cfg['type'] ?? '';
-            $cols       = (int)($field_cfg['cols'] ?? 12);
+            $field_cfg = $fields[$i];
+            $field_id  = $field_cfg['id']   ?? '';
+            $cols      = (int)($field_cfg['cols'] ?? 12);
 
-            if (!$field_id || !$field_type) {
+            if (!$field_id) {
                 $i++;
                 continue;
             }
 
-            if ($field_type === 'group') {
-                $handler = FieldRegistry::get('group');
-                if ($handler instanceof \ForgeForms\Fields\GroupField) {
-                    $children_html = self::renderChildFields($field_cfg['children'] ?? []);
-                    $html .= '<div class="forge-row"><div class="forge-col forge-col-12">'
-                        . $handler->openTag($field_cfg, $field_id)
-                        . $children_html
-                        . $handler->closeTag()
-                        . '</div></div>';
-                }
+            $handler = FieldRegistry::get($field_cfg['type'] ?? '');
+            if (!$handler) {
                 $i++;
                 continue;
             }
 
-            if ($field_type === 'pagebreak' && !$insideGroup) {
-                $prev_label = esc_html($field_cfg['prev_btn'] ?? '← Zurück');
-                $next_label = esc_html($field_cfg['next_btn'] ?? 'Weiter →');
-                $prev_btn = $page > 1
-                    ? '<button type="button" class="forge-btn forge-btn-prev">' . $prev_label . '</button>'
-                    : '<span></span>';
-                $next_btn = '<button type="button" class="forge-btn forge-btn-next">' . $next_label . '</button>';
-                $html .= '<div class="forge-page-nav">' . $prev_btn . $next_btn . '</div>';
-                $html .= '</div>'; /* close current page */
-                $html .= '<div class="forge-form-page" data-page="' . $page . '">';
-                /* Prev button at the top of every non-first page so the last page
-                 * (which has no closing pagebreak) always has a way back. */
-                $html .= '<div class="forge-page-nav forge-page-nav--top">'
-                    . '<button type="button" class="forge-btn forge-btn-prev">' . $prev_label . '</button>'
-                    . '</div>';
+            if ($handler->isGroupContainer()) {
+                $children_html = self::renderChildFields($field_cfg['children'] ?? []);
+                $html .= '<div class="forge-row"><div class="forge-col forge-col-12">'
+                    . $handler->openTag($field_cfg, $field_id)
+                    . $children_html
+                    . $handler->closeTag()
+                    . '</div></div>';
+                $i++;
+                continue;
+            }
+
+            if ($handler->isPageBreak() && !$insideGroup) {
+                $html .= $handler->renderBreak($field_cfg, $page);
                 $in_page = true;
                 $page++;
-                $i++;
-                continue;
-            }
-
-            $handler = FieldRegistry::get($field_type);
-            if (!$handler) {
                 $i++;
                 continue;
             }
@@ -215,12 +208,14 @@ class FormRenderer
 
             if ($cols === 6) {
                 $next      = $fields[$i + 1] ?? null;
-                $next_cols = (int)($next['cols'] ?? 12);
-                $next_type = $next['type']    ?? '';
                 $next_id   = $next['id']      ?? '';
+                $next_cols = (int)($next['cols'] ?? 12);
 
-                $next_handler = ($next && $next_cols === 6 && $next_type !== 'pagebreak' && $next_id)
-                    ? FieldRegistry::get($next_type) : null;
+                $next_handler = ($next && $next_cols === 6 && $next_id)
+                    ? FieldRegistry::get($next['type'] ?? '') : null;
+                if ($next_handler && $next_handler->isPageBreak()) {
+                    $next_handler = null;
+                }
 
                 if ($next_handler) {
                     $next_cond = !empty($next['conditions']['rules'])
@@ -255,17 +250,19 @@ class FormRenderer
     }
 
     /**
-     * Checks whether the fields array contains at least one field of the given type.
+     * Returns true if any handler in the given array satisfies $check.
      *
-     * @param array  $fields Array of field configuration arrays.
-     * @param string $type   The field type slug to look for.
+     * Accepts null entries (from unresolved field types) and skips them.
      *
-     * @return bool True if at least one field of that type exists.
+     * @param array    $handlers Array of BaseField|null values.
+     * @param callable $check    fn(BaseField): bool
+     *
+     * @return bool
      */
-    private static function hasFieldType(array $fields, string $type): bool
+    private static function anyFieldHandler(array $handlers, callable $check): bool
     {
-        foreach ($fields as $f) {
-            if (($f['type'] ?? '') === $type) {
+        foreach ($handlers as $h) {
+            if ($h !== null && $check($h)) {
                 return true;
             }
         }

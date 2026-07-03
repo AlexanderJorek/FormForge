@@ -115,6 +115,16 @@ class TextField extends BaseField
     }
 
     /**
+     * Text fields expose a plain-text value suitable for PDF preview tokens.
+     *
+     * @return bool
+     */
+    public function hasTextPreview(): bool
+    {
+        return true;
+    }
+
+    /**
      * Returns the default field configuration.
      *
      * @return array
@@ -138,7 +148,12 @@ class TextField extends BaseField
     {
         return array_merge(
             $this->baseGeneralEntries(), [
-            ['key' => 'limit_type', 'type' => 'limit_row', 'label' => 'Begrenzung', 'count_key' => 'limit_max'],
+            [
+                'key'       => 'limit_type',
+                'type'      => 'limit_row',
+                'label'     => 'Begrenzung',
+                'count_key' => 'limit_max',
+            ],
             ]
         );
     }

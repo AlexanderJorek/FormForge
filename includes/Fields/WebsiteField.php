@@ -77,12 +77,7 @@ class WebsiteField extends BaseField
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         $ph    = $config['placeholder'] ?? 'https://';
-        $attrs = $this->inputAttrs(
-            $config, $field_id, 'url', [
-            'value'       => esc_attr((string)($value ?? '')),
-            'placeholder' => $ph,
-            ]
-        );
+        $attrs = $this->inputAttrs($config, $field_id, 'url', ['value' => esc_attr((string)($value ?? '')), 'placeholder' => $ph]);
         if (!empty($config['validate_url'])) {
             $attrs .= ' data-validate-url="1"';
         }
@@ -130,7 +125,11 @@ class WebsiteField extends BaseField
     {
         return array_merge(
             $this->baseGeneralEntries(), [
-            ['key' => 'validate_url', 'type' => 'checkbox', 'label' => 'URL-Format prüfen'],
+            [
+                'key'   => 'validate_url',
+                'type'  => 'checkbox',
+                'label' => 'URL-Format prüfen',
+            ],
             ]
         );
     }

@@ -205,6 +205,37 @@ CSS;
     }
 
     /**
+     * Returns the sanitized array of checked values submitted as $field_id[].
+     *
+     * @param string $field_id The field element ID.
+     *
+     * @return mixed
+     */
+    public function extractValue(string $field_id): mixed
+    {
+        $vals = $_POST[$field_id] ?? [];
+        return is_array($vals)
+            ? array_map(static fn($v) => sanitize_text_field(wp_unslash($v)), $vals)
+            : [];
+    }
+
+    /**
+     * Sanitizes a raw checkbox value from a group copy array.
+     *
+     * Always returns an array — an absent or scalar value becomes an empty array.
+     *
+     * @param mixed $raw The raw value from the group copy array.
+     *
+     * @return mixed
+     */
+    public function extractFromRaw(mixed $raw): mixed
+    {
+        return is_array($raw)
+            ? array_map(static fn($v) => sanitize_text_field(wp_unslash($v)), $raw)
+            : [];
+    }
+
+    /**
      * Validates the submitted value.
      *
      * @param mixed $value  Submitted value.
@@ -277,7 +308,8 @@ CSS;
     public function getDefaultConfig(): array
     {
         return array_merge(
-            parent::getDefaultConfig(), [
+            parent::getDefaultConfig(),
+            [
             'layout'         => true,
             'other_option'   => false,
             'min_selections' => '',
@@ -298,15 +330,41 @@ CSS;
     public function getGeneralSchema(): array
     {
         return [
-            ['key' => 'layout',         'type' => 'bool_seg',     'label' => 'Anordnung',
-             'false_label' => 'Vertikal', 'true_label' => 'Horizontal', 'swap' => true],
-            ['key' => 'description',    'type' => 'text',         'label' => 'Beschreibung'],
-            ['key' => 'other_option',   'type' => 'checkbox',     'label' => '"Sonstiges"-Option anzeigen'],
-            ['key' => 'options',        'type' => 'options_list', 'label' => 'Optionen'],
-            ['key' => 'min_selections', 'type' => 'number',       'label' => 'Min. Auswahl',
-             'hint' => 'Leer = keine Pflicht'],
-            ['key' => 'max_selections', 'type' => 'number',       'label' => 'Max. Auswahl',
-             'hint' => 'Leer = unbegrenzt'],
+            [
+                'key'         => 'layout',
+                'type'        => 'bool_seg',
+                'label'       => 'Anordnung',
+                'false_label' => 'Vertikal',
+                'true_label'  => 'Horizontal',
+                'swap'        => true,
+            ],
+            [
+                'key'   => 'description',
+                'type'  => 'text',
+                'label' => 'Beschreibung',
+            ],
+            [
+                'key'   => 'other_option',
+                'type'  => 'checkbox',
+                'label' => '"Sonstiges"-Option anzeigen',
+            ],
+            [
+                'key'   => 'options',
+                'type'  => 'options_list',
+                'label' => 'Optionen',
+            ],
+            [
+                'key'   => 'min_selections',
+                'type'  => 'number',
+                'label' => 'Min. Auswahl',
+                'hint'  => 'Leer = keine Pflicht',
+            ],
+            [
+                'key'   => 'max_selections',
+                'type'  => 'number',
+                'label' => 'Max. Auswahl',
+                'hint'  => 'Leer = unbegrenzt',
+            ],
         ];
     }
 }

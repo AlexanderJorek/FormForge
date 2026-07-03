@@ -124,6 +124,16 @@ CSS;
     }
 
     /**
+     * Returns true: this field acts as a page-break marker, not a regular input.
+     *
+     * @return bool
+     */
+    public function isPageBreak(): bool
+    {
+        return true;
+    }
+
+    /**
      * Returns false because page-break fields have no settings panel in the builder.
      *
      * @return bool
@@ -154,7 +164,48 @@ CSS;
     }
 
     /**
+     * Page-break entries are excluded from the {all_fields} email summary.
+     *
+     * @return bool
+     */
+    public function includeInEmailSummary(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Renders the page-transition HTML emitted at this break point.
+     *
+     * Closes the current page <div>, emits bottom nav (prev + next), opens the next
+     * page <div>, and adds a top-of-page prev button. The $page argument is the
+     * 1-based index of the page being opened (already incremented by FormRenderer).
+     *
+     * @param array $config Field configuration.
+     * @param int   $page   Index of the page being opened (1 = first page after a break).
+     *
+     * @return string HTML for the page transition.
+     */
+    public function renderBreak(array $config, int $page): string
+    {
+        $prev_label = esc_html($config['prev_btn'] ?? '← Zurück');
+        $next_label = esc_html($config['next_btn'] ?? 'Weiter →');
+        $prev_btn   = $page > 1
+            ? '<button type="button" class="forge-btn forge-btn-prev">' . $prev_label . '</button>'
+            : '<span></span>';
+        $next_btn   = '<button type="button" class="forge-btn forge-btn-next">' . $next_label . '</button>';
+        return '<div class="forge-page-nav">' . $prev_btn . $next_btn . '</div>'
+            . '</div>'
+            . '<div class="forge-form-page" data-page="' . $page . '">'
+            . '<div class="forge-page-nav forge-page-nav--top">'
+            . '<button type="button" class="forge-btn forge-btn-prev">' . $prev_label . '</button>'
+            . '</div>';
+    }
+
+    /**
      * Renders the field HTML.
+     *
+     * Not called during normal form rendering — FormRenderer calls renderBreak() instead.
+     * Provided as a fallback for contexts that call render() generically.
      *
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
@@ -164,14 +215,7 @@ CSS;
      */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
-        $prev_label = esc_html($config['prev_btn'] ?? '← Zurück');
-        $next_label = esc_html($config['next_btn'] ?? 'Weiter →');
-
-        return '<div class="forge-page-break" data-field-id="' . esc_attr($field_id) . '" data-page-break="true">'
-            . '<div class="forge-page-nav">'
-            . '<button type="button" class="forge-btn forge-btn-prev">' . $prev_label . '</button>'
-            . '<button type="button" class="forge-btn forge-btn-next">' . $next_label . '</button>'
-            . '</div></div>';
+        return '';
     }
 
     /**
@@ -232,8 +276,16 @@ CSS;
     public function getGeneralSchema(): array
     {
         return [
-            ['key' => 'prev_btn', 'type' => 'text', 'label' => 'Zurück-Button'],
-            ['key' => 'next_btn', 'type' => 'text', 'label' => 'Weiter-Button'],
+            [
+                'key'   => 'prev_btn',
+                'type'  => 'text',
+                'label' => 'Zurück-Button',
+            ],
+            [
+                'key'   => 'next_btn',
+                'type'  => 'text',
+                'label' => 'Weiter-Button',
+            ],
         ];
     }
 }

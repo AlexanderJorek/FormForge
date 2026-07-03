@@ -280,21 +280,44 @@ CSS;
     public function getGeneralSchema(): array
     {
         return [
-            ['key' => 'max', 'type' => 'number', 'label' => 'Anzahl Symbole', 'rebuild' => true],
-            ['key' => 'icon_type', 'type' => 'icon_row', 'label' => 'Symbol & Halbe Werte',
-             'half_key' => 'allow_half', 'rebuild' => true,
-             'options' => [
-                 ['value' => 'star',    'label' => '★ Stern'],
-                 ['value' => 'heart',   'label' => '♥ Herz'],
-                 ['value' => 'circle',  'label' => '● Kreis'],
-                 ['value' => 'diamond', 'label' => '◆ Raute'],
-             ]],
-            ['key' => 'icon_source', 'type' => 'bool_seg', 'label' => 'Icon-Quelle',
-             'false_label' => 'Voreingestellt', 'true_label' => 'Eigenes Bild', 'rebuild' => true],
-            ['key' => 'custom_icon_url', 'type' => 'media_upload', 'label' => 'Bild', 'rebuild' => true,
-             'hint' => 'Quadratisches Bild. Bei halben Werten wird die linke Hälfte verwendet.',
-             'depends_on' => ['icon_source' => true]],
-            ['type' => 'rating_preview'],
+            [
+                'key'     => 'max',
+                'type'    => 'number',
+                'label'   => 'Anzahl Symbole',
+                'rebuild' => true,
+            ],
+            [
+                'key'      => 'icon_type',
+                'type'     => 'icon_row',
+                'label'    => 'Symbol & Halbe Werte',
+                'half_key' => 'allow_half',
+                'rebuild'  => true,
+                'options'  => [
+                    ['value' => 'star',    'label' => '★ Stern'],
+                    ['value' => 'heart',   'label' => '♥ Herz'],
+                    ['value' => 'circle',  'label' => '● Kreis'],
+                    ['value' => 'diamond', 'label' => '◆ Raute'],
+                ],
+            ],
+            [
+                'key'         => 'icon_source',
+                'type'        => 'bool_seg',
+                'label'       => 'Icon-Quelle',
+                'false_label' => 'Voreingestellt',
+                'true_label'  => 'Eigenes Bild',
+                'rebuild'     => true,
+            ],
+            [
+                'key'        => 'custom_icon_url',
+                'type'       => 'media_upload',
+                'label'      => 'Bild',
+                'rebuild'    => true,
+                'hint'       => 'Quadratisches Bild. Bei halben Werten wird die linke Hälfte verwendet.',
+                'depends_on' => ['icon_source' => true],
+            ],
+            [
+                'type' => 'rating_preview',
+            ],
         ];
     }
 }

@@ -264,6 +264,30 @@ CSS;
     }
 
     /**
+     * Returns the sanitized base64 data-URI submitted by the signature canvas.
+     *
+     * Returns null when the hidden input is absent (isEmpty() treats null as empty).
+     *
+     * @param string $field_id The field element ID.
+     *
+     * @return mixed
+     */
+    public function extractValue(string $field_id): mixed
+    {
+        return isset($_POST[$field_id]) ? sanitize_text_field(wp_unslash($_POST[$field_id])) : null;
+    }
+
+    /**
+     * Signature values are data URIs — excluded from the HMAC seal text.
+     *
+     * @return bool
+     */
+    public function includeValueInSeal(): bool
+    {
+        return false;
+    }
+
+    /**
      * Validates the submitted value.
      *
      * @param mixed $value  Submitted value.
@@ -294,7 +318,7 @@ CSS;
      */
     public function map(mixed $value, array $config): string
     {
-        return empty($value) ? '[Kein Eintrag]' : 'Erfasste Unterschrift';
+        return empty($value) ? '[Kein Eintrag]' : '';
     }
 
     /**
@@ -319,8 +343,7 @@ CSS;
         return [$field_id => [
             'label'              => $label,
             'type'               => 'signature',
-            'value'              => $materialized
-                ? 'Erfasste Unterschrift' : '[Kein Eintrag]',
+            'value'              => $materialized ? '' : '[Kein Eintrag]',
             'materialized_files' => $materialized,
         ]];
     }
@@ -335,7 +358,7 @@ CSS;
      */
     public function pdfData(array $field): array
     {
-        $desc = $this->pdf($field)->text('');
+        $desc = $this->pdf($field);
 
         foreach ($field['materialized_files'] ?? [] as $file) {
             $mime   = $file['mime'] ?? '';
@@ -383,13 +406,23 @@ CSS;
     public function getAdvancedSchema(): array
     {
         return [
-            ['key' => 'canvas_height', 'type' => 'number', 'label' => 'Höhe (px)'],
-            ['key' => 'stroke_width',  'type' => 'number', 'label' => 'Strichstärke'],
-            ['key'    => 'export_format',
-             'type'   => 'pill3',
-             'label'  => 'Dateiformat',
-             'values' => ['png', 'jpeg'],
-             'labels' => ['PNG', 'JPEG']],
+            [
+                'key'   => 'canvas_height',
+                'type'  => 'number',
+                'label' => 'Höhe (px)',
+            ],
+            [
+                'key'   => 'stroke_width',
+                'type'  => 'number',
+                'label' => 'Strichstärke',
+            ],
+            [
+                'key'    => 'export_format',
+                'type'   => 'pill3',
+                'label'  => 'Dateiformat',
+                'values' => ['png', 'jpeg'],
+                'labels' => ['PNG', 'JPEG'],
+            ],
         ];
     }
 }

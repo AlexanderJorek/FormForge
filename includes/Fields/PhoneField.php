@@ -149,8 +149,9 @@ class PhoneField extends BaseField
             /* Sort by code length descending so longer codes (e.g. +358) match before shorter (+35) */
             $sorted = $list;
             usort(
-                $sorted, static function ($a, $b) {
-                        return strlen($b) - strlen($a);
+                $sorted,
+                static function ($a, $b) {
+                    return strlen($b) - strlen($a);
                 }
             );
             foreach ($sorted as $entry) {

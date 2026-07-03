@@ -127,6 +127,16 @@ CSS;
     }
 
     /**
+     * Returns true: this field is a group container whose children FormRenderer recurses into.
+     *
+     * @return bool
+     */
+    public function isGroupContainer(): bool
+    {
+        return true;
+    }
+
+    /**
      * Returns false because group fields have no settings panel in the builder.
      *
      * @return bool
@@ -234,7 +244,11 @@ CSS;
     public function getGeneralSchema(): array
     {
         return [
-            ['key' => 'description', 'type' => 'text', 'label' => 'Beschreibung'],
+            [
+                'key'   => 'description',
+                'type'  => 'text',
+                'label' => 'Beschreibung',
+            ],
         ];
     }
 }

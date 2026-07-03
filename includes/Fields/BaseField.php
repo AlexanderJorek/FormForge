@@ -53,6 +53,98 @@ abstract class BaseField
     }
 
     /**
+     * Whether this field acts as a page-break marker in multi-page forms.
+     *
+     * FormRenderer uses this to emit page-navigation HTML and page <div> wrappers
+     * instead of calling render(). Only PageBreakField returns true.
+     *
+     * @return bool
+     */
+    public function isPageBreak(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Whether this field is a group container whose children are rendered inline.
+     *
+     * FormRenderer uses this to call openTag()/closeTag() and recurse into children
+     * instead of calling render(). Only GroupField returns true.
+     *
+     * @return bool
+     */
+    public function isGroupContainer(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Whether this field requires multipart/form-data encoding on the form element.
+     *
+     * FormRenderer checks all fields and sets enctype="multipart/form-data" when any
+     * returns true. Only UploadField returns true.
+     *
+     * @return bool
+     */
+    public function needsMultipartEncoding(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Enqueues any front-end scripts required by this field type.
+     *
+     * Called once per unique field type present in the form, before rendering.
+     * Override to call wp_enqueue_script() for third-party libraries (e.g. reCAPTCHA).
+     *
+     * @return void
+     */
+    public function enqueueFrontScripts(): void
+    {
+    }
+
+    /**
+     * Whether this field's entry is included in the {all_fields} email summary block.
+     *
+     * MailSender skips entries where this returns false. Override in layout-only
+     * fields (HtmlField, PageBreakField) that carry no user-submitted value.
+     *
+     * @return bool
+     */
+    public function includeInEmailSummary(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Whether this field's value is included in the HMAC integrity seal.
+     *
+     * Generator::buildSealFields() sets the value to '' when this returns false.
+     * Override in fields whose value is a data URI or binary blob that must be
+     * excluded from the seal text (e.g. SignatureField).
+     *
+     * @return bool
+     */
+    public function includeValueInSeal(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Whether this field represents a plain-text value suitable for PDF preview tokens.
+     *
+     * PDFLayoutEditor uses this to filter dummy fields for the token-picker preview,
+     * keeping only fields whose value can be represented as a short text string.
+     * Override to true in text-like fields (TextField, EmailField, TextareaField).
+     *
+     * @return bool
+     */
+    public function hasTextPreview(): bool
+    {
+        return false;
+    }
+
+    /**
      * Whether the "Pflichtfeld" (required) checkbox is shown in the settings panel.
      *
      * @return bool
@@ -72,6 +164,46 @@ abstract class BaseField
      * @return string
      */
     abstract public function render(array $config, string $field_id, mixed $value = null): string;
+
+    /**
+     * Sanitizes a raw value already extracted from a group copy array.
+     *
+     * Group fields submit as $_POST[$group_id][$copy_idx][$child_id], so
+     * FormProcessor reads the nested copy slice first, then calls this method
+     * on the child handler to sanitize correctly — the same way top-level
+     * fields use extractValue() but without direct $_POST/$_FILES access.
+     * The default handles both scalar (sanitize_text_field) and flat arrays.
+     * Override in fields that need a different sanitizer (textarea) or always
+     * return an array (checkbox).
+     *
+     * @param mixed $raw The raw value from the group copy array.
+     *
+     * @return mixed
+     */
+    public function extractFromRaw(mixed $raw): mixed
+    {
+        if (is_array($raw)) {
+            return array_map(static fn($v) => sanitize_text_field(wp_unslash($v)), $raw);
+        }
+        return sanitize_text_field(wp_unslash((string)$raw));
+    }
+
+    /**
+     * Extracts the submitted value for this field from $_POST or $_FILES.
+     *
+     * Called by FormProcessor before validate(). The default reads a single text value from
+     * $_POST and sanitizes it with sanitize_text_field(). Override in fields whose value shape
+     * differs: array POST keys (name, address, checkbox), textarea sanitization, $_FILES
+     * (upload), or composite keys (sepa uses $field_id . '-sig' for the signature canvas).
+     *
+     * @param string $field_id The field element ID.
+     *
+     * @return mixed
+     */
+    public function extractValue(string $field_id): mixed
+    {
+        return isset($_POST[$field_id]) ? sanitize_text_field(wp_unslash($_POST[$field_id])) : '';
+    }
 
     /**
      * Validates a submitted value.
@@ -200,8 +332,16 @@ abstract class BaseField
     protected function baseGeneralEntries(): array
     {
         return [
-            ['key' => 'placeholder', 'type' => 'text', 'label' => 'Platzhalter'],
-            ['key' => 'description', 'type' => 'text', 'label' => 'Beschreibung'],
+            [
+                'key'   => 'placeholder',
+                'type'  => 'text',
+                'label' => 'Platzhalter',
+            ],
+            [
+                'key'   => 'description',
+                'type'  => 'text',
+                'label' => 'Beschreibung',
+            ],
         ];
     }
 
@@ -367,18 +507,12 @@ abstract class BaseField
         $description = esc_html($config['description'] ?? '');
         $req_attr    = $required ? ' <span class="forge-required" aria-hidden="true">*</span>' : '';
         $req_class   = $required ? ' forge-required-field' : '';
-        $desc_html   = $description !== ''
-            ? '<p class="forge-field-description">' . $description . '</p>'
-            : '';
+        $desc_html   = $description !== '' ? '<p class="forge-field-description">' . $description . '</p>' : '';
 
-        $label_html = (!$hide_label && $label !== '')
-            ? '<label class="forge-label" for="' . esc_attr($field_id) . '">' . $label . $req_attr . '</label>'
-            : '';
+        $label_html = (!$hide_label && $label !== '') ? '<label class="forge-label" for="' . esc_attr($field_id) . '">' . $label . $req_attr . '</label>' : '';
 
         $client_rules  = $this->getClientValidation();
-        $validate_attr = !empty($client_rules)
-            ? ' data-validate="' . esc_attr(wp_json_encode(array_column($client_rules, 'rule'))) . '"'
-            : '';
+        $validate_attr = !empty($client_rules) ? ' data-validate="' . esc_attr(wp_json_encode(array_column($client_rules, 'rule'))) . '"' : '';
 
         return '<div class="forge-field forge-field--' . esc_attr($config['type'] ?? 'text')
             . $req_class . ' ' . esc_attr($extra_class) . '" data-field-id="' . esc_attr($field_id) . '"'
@@ -410,7 +544,8 @@ abstract class BaseField
             'name'        => $field_id,
             'placeholder' => $config['placeholder'] ?? '',
             'class'       => 'forge-input',
-            ], $extra
+            ],
+            $extra
         );
 
         if (!empty($config['required'])) {

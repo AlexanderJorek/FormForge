@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<ruleset name="FormForge">
+    <description>FormForge coding standard</description>
+
+    <file>forge-forms.php</file>
+    <file>uninstall.php</file>
+    <file>includes</file>
+
+    <exclude-pattern>vendor/*</exclude-pattern>
+    <exclude-pattern>assets/*</exclude-pattern>
+    <exclude-pattern>pdf-templates/*</exclude-pattern>
+
+    <rule ref="PSR2"/>
+
+    <!-- Line length: warn at 250, hard-error at 300 -->
+    <rule ref="Generic.Files.LineLength">
+        <properties>
+            <property name="lineLimit" value="250"/>
+            <property name="absoluteLineLimit" value="300"/>
+        </properties>
+    </rule>
+
+    <!-- Forbid single-line control structures (if/else/for/foreach/while without braces) -->
+    <rule ref="Generic.ControlStructures.InlineControlStructure"/>
+</ruleset>

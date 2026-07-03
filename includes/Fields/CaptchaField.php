@@ -49,6 +49,16 @@ class CaptchaField extends BaseField
     }
 
     /**
+     * Enqueues the Google reCAPTCHA v2 script required by this field.
+     *
+     * @return void
+     */
+    public function enqueueFrontScripts(): void
+    {
+        wp_enqueue_script('google-recaptcha', 'https://www.google.com/recaptcha/api.js', [], null, true);
+    }
+
+    /**
      * Renders the field HTML.
      *
      * @param array  $config   Field configuration.
@@ -85,11 +95,7 @@ class CaptchaField extends BaseField
             return 'Bitte bestätigen Sie das CAPTCHA.';
         }
 
-        $response = wp_remote_post(
-            'https://www.google.com/recaptcha/api/siteverify', [
-            'body' => ['secret' => $secret, 'response' => sanitize_text_field((string)$value)],
-            ]
-        );
+        $response = wp_remote_post('https://www.google.com/recaptcha/api/siteverify', ['body' => ['secret' => $secret, 'response' => sanitize_text_field((string)$value)]]);
 
         if (is_wp_error($response)) {
             return 'CAPTCHA-Überprüfung fehlgeschlagen.';
@@ -122,7 +128,11 @@ class CaptchaField extends BaseField
      */
     public function getDefaultConfig(): array
     {
-        return ['label' => 'CAPTCHA', 'required' => true, 'description' => ''];
+        return [
+            'label'       => 'CAPTCHA',
+            'required'    => true,
+            'description' => '',
+        ];
     }
 
     /**

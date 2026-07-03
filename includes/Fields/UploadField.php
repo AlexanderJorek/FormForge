@@ -407,12 +407,35 @@ CSS;
         $blocked = self::BLOCKED_TYPES;
         $exts    = array_unique(
             array_filter(
-                $exts, static function (string $e) use ($blocked): bool {
+                $exts,
+                static function (string $e) use ($blocked): bool {
                     return !in_array(ltrim($e, '.'), $blocked, true);
                 }
             )
         );
         return implode(',', $exts);
+    }
+
+    /**
+     * Returns true: upload fields require multipart/form-data on the form element.
+     *
+     * @return bool
+     */
+    public function needsMultipartEncoding(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Returns the raw $_FILES entry for this upload field.
+     *
+     * @param string $field_id The field element ID.
+     *
+     * @return mixed
+     */
+    public function extractValue(string $field_id): mixed
+    {
+        return $_FILES[$field_id] ?? null;
     }
 
     /**
@@ -598,7 +621,8 @@ CSS;
     public function getDefaultConfig(): array
     {
         return array_merge(
-            parent::getDefaultConfig(), [
+            parent::getDefaultConfig(),
+            [
             'allow_images'    => true,
             'allow_documents' => true,
             'allow_audio'     => false,
@@ -619,8 +643,16 @@ CSS;
     public function getGeneralSchema(): array
     {
         return [
-            ['key' => 'max_size_mb', 'type' => 'number',   'label' => 'Max. Dateigröße (MB)'],
-            ['key' => 'multiple',    'type' => 'checkbox', 'label' => 'Mehrere Dateien erlauben'],
+            [
+                'key'   => 'max_size_mb',
+                'type'  => 'number',
+                'label' => 'Max. Dateigröße (MB)',
+            ],
+            [
+                'key'   => 'multiple',
+                'type'  => 'checkbox',
+                'label' => 'Mehrere Dateien erlauben',
+            ],
         ];
     }
 
@@ -637,23 +669,46 @@ CSS;
         $nd = 'Diese Dateien werden im PDF nur als Dateiname angezeigt '
             . 'und können nicht kryptografisch verifiziert werden.';
         return [
-            ['type' => 'notice', 'level' => 'warning', 'text' => $notice],
-            ['key' => 'allow_images',
-             'type' => 'checkbox', 'label' => 'Bilder (jpg, png, gif, bmp, tiff, webp)'],
-            ['key' => 'allow_documents',
-             'type' => 'checkbox', 'label' => 'Dokumente (pdf, doc, docx, xls, xlsx, odt, ppt, pptx, txt)',
-             'disclaimer' => $nd],
-            ['key' => 'allow_audio',
-             'type' => 'checkbox', 'label' => 'Audio (mp3, ogg, wav, m4a, flac)',
-             'disclaimer' => $nd],
-            ['key' => 'allow_video',
-             'type' => 'checkbox', 'label' => 'Video (mp4, mov, avi, wmv, mkv)',
-             'disclaimer' => $nd],
-            ['key' => 'allow_archives',
-             'type' => 'checkbox', 'label' => 'Archive (zip, tar, gz, 7z)',
-             'disclaimer' => $nd],
-            ['key' => 'allowed_types', 'type' => 'text',
-             'label' => 'Zusätzliche Typen', 'hint' => 'z.B. .pdf,.docx'],
+            [
+                'type'  => 'notice',
+                'level' => 'warning',
+                'text'  => $notice,
+            ],
+            [
+                'key'   => 'allow_images',
+                'type'  => 'checkbox',
+                'label' => 'Bilder (jpg, png, gif, bmp, tiff, webp)',
+            ],
+            [
+                'key'        => 'allow_documents',
+                'type'       => 'checkbox',
+                'label'      => 'Dokumente (pdf, doc, docx, xls, xlsx, odt, ppt, pptx, txt)',
+                'disclaimer' => $nd,
+            ],
+            [
+                'key'        => 'allow_audio',
+                'type'       => 'checkbox',
+                'label'      => 'Audio (mp3, ogg, wav, m4a, flac)',
+                'disclaimer' => $nd,
+            ],
+            [
+                'key'        => 'allow_video',
+                'type'       => 'checkbox',
+                'label'      => 'Video (mp4, mov, avi, wmv, mkv)',
+                'disclaimer' => $nd,
+            ],
+            [
+                'key'        => 'allow_archives',
+                'type'       => 'checkbox',
+                'label'      => 'Archive (zip, tar, gz, 7z)',
+                'disclaimer' => $nd,
+            ],
+            [
+                'key'   => 'allowed_types',
+                'type'  => 'text',
+                'label' => 'Zusätzliche Typen',
+                'hint'  => 'z.B. .pdf,.docx',
+            ],
         ];
     }
 }

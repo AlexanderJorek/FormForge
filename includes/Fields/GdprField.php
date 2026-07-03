@@ -180,8 +180,16 @@ CSS;
     public function getGeneralSchema(): array
     {
         return [
-            ['key' => 'privacy_policy_url',  'type' => 'text', 'label' => 'Datenschutz-URL'],
-            ['key' => 'privacy_policy_text', 'type' => 'text', 'label' => 'Datenschutz-Linktext'],
+            [
+                'key'   => 'privacy_policy_url',
+                'type'  => 'text',
+                'label' => 'Datenschutz-URL',
+            ],
+            [
+                'key'   => 'privacy_policy_text',
+                'type'  => 'text',
+                'label' => 'Datenschutz-Linktext',
+            ],
         ];
     }
 }

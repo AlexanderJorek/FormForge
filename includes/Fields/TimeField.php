@@ -107,7 +107,11 @@ CSS;
     {
         return array_merge(
             $this->baseGeneralEntries(), [
-            ['type' => 'time_row', 'format_key' => 'time_format', 'prefill_key' => 'prefill_now'],
+            [
+                'type'        => 'time_row',
+                'format_key'  => 'time_format',
+                'prefill_key' => 'prefill_now',
+            ],
             ]
         );
     }

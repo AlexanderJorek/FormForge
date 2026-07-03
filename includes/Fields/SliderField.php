@@ -426,11 +426,28 @@ CSS;
     {
         return array_merge(
             $this->baseGeneralEntries(), [
-            ['key' => 'ranged', 'type' => 'bool_seg', 'label' => 'Modus',
-             'false_label' => 'Einzel', 'true_label' => 'Bereich'],
-            ['key' => 'min',  'type' => 'number', 'label' => 'Mindestwert'],
-            ['key' => 'max',  'type' => 'number', 'label' => 'Maximalwert'],
-            ['key' => 'step', 'type' => 'number', 'label' => 'Schrittweite'],
+            [
+                'key'         => 'ranged',
+                'type'        => 'bool_seg',
+                'label'       => 'Modus',
+                'false_label' => 'Einzel',
+                'true_label'  => 'Bereich',
+            ],
+            [
+                'key'   => 'min',
+                'type'  => 'number',
+                'label' => 'Mindestwert',
+            ],
+            [
+                'key'   => 'max',
+                'type'  => 'number',
+                'label' => 'Maximalwert',
+            ],
+            [
+                'key'   => 'step',
+                'type'  => 'number',
+                'label' => 'Schrittweite',
+            ],
             ]
         );
     }

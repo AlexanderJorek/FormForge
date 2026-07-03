@@ -261,9 +261,21 @@ CSS;
     public function getGeneralSchema(): array
     {
         return [
-            ['key' => 'description',   'type' => 'text',     'label' => 'Beschreibung'],
-            ['key' => 'show_picker',   'type' => 'checkbox', 'label' => 'Kalender-Icon anzeigen'],
-            ['key' => 'prefill_today', 'type' => 'checkbox', 'label' => 'Heute vorausfüllen'],
+            [
+                'key'   => 'description',
+                'type'  => 'text',
+                'label' => 'Beschreibung',
+            ],
+            [
+                'key'   => 'show_picker',
+                'type'  => 'checkbox',
+                'label' => 'Kalender-Icon anzeigen',
+            ],
+            [
+                'key'   => 'prefill_today',
+                'type'  => 'checkbox',
+                'label' => 'Heute vorausfüllen',
+            ],
         ];
     }
 }

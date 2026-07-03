@@ -74,6 +74,31 @@ class TextareaField extends BaseField
     }
 
     /**
+     * Returns the submitted textarea content sanitized with sanitize_textarea_field()
+     * to preserve intentional newlines.
+     *
+     * @param string $field_id The field element ID.
+     *
+     * @return mixed
+     */
+    public function extractValue(string $field_id): mixed
+    {
+        return isset($_POST[$field_id]) ? sanitize_textarea_field(wp_unslash($_POST[$field_id])) : '';
+    }
+
+    /**
+     * Sanitizes a raw textarea value from a group copy array, preserving newlines.
+     *
+     * @param mixed $raw The raw value from the group copy array.
+     *
+     * @return mixed
+     */
+    public function extractFromRaw(mixed $raw): mixed
+    {
+        return sanitize_textarea_field(wp_unslash((string)$raw));
+    }
+
+    /**
      * Validates the submitted value.
      *
      * @param mixed $value  Submitted value.
@@ -119,6 +144,16 @@ class TextareaField extends BaseField
     }
 
     /**
+     * Textarea fields expose a plain-text value suitable for PDF preview tokens.
+     *
+     * @return bool
+     */
+    public function hasTextPreview(): bool
+    {
+        return true;
+    }
+
+    /**
      * Returns the default field configuration.
      *
      * @return array
@@ -126,7 +161,8 @@ class TextareaField extends BaseField
     public function getDefaultConfig(): array
     {
         return array_merge(
-            parent::getDefaultConfig(), [
+            parent::getDefaultConfig(),
+            [
             'rows'       => 5,
             'limit_type' => 'chars',
             'limit_max'  => '',
@@ -142,14 +178,20 @@ class TextareaField extends BaseField
     public function getGeneralSchema(): array
     {
         return array_merge(
-            $this->baseGeneralEntries(), [
+            $this->baseGeneralEntries(),
+            [
             [
                 'key'   => 'rows',
                 'type'  => 'number',
                 'label' => 'Zeilen',
                 'hint'  => 'Sichtbare Höhe des Feldes (Anzahl Textzeilen)',
             ],
-            ['key' => 'limit_type', 'type' => 'limit_row', 'label' => 'Begrenzung', 'count_key' => 'limit_max'],
+            [
+                'key'       => 'limit_type',
+                'type'      => 'limit_row',
+                'label'     => 'Begrenzung',
+                'count_key' => 'limit_max',
+            ],
             ]
         );
     }

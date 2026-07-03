@@ -148,7 +148,13 @@ CSS;
      */
     public function getDefaultConfig(): array
     {
-        return array_merge(parent::getDefaultConfig(), ['min' => '', 'max' => '', 'step' => 1]);
+        return array_merge(
+            parent::getDefaultConfig(), [
+            'min'  => '',
+            'max'  => '',
+            'step' => 1,
+            ]
+        );
     }
 
     /**
@@ -160,9 +166,21 @@ CSS;
     {
         return array_merge(
             $this->baseGeneralEntries(), [
-            ['key' => 'min',  'type' => 'number', 'label' => 'Mindestwert'],
-            ['key' => 'max',  'type' => 'number', 'label' => 'Maximalwert'],
-            ['key' => 'step', 'type' => 'number', 'label' => 'Schrittweite'],
+            [
+                'key'   => 'min',
+                'type'  => 'number',
+                'label' => 'Mindestwert',
+            ],
+            [
+                'key'   => 'max',
+                'type'  => 'number',
+                'label' => 'Maximalwert',
+            ],
+            [
+                'key'   => 'step',
+                'type'  => 'number',
+                'label' => 'Schrittweite',
+            ],
             ]
         );
     }

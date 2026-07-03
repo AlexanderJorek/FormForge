@@ -860,12 +860,14 @@ class Generator
     {
         $fields = [];
         foreach ($mapped as $field) {
-            $is_signature = ($field['type'] ?? '') === 'signature';
+            $seal_handler = FieldRegistry::get($field['type'] ?? '');
             $fields[] = [
                 'label' => (string)($field['label'] ?? ''),
-                'value' => (!$is_signature && isset($field['value']) && is_string($field['value']))
-                    ? self::normalizeFieldValue($field['value'])
-                    : '',
+                'value' => (
+                    ($seal_handler === null || $seal_handler->includeValueInSeal())
+                    && isset($field['value'])
+                    && is_string($field['value'])
+                ) ? self::normalizeFieldValue($field['value']) : '',
             ];
         }
         return $fields;
