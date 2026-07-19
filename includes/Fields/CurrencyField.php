@@ -41,7 +41,7 @@ class CurrencyField extends BaseField
      */
     public function getLabel(): string
     {
-        return 'Währung';
+        return __('Currency', 'form-forge');
     }
 
     /**
@@ -151,14 +151,14 @@ CSS;
             return true;
         }
         if (!is_numeric($value)) {
-            return 'Bitte geben Sie einen gültigen Betrag ein.';
+            return __('Please enter a valid amount.', 'form-forge');
         }
         $num = (float)$value;
         if (($config['min_value'] ?? '') !== '' && $num < (float)$config['min_value']) {
-            return 'Mindestwert: ' . $config['min_value'];
+            return sprintf(__('Minimum value: %s', 'form-forge'), $config['min_value']);
         }
         if (($config['max_value'] ?? '') !== '' && $num > (float)$config['max_value']) {
-            return 'Maximalwert: ' . $config['max_value'];
+            return sprintf(__('Maximum value: %s', 'form-forge'), $config['max_value']);
         }
         return true;
     }
@@ -175,11 +175,11 @@ CSS;
                 var inp = fieldEl.querySelector('input[type="number"]');
                 if (!inp || inp.value.trim() === '') return null;
                 var val = parseFloat(inp.value);
-                if (isNaN(val)) return 'Bitte geben Sie einen gültigen Betrag ein.';
+                if (isNaN(val)) return 'Please enter a valid amount.';
                 var min = inp.getAttribute('min');
                 var max = inp.getAttribute('max');
-                if (min !== null && min !== '' && val < parseFloat(min)) return 'Mindestwert: ' + min;
-                if (max !== null && max !== '' && val > parseFloat(max)) return 'Maximalwert: ' + max;
+                if (min !== null && min !== '' && val < parseFloat(min)) return 'Minimum value: ' + min;
+                if (max !== null && max !== '' && val > parseFloat(max)) return 'Maximum value: ' + max;
                 return null;
             }
             JS]];
@@ -196,7 +196,7 @@ CSS;
     public function map(mixed $value, array $config): string
     {
         if ($value === '' || $value === null) {
-            return '[Kein Eintrag]';
+            return __('[No entry]', 'form-forge');
         }
         $symbol = self::CURRENCIES[$config['currency'] ?? 'EUR'] ?? '€';
         $number = is_numeric($value) ? number_format((float)$value, 2, ',', '.') : (string)$value;
@@ -211,7 +211,8 @@ CSS;
     public function getDefaultConfig(): array
     {
         return array_merge(
-            parent::getDefaultConfig(), [
+            parent::getDefaultConfig(),
+            [
             'currency'  => 'EUR',
             'min_value' => '',
             'max_value' => '',
@@ -231,24 +232,25 @@ CSS;
             $currencyOptions[] = ['value' => $code, 'label' => $code . ' ' . $sym];
         }
         return array_merge(
-            $this->baseGeneralEntries(), [
+            $this->baseGeneralEntries(),
+            [
             [
                 'key'     => 'currency',
                 'type'    => 'select',
-                'label'   => 'Währung',
+                'label'   => __('Currency', 'form-forge'),
                 'options' => $currencyOptions,
             ],
             [
                 'key'   => 'min_value',
                 'type'  => 'number',
-                'label' => 'Mindestwert',
-                'hint'  => 'Leer = kein Minimum',
+                'label' => __('Minimum value', 'form-forge'),
+                'hint'  => __('Empty = no minimum', 'form-forge'),
             ],
             [
                 'key'   => 'max_value',
                 'type'  => 'number',
-                'label' => 'Maximalwert',
-                'hint'  => 'Leer = kein Maximum',
+                'label' => __('Maximum value', 'form-forge'),
+                'hint'  => __('Empty = no maximum', 'form-forge'),
             ],
             ]
         );

@@ -107,13 +107,76 @@ CSS;
     }
 
     /**
-     * Returns the field type label.
+     * Excludes the group header from the {all_fields} email block.
      *
-     * @return string
+     * @return bool
      */
+    public function includeInEmailSummary(): bool
+    {
+        return false;
+    }
+
+    public function mapNormalized(
+        string $field_id,
+        string $label,
+        mixed $value,
+        array $config,
+        array $context
+    ): array {
+        /* $value is [ copy_index => [ child_id => sanitized_val, ... ], ... ]
+           as assembled by FormProcessor for group fields. */
+        if (!is_array($value) || empty($value)) {
+            return [];
+        }
+
+        $children   = $config['children'] ?? [];
+        $copy_count = count($value);
+        $mapped     = [];
+
+        foreach ($value as $copy_idx => $copy_data) {
+            if (!is_array($copy_data)) {
+                continue;
+            }
+            foreach ($children as $child_cfg) {
+                $child_id    = $child_cfg['id']   ?? '';
+                $child_type  = $child_cfg['type'] ?? '';
+                $child_label = $child_cfg['label'] ?? $child_id;
+
+                if (!$child_id || !$child_type) {
+                    continue;
+                }
+
+                $handler = \ForgeForms\Fields\FieldRegistry::get($child_type);
+                if (!$handler) {
+                    continue;
+                }
+
+                $child_value = $copy_data[$child_id] ?? null;
+
+                /* For repeating groups (multiple copies) suffix key and label
+                   so each copy's entry has a unique key in $mapped. */
+                $map_key   = $copy_count > 1 ? $child_id . '_copy_' . $copy_idx : $child_id;
+                $map_label = $copy_count > 1 ? $child_label . ' (' . $copy_idx . ')' : $child_label;
+
+                $entries = $handler->mapNormalized(
+                    $map_key,
+                    $map_label,
+                    $child_value,
+                    $child_cfg,
+                    $context
+                );
+                foreach ($entries as $key => $entry) {
+                    $mapped[$key] = $entry;
+                }
+            }
+        }
+
+        return $mapped;
+    }
+
     public function getLabel(): string
     {
-        return 'Feldgruppe';
+        return __('Field group', 'form-forge');
     }
 
     /**
@@ -143,7 +206,7 @@ CSS;
      */
     public function hasSettingsPanel(): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -168,16 +231,27 @@ CSS;
      */
     public function openTag(array $config, string $field_id): string
     {
-        $cond_attr = '';
-        if (!empty($config['conditions']['rules'])) {
-            $cond_attr = ' data-conditions="' . esc_attr(wp_json_encode($config['conditions'])) . '"';
-        }
         $desc = $config['description'] ?? '';
         $desc_html = $desc !== ''
             ? '<p class="forge-field-description">' . esc_html($desc) . '</p>'
             : '';
-        return '<div class="forge-field-group" data-field-id="' . esc_attr($field_id) . '"' . $cond_attr . '>'
+        return '<div class="forge-field-group" data-field-id="' . esc_attr($field_id) . '">'
             . $desc_html;
+    }
+
+    /**
+     * Returns the data-conditions attribute string for the group's outer row wrapper.
+     *
+     * @param array $config Field configuration.
+     *
+     * @return string
+     */
+    public function rowCondAttr(array $config): string
+    {
+        if (empty($config['conditions']['rules'])) {
+            return '';
+        }
+        return ' data-conditions="' . esc_attr(wp_json_encode($config['conditions'])) . '"';
     }
 
     /**
@@ -228,7 +302,7 @@ CSS;
     public function getDefaultConfig(): array
     {
         return [
-            'label'       => 'Feldgruppe',
+            'label'       => __('Field group', 'form-forge'),
             'description' => '',
             'required'    => false,
             'children'    => [],
@@ -247,7 +321,7 @@ CSS;
             [
                 'key'   => 'description',
                 'type'  => 'text',
-                'label' => 'Beschreibung',
+                'label' => __('Description', 'form-forge'),
             ],
         ];
     }

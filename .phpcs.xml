@@ -5,12 +5,21 @@
     <file>forge-forms.php</file>
     <file>uninstall.php</file>
     <file>includes</file>
+    <file>tests</file>
 
     <exclude-pattern>vendor/*</exclude-pattern>
     <exclude-pattern>assets/*</exclude-pattern>
     <exclude-pattern>pdf-templates/*</exclude-pattern>
 
-    <rule ref="PSR2"/>
+    <!--
+        Every plugin file starts with `defined('ABSPATH') || exit;` before its
+        class/constant declarations — this is the standard WordPress plugin
+        security guard, not a real side-effect violation. Splitting the guard
+        into its own file would go against WP convention, so it's suppressed.
+    -->
+    <rule ref="PSR2">
+        <exclude name="PSR1.Files.SideEffects.FoundWithSymbols"/>
+    </rule>
 
     <!-- Line length: warn at 250, hard-error at 300 -->
     <rule ref="Generic.Files.LineLength">

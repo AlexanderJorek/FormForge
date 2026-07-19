@@ -65,8 +65,8 @@ class FormSelectList
         if (\ForgeForms\Plugin::userCan('edit_forms')) {
             add_submenu_page(
                 'forge-forms',
-                'Formular-Auswahl',
-                'Formular-Auswahl',
+                __('Form Selection', 'form-forge'),
+                __('Form Selection', 'form-forge'),
                 'read',
                 'forge-forms-select',
                 [self::class, 'render']
@@ -86,7 +86,7 @@ class FormSelectList
     public static function render(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
-            wp_die('Keine Berechtigung.');
+            wp_die(__('Permission denied.', 'form-forge'));
         }
 
         $selects    = FormSelectModel::getAll();
@@ -96,7 +96,7 @@ class FormSelectList
         <canvas id="forge-particle-canvas"></canvas>
 
         <div class="wrap forge-list-wrap">
-            <div class="forge-title-pill">Formular-Auswahl</div>
+            <div class="forge-title-pill"><?php esc_html_e('Form Selection', 'form-forge'); ?></div>
             <hr class="wp-header-end" style="display:none">
 
             <?php $noSelects = empty($selects) ? ' hidden' : ''; ?>
@@ -104,43 +104,43 @@ class FormSelectList
                 <!-- Left: select-all + bulk actions -->
                 <div class="forge-toolbar-left" id="forge-fsel-toolbar-left"<?php echo $noSelects; ?>>
                     <label class="forge-select-all-wrap">
-                        <input type="checkbox" id="forge-fsel-select-all" title="Alle auswählen">
+                        <input type="checkbox" id="forge-fsel-select-all" title="<?php echo esc_attr__('Select all', 'form-forge'); ?>">
                     </label>
                     <div class="forge-bulk-bar" id="forge-fsel-bulk-bar" hidden>
                         <span class="forge-bulk-count" id="forge-fsel-bulk-count"></span>
                         <div class="forge-bulk-action-wrap">
                             <button class="button forge-list-btn" id="forge-fsel-bulk-action-btn">
-                                <span id="forge-fsel-bulk-action-label">Aktion wählen</span> &#9660;
+                                <span id="forge-fsel-bulk-action-label"><?php esc_html_e('Choose action', 'form-forge'); ?></span> &#9660;
                             </button>
                             <div class="forge-row-dropdown" id="forge-fsel-bulk-action-dd" hidden>
                                 <button class="forge-dd-item forge-dd-item--danger" data-action="delete">
-                                    <i class="fa-solid fa-trash"></i> Löschen
+                                    <i class="fa-solid fa-trash"></i> <?php esc_html_e('Delete', 'form-forge'); ?>
                                 </button>
                             </div>
                         </div>
                         <button class="button forge-list-btn button-primary" id="forge-fsel-bulk-apply">
-                            Anwenden
+                            <?php esc_html_e('Apply', 'form-forge'); ?>
                         </button>
                     </div>
                 </div>
                 <!-- Center: search -->
                 <div class="forge-toolbar-center" id="forge-fsel-toolbar-center"<?php echo $noSelects; ?>>
                     <input type="search" id="forge-fsel-form-search"
-                           placeholder="Auswahl suchen…" autocomplete="off">
+                           placeholder="<?php echo esc_attr__('Search selections…', 'form-forge'); ?>" autocomplete="off">
                 </div>
                 <!-- Right: new -->
                 <div class="forge-toolbar-right">
                     <button type="button" class="button button-primary forge-list-btn forge-fsel-new-btn">
-                        + Neue Auswahl
+                        <?php esc_html_e('+ New Selection', 'form-forge'); ?>
                     </button>
                 </div>
             </div>
 
             <div class="forge-list-empty" id="forge-fsel-empty"<?php echo !empty($selects) ? ' hidden' : ''; ?>>
-                <h2>Noch keine Formular-Auswahl</h2>
-                <p>Erstellen Sie Ihre erste Auswahl und betten Sie sie per Shortcode in jede Seite ein.</p>
+                <h2><?php esc_html_e('No form selections yet', 'form-forge'); ?></h2>
+                <p><?php esc_html_e('Create your first selection and embed it via shortcode on any page.', 'form-forge'); ?></p>
                 <button type="button" class="button button-primary forge-fsel-new-btn">
-                    + Erste Auswahl erstellen
+                    <?php esc_html_e('+ Create First Selection', 'form-forge'); ?>
                 </button>
             </div>
 
@@ -161,26 +161,26 @@ class FormSelectList
                         <span class="forge-settings-field-icon">
                             <i class="fa-solid fa-layer-group"></i>
                         </span>
-                        <h2 class="forge-modal-title" id="forge-fsel-modal-title">Auswahl bearbeiten</h2>
+                        <h2 class="forge-modal-title" id="forge-fsel-modal-title"><?php esc_html_e('Edit selection', 'form-forge'); ?></h2>
                     </div>
                     <button class="forge-modal-close" type="button" id="forge-fsel-cancel">&#x2715;</button>
                 </div>
 
                 <div class="forge-stab-bar">
-                    <button class="forge-stab forge-stab-active">Allgemein</button>
+                    <button class="forge-stab forge-stab-active"><?php esc_html_e('General', 'form-forge'); ?></button>
                 </div>
 
                 <div class="forge-modal-body forge-settings-body">
                     <div class="forge-stab-panel forge-stab-active">
 
                         <div class="forge-sp-row">
-                            <label class="forge-sp-label">Name dieser Auswahl</label>
+                            <label class="forge-sp-label"><?php esc_html_e('Name of this selection', 'form-forge'); ?></label>
                             <input type="text" id="forge-fsel-title-input" class="forge-sp-input"
                                    placeholder="z.B. Kontakt-Auswahl">
                         </div>
 
                         <div class="forge-sp-row">
-                            <label class="forge-sp-label">Formulare in dieser Auswahl</label>
+                            <label class="forge-sp-label"><?php esc_html_e('Forms in this selection', 'form-forge'); ?></label>
                             <div class="forge-fsel-cols-header" id="forge-fsel-col-header" hidden>
                                 <span></span>
                                 <span>Formular</span>
@@ -197,7 +197,7 @@ class FormSelectList
                             <!-- Add button + dropdown -->
                             <div style="position:relative;">
                                 <button type="button" class="forge-sp-add-option" id="forge-fsel-add-btn">
-                                    <i class="fa-solid fa-plus"></i> Formular hinzufügen
+                                    <i class="fa-solid fa-plus"></i> <?php esc_html_e('Add form', 'form-forge'); ?>
                                 </button>
                                 <div id="forge-fsel-search-wrap" hidden
                                      style="position:absolute;left:0;right:0;z-index:1000;
@@ -208,7 +208,7 @@ class FormSelectList
                                         <i class="fa-solid fa-magnifying-glass forge-fsel-search-icon"></i>
                                         <input type="text" id="forge-fsel-search"
                                                class="forge-fsel-search-input"
-                                               placeholder="Formular suchen…" autocomplete="off">
+                                               placeholder="<?php echo esc_attr__('Search form…', 'form-forge'); ?>" autocomplete="off">
                                     </div>
                                     <div id="forge-fsel-search-results"
                                          style="max-height:200px;overflow-y:auto;
@@ -221,7 +221,7 @@ class FormSelectList
                 </div>
 
                 <div class="forge-settings-footer">
-                    <button class="forge-btn-primary" id="forge-fsel-save">Speichern</button>
+                    <button class="forge-btn-primary" id="forge-fsel-save"><?php esc_html_e('Save', 'form-forge'); ?></button>
                 </div>
 
             </div>
@@ -230,10 +230,10 @@ class FormSelectList
         <!-- Delete confirmation modal -->
         <div id="forge-fsel-del-modal" class="forge-modal-backdrop" hidden>
             <div class="forge-modal">
-                <p class="forge-modal-msg">Formular-Auswahl wirklich löschen?</p>
+                <p class="forge-modal-msg"><?php esc_html_e('Really delete form selection?', 'form-forge'); ?></p>
                 <div class="forge-modal-actions">
-                    <button class="button forge-list-btn" id="forge-fsel-del-cancel">Abbrechen</button>
-                    <button class="button forge-list-btn forge-btn-danger" id="forge-fsel-del-confirm">Löschen</button>
+                    <button class="button forge-list-btn" id="forge-fsel-del-cancel"><?php esc_html_e('Cancel', 'form-forge'); ?></button>
+                    <button class="button forge-list-btn forge-btn-danger" id="forge-fsel-del-confirm"><?php esc_html_e('Delete', 'form-forge'); ?></button>
                 </div>
             </div>
         </div>
@@ -249,8 +249,11 @@ class FormSelectList
             if (!canvas) { return; }
             var ctx = canvas.getContext('2d');
             var mouse = { x: -9999, y: -9999 };
-            var DOTS = 80, LINK = 150, SPEED = 0.4, COLOR = '99, 132, 180';
-            var particles = [];
+            var _ah = getComputedStyle(document.documentElement).getPropertyValue('--forge-admin-accent').trim()||'#2271b1';
+            var _rgb = function(h){return parseInt(h.slice(1,3),16)+','+parseInt(h.slice(3,5),16)+','+parseInt(h.slice(5,7),16);};
+            var DOTS = Math.min(120, Math.max(40, Math.round(window.innerWidth * window.innerHeight / 26000)));
+            var LINK = 150, SPEED = 1.0, COLOR = _rgb(_ah);
+            var particles = [], paused = false, FRAME_MS = 1000 / 30;
             function rand(a, b) { return a + Math.random() * (b - a); }
             function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
             function init() {
@@ -261,12 +264,15 @@ class FormSelectList
                 }
             }
             function draw() {
+                if (paused) return;
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                particles.forEach(function (p) {
+                for (var i = 0; i < particles.length; i++) {
+                    var p = particles[i];
                     p.x += p.vx; p.y += p.vy;
                     if (p.x < 0 || p.x > canvas.width)  { p.vx *= -1; }
                     if (p.y < 0 || p.y > canvas.height) { p.vy *= -1; }
-                });
+                }
+                ctx.lineWidth = 1;
                 for (var i = 0; i < particles.length; i++) {
                     for (var j = i + 1; j < particles.length; j++) {
                         var dx = particles[i].x - particles[j].x, dy = particles[i].y - particles[j].y;
@@ -276,7 +282,7 @@ class FormSelectList
                             ctx.moveTo(particles[i].x, particles[i].y);
                             ctx.lineTo(particles[j].x, particles[j].y);
                             ctx.strokeStyle = 'rgba(' + COLOR + ',' + (1 - d / LINK) * 0.3 + ')';
-                            ctx.lineWidth = 1; ctx.stroke();
+                            ctx.stroke();
                         }
                     }
                     var mdx = particles[i].x - mouse.x, mdy = particles[i].y - mouse.y;
@@ -286,16 +292,20 @@ class FormSelectList
                         ctx.moveTo(particles[i].x, particles[i].y);
                         ctx.lineTo(mouse.x, mouse.y);
                         ctx.strokeStyle = 'rgba(' + COLOR + ',' + (1 - md / LINK) * 0.55 + ')';
-                        ctx.lineWidth = 1; ctx.stroke();
+                        ctx.stroke();
                     }
                 }
-                particles.forEach(function (p) {
-                    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-                    ctx.fillStyle = 'rgba(' + COLOR + ', 0.5)'; ctx.fill();
-                });
-                requestAnimationFrame(draw);
+                ctx.fillStyle = 'rgba(' + COLOR + ', 0.5)';
+                for (var i = 0; i < particles.length; i++) {
+                    ctx.beginPath(); ctx.arc(particles[i].x, particles[i].y, particles[i].r, 0, Math.PI * 2); ctx.fill();
+                }
+                setTimeout(function() { requestAnimationFrame(draw); }, FRAME_MS - 2);
             }
             window.addEventListener('mousemove', function (e) { mouse.x = e.clientX; mouse.y = e.clientY; });
+            document.addEventListener('visibilitychange', function() {
+                paused = document.hidden;
+                if (!paused) requestAnimationFrame(draw);
+            });
             window.addEventListener('resize', function () { resize(); init(); });
             resize(); init(); draw();
         }());
@@ -335,7 +345,7 @@ class FormSelectList
                     <?php echo esc_html($fsel->title); ?>
                 </span>
                 <div class="forge-form-row-meta">
-                    <span><?php echo $count; ?> Formular<?php echo $count !== 1 ? 'e' : ''; ?></span>
+                    <span><?php echo esc_html(sprintf(_n('%d Form', '%d Forms', $count, 'form-forge'), $count)); ?></span>
                     <span class="forge-meta-sep">&middot;</span>
                     <code class="forge-form-row-code"><?php echo esc_html($shortcode); ?></code>
                 </div>
@@ -343,20 +353,20 @@ class FormSelectList
             <div class="forge-form-row-actions">
                 <button type="button" class="button forge-btn-edit forge-fsel-edit-btn"
                         data-id="<?php echo esc_attr($fsel->id); ?>">
-                    Bearbeiten
+                    <?php esc_html_e('Edit', 'form-forge'); ?>
                 </button>
                 <div class="forge-row-menu-wrap">
-                    <button class="button forge-row-menu-btn" title="Weitere Aktionen">&#8942;</button>
+                    <button class="button forge-row-menu-btn" title="<?php echo esc_attr__('More actions', 'form-forge'); ?>">&#8942;</button>
                     <div class="forge-row-dropdown" hidden>
                         <button class="forge-dd-item forge-copy-shortcode"
                                 data-code="<?php echo esc_attr($shortcode); ?>">
-                            <i class="fa-solid fa-clipboard"></i> Shortcode kopieren
+                            <i class="fa-solid fa-clipboard"></i> <?php esc_html_e('Copy shortcode', 'form-forge'); ?>
                         </button>
                         <div class="forge-dd-sep"></div>
                         <button class="forge-dd-item forge-dd-item--danger forge-fsel-del-btn"
                                 data-id="<?php echo esc_attr($fsel->id); ?>"
                                 data-nonce="<?php echo esc_attr($del_nonce); ?>">
-                            <i class="fa-solid fa-trash"></i> Löschen
+                            <i class="fa-solid fa-trash"></i> <?php esc_html_e('Delete', 'form-forge'); ?>
                         </button>
                     </div>
                 </div>

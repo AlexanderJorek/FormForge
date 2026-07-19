@@ -116,7 +116,7 @@ CSS;
      */
     public function getLabel(): string
     {
-        return 'Dropdown';
+        return __('Dropdown', 'form-forge');
     }
 
     /**
@@ -255,7 +255,7 @@ CSS;
 
         $inner = '<select id="' . esc_attr($field_id) . '" name="' . esc_attr($field_id)
             . '" class="forge-input forge-select" autocomplete="off"' . $req . '>';
-        $inner .= '<option value="">— Bitte wählen —</option>';
+        $inner .= '<option value="">' . esc_html__('— Please select —', 'form-forge') . '</option>';
         foreach ($options as $opt) {
             $opt_val   = is_array($opt) ? ($opt['value'] ?? '') : $opt;
             $opt_label = is_array($opt) ? ($opt['label'] ?? $opt_val) : $opt;
@@ -267,7 +267,7 @@ CSS;
         }
         if (!empty($config['other_option'])) {
             $other_val = is_array($value) ? '' : (string)($value ?? '');
-            $inner .= '<option value="__other__"' . selected($other_val, '__other__', false) . '>Sonstiges…</option>';
+            $inner .= '<option value="__other__"' . selected($other_val, '__other__', false) . '>Other…</option>';
         }
         $inner .= '</select>';
         if (!empty($config['other_option'])) {
@@ -290,10 +290,10 @@ CSS;
     public function map(mixed $value, array $config): string
     {
         if (empty($value)) {
-            return '[Kein Eintrag]';
+            return __('[No entry]', 'form-forge');
         }
         if ((string)$value === '__other__') {
-            return '[Sonstiges]';
+            return __('[Other]', 'form-forge');
         }
         foreach ($config['options'] ?? [] as $opt) {
             $opt_val = is_array($opt) ? ($opt['value'] ?? '') : $opt;
@@ -312,7 +312,8 @@ CSS;
     public function getDefaultConfig(): array
     {
         return array_merge(
-            parent::getDefaultConfig(), [
+            parent::getDefaultConfig(),
+            [
             'multiple'     => false,
             'other_option' => false,
             'options'      => [
@@ -334,17 +335,17 @@ CSS;
             [
                 'key'   => 'description',
                 'type'  => 'text',
-                'label' => 'Beschreibung',
+                'label' => __('Beschreibung', 'form-forge'),
             ],
             [
                 'key'   => 'other_option',
                 'type'  => 'checkbox',
-                'label' => '"Sonstiges"-Option anzeigen',
+                'label' => __('Show "Other" option', 'form-forge'),
             ],
             [
                 'key'   => 'options',
                 'type'  => 'options_list',
-                'label' => 'Optionen',
+                'label' => __('Optionen', 'form-forge'),
             ],
         ];
     }

@@ -50,8 +50,11 @@ function mountVerificationOverlay() {
     (function () {
         var ctx    = canvas.getContext('2d');
         var mouse  = { x: -9999, y: -9999 };
-        var DOTS   = 80, LINK = 150, SPEED = 0.4, COLOR = '99, 132, 180';
-        var particles = [];
+        var _ah = getComputedStyle(document.documentElement).getPropertyValue('--forge-admin-accent').trim()||'#2271b1';
+        var _rgb = function(h){return parseInt(h.slice(1,3),16)+','+parseInt(h.slice(3,5),16)+','+parseInt(h.slice(5,7),16);};
+        var DOTS   = Math.min(120, Math.max(40, Math.round(overlay.clientWidth * overlay.clientHeight / 26000)));
+        var LINK = 150, SPEED = 1.0, COLOR = _rgb(_ah);
+        var particles = [], paused = false, FRAME_MS = 1000 / 30;
 
         function resize() {
             var r = canvas.getBoundingClientRect();
@@ -73,12 +76,15 @@ function mountVerificationOverlay() {
         }
 
         function draw() {
+            if (paused) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            particles.forEach(function (p) {
+            for (var i = 0; i < particles.length; i++) {
+                var p = particles[i];
                 p.x += p.vx; p.y += p.vy;
                 if (p.x < 0 || p.x > canvas.width)  { p.vx *= -1; }
                 if (p.y < 0 || p.y > canvas.height)  { p.vy *= -1; }
-            });
+            }
+            ctx.lineWidth = 1;
             for (var i = 0; i < particles.length; i++) {
                 for (var j = i + 1; j < particles.length; j++) {
                     var dx = particles[i].x - particles[j].x;
@@ -89,7 +95,6 @@ function mountVerificationOverlay() {
                         ctx.moveTo(particles[i].x, particles[i].y);
                         ctx.lineTo(particles[j].x, particles[j].y);
                         ctx.strokeStyle = 'rgba(' + COLOR + ',' + (1 - d / LINK) * 0.3 + ')';
-                        ctx.lineWidth = 1;
                         ctx.stroke();
                     }
                 }
@@ -101,17 +106,16 @@ function mountVerificationOverlay() {
                     ctx.moveTo(particles[i].x, particles[i].y);
                     ctx.lineTo(mouse.x, mouse.y);
                     ctx.strokeStyle = 'rgba(' + COLOR + ',' + (1 - md / LINK) * 0.55 + ')';
-                    ctx.lineWidth = 1;
                     ctx.stroke();
                 }
             }
-            particles.forEach(function (p) {
+            ctx.fillStyle = 'rgba(' + COLOR + ', 0.5)';
+            for (var i = 0; i < particles.length; i++) {
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(' + COLOR + ', 0.5)';
+                ctx.arc(particles[i].x, particles[i].y, particles[i].r, 0, Math.PI * 2);
                 ctx.fill();
-            });
-            requestAnimationFrame(draw);
+            }
+            setTimeout(function() { requestAnimationFrame(draw); }, FRAME_MS - 2);
         }
 
         overlay.addEventListener('mousemove', function (e) {
@@ -119,10 +123,14 @@ function mountVerificationOverlay() {
             mouse.x = e.clientX - rect.left;
             mouse.y = e.clientY - rect.top;
         });
+        document.addEventListener('visibilitychange', function () {
+            paused = document.hidden;
+            if (!paused) requestAnimationFrame(draw);
+        });
 
         resize();
         initParticles();
-        draw();
+        requestAnimationFrame(draw);
         window.addEventListener('resize', function () { resize(); initParticles(); });
     }());
 
@@ -294,6 +302,8 @@ window.FORGE_VERIFICATION_PROCESS_PDF = async function processPdf(pdfInfo) {
             done();
 
             if (json.success === true && json.data && typeof json.data.html === 'string') {
+                // Server-rendered fragment: every dynamic value in it is passed through
+                // esc_html()/wp_kses() in Verificationpage.php before reaching here.
                 const tmp = document.createElement('div');
                 tmp.innerHTML = json.data.html;
                 card.parentNode.replaceChild(tmp.firstElementChild || tmp, card);

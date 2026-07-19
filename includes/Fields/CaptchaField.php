@@ -35,7 +35,7 @@ class CaptchaField extends BaseField
      */
     public function getLabel(): string
     {
-        return 'CAPTCHA';
+        return __('CAPTCHA', 'form-forge');
     }
 
     /**
@@ -55,7 +55,7 @@ class CaptchaField extends BaseField
      */
     public function enqueueFrontScripts(): void
     {
-        wp_enqueue_script('google-recaptcha', 'https://www.google.com/recaptcha/api.js', [], null, true);
+        wp_enqueue_script('google-recaptcha', 'https://www.google.com/recaptcha/api.js', [], false, true);
     }
 
     /**
@@ -72,12 +72,26 @@ class CaptchaField extends BaseField
         $site_key = get_option('forge_forms_recaptcha_site_key', '');
         if ($site_key === '') {
             return '<div class="forge-field forge-field--captcha">'
-                . '<p class="forge-notice">reCAPTCHA: Bitte Site-Key in den Plugin-Einstellungen hinterlegen.</p>'
+                . '<p class="forge-notice">' . esc_html(__('reCAPTCHA: Please enter the site key in the plugin settings.', 'form-forge')) . '</p>'
                 . '</div>';
         }
 
         $inner = '<div class="g-recaptcha" data-sitekey="' . esc_attr($site_key) . '"></div>';
         return $this->wrap($field_id, $config, $inner);
+    }
+
+    /**
+     * Reads the reCAPTCHA token from the fixed POST key injected by the widget.
+     *
+     * @param string $field_id Unused — reCAPTCHA always posts to 'g-recaptcha-response'.
+     *
+     * @return string
+     */
+    public function extractValue(string $field_id): mixed
+    {
+        return isset($_POST['g-recaptcha-response'])
+            ? sanitize_text_field(wp_unslash($_POST['g-recaptcha-response']))
+            : '';
     }
 
     /**
@@ -92,18 +106,18 @@ class CaptchaField extends BaseField
     {
         $secret = get_option('forge_forms_recaptcha_secret_key', '');
         if ($secret === '' || empty($value)) {
-            return 'Bitte bestätigen Sie das CAPTCHA.';
+            return __('Please confirm the CAPTCHA.', 'form-forge');
         }
 
         $response = wp_remote_post('https://www.google.com/recaptcha/api/siteverify', ['body' => ['secret' => $secret, 'response' => sanitize_text_field((string)$value)]]);
 
         if (is_wp_error($response)) {
-            return 'CAPTCHA-Überprüfung fehlgeschlagen.';
+            return __('CAPTCHA verification failed.', 'form-forge');
         }
 
         $data = json_decode(wp_remote_retrieve_body($response), true);
         if (empty($data['success'])) {
-            return 'Bitte bestätigen Sie das CAPTCHA.';
+            return __('Please confirm the CAPTCHA.', 'form-forge');
         }
         return true;
     }
@@ -118,7 +132,7 @@ class CaptchaField extends BaseField
      */
     public function map(mixed $value, array $config): string
     {
-        return '[CAPTCHA bestätigt]';
+        return __('[CAPTCHA confirmed]', 'form-forge');
     }
 
     /**

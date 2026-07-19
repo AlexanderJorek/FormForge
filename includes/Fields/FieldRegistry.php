@@ -144,19 +144,24 @@ class FieldRegistry
      */
     public static function paletteGroups(): array
     {
+        static $cache = null;
+        if ($cache !== null) {
+            return $cache;
+        }
+
         $order = [
-            'Eingabe'    => [
+            __('Input', 'form-forge')    => [
                 'color' => '#82CAFA',
                 'types' => ['text', 'textarea', 'email', 'phone', 'number', 'website'],
             ],
-            'Auswahl'    => ['color' => '#A0D468', 'types' => ['select', 'radio', 'checkbox']],
-            'Persönlich' => ['color' => '#FFB347', 'types' => ['name', 'address', 'date', 'time']],
-            'Erweitert'  => [
+            __('Choice', 'form-forge')    => ['color' => '#A0D468', 'types' => ['select', 'radio', 'checkbox']],
+            __('Personal', 'form-forge') => ['color' => '#FFB347', 'types' => ['name', 'address', 'date', 'time']],
+            __('Advanced', 'form-forge')  => [
                 'color' => '#CBA0E6',
                 'types' => ['currency', 'rating', 'slider', 'upload', 'signature', 'sepa'],
             ],
-            'Layout'     => ['color' => '#6ED5C4', 'types' => ['html', 'group', 'pagebreak']],
-            'System'     => ['color' => '#F28C8C', 'types' => ['consent', 'gdpr', 'captcha', 'postdata']],
+            __('Layout', 'form-forge')     => ['color' => '#6ED5C4', 'types' => ['html', 'group', 'pagebreak']],
+            __('System', 'form-forge')     => ['color' => '#F28C8C', 'types' => ['consent', 'gdpr', 'captcha', 'postdata']],
         ];
 
         $groups = [];
@@ -183,7 +188,8 @@ class FieldRegistry
                 $groups[] = ['label' => $label, 'color' => $def['color'], 'items' => $items];
             }
         }
-        return $groups;
+        $cache = $groups;
+        return $cache;
     }
 
     /**
@@ -223,7 +229,11 @@ class FieldRegistry
 
             $value   = $raw_values[$field_id] ?? null;
             $entries = $handler->mapNormalized(
-                $field_id, $label, $value, $field_cfg, $context
+                $field_id,
+                $label,
+                $value,
+                $field_cfg,
+                $context
             );
             foreach ($entries as $key => $entry) {
                 $mapped[$key] = $entry;

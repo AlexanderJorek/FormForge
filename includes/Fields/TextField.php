@@ -35,7 +35,7 @@ class TextField extends BaseField
      */
     public function getLabel(): string
     {
-        return 'Text';
+        return __('Text', 'form-forge');
     }
     /**
      * Returns the Font Awesome icon class.
@@ -88,7 +88,7 @@ class TextField extends BaseField
         if ($max > 0 && $type === 'words' && !empty($value)) {
             $count = count(preg_split('/\s+/', trim((string)$value), -1, PREG_SPLIT_NO_EMPTY));
             if ($count > $max) {
-                return 'Bitte maximal ' . $max . ' Wörter eingeben (aktuell: ' . $count . ').';
+                return sprintf(__('Please enter at most %1$d words (currently: %2$d).', 'form-forge'), $max, $count);
             }
         }
         return true;
@@ -109,7 +109,7 @@ class TextField extends BaseField
                 if (!limit) return null;
                 var count = inp.value.trim().split(/\s+/).filter(Boolean).length;
                 return count <= limit ? null
-                    : 'Bitte maximal ' + limit + ' Wörter eingeben (aktuell: ' + count + ').';
+                    : 'Please enter at most ' + limit + ' words (currently: ' + count + ').';
             }
             JS]];
     }
@@ -132,7 +132,8 @@ class TextField extends BaseField
     public function getDefaultConfig(): array
     {
         return array_merge(
-            parent::getDefaultConfig(), [
+            parent::getDefaultConfig(),
+            [
             'limit_type' => 'chars',
             'limit_max'  => '',
             ]
@@ -147,11 +148,12 @@ class TextField extends BaseField
     public function getGeneralSchema(): array
     {
         return array_merge(
-            $this->baseGeneralEntries(), [
+            $this->baseGeneralEntries(),
+            [
             [
                 'key'       => 'limit_type',
                 'type'      => 'limit_row',
-                'label'     => 'Begrenzung',
+                'label'     => __('Limit', 'form-forge'),
                 'count_key' => 'limit_max',
             ],
             ]

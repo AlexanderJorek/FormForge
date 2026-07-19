@@ -111,7 +111,7 @@ CSS;
      */
     public function getLabel(): string
     {
-        return 'Unterschrift';
+        return __('Signature', 'form-forge');
     }
 
     /**
@@ -211,6 +211,14 @@ CSS;
                         input.value = '';
                     });
                 }
+                var ownerForm = canvas.closest('form');
+                if (ownerForm) {
+                    ownerForm.addEventListener('reset', function () {
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        input.value = '';
+                    });
+                }
                 resize();
                 window.addEventListener('resize', resize);
                 if (typeof ResizeObserver !== 'undefined') {
@@ -249,12 +257,12 @@ CSS;
             . ' width="500" height="' . $height . '"'
             . ' style="height:' . $height . 'px"'
             . ' tabindex="0"'
-            . ' aria-label="' . esc_attr($config['label'] ?? 'Unterschrift') . '"></canvas>'
+            . ' aria-label="' . esc_attr($config['label'] ?? esc_attr__('Signature', 'form-forge')) . '"></canvas>'
             . '<div class="forge-signature-toolbar">'
             . '<button type="button" class="forge-signature-clear"'
-            . ' data-canvas="' . esc_attr($canvas_id) . '" title="Löschen" aria-label="Unterschrift löschen">'
+            . ' data-canvas="' . esc_attr($canvas_id) . '" title="' . esc_attr__('Clear', 'form-forge') . '" aria-label="' . esc_attr__('Clear signature', 'form-forge') . '">'
             . self::ICON_RESET . '</button>'
-            . '<span class="forge-signature-hint">Hier unterschreiben</span>'
+            . '<span class="forge-signature-hint">' . esc_html__('Sign here', 'form-forge') . '</span>'
             . '</div>'
             . '<input type="hidden" name="' . esc_attr($field_id) . '" id="' . esc_attr($field_id) . '-data"'
             . ' value="' . esc_attr((string)($value ?? '')) . '">'
@@ -302,7 +310,8 @@ CSS;
                 ? 'data:image/jpeg;base64,'
                 : 'data:image/png;base64,';
             if (empty($value) || !str_starts_with((string)$value, $prefix)) {
-                return ($config['label'] ?? 'Unterschrift') . ' ist ein Pflichtfeld.';
+                $label = $config['label'] ?? __('Signature', 'form-forge');
+                return sprintf(__('%s is a required field.', 'form-forge'), esc_html($label));
             }
         }
         return true;
@@ -318,7 +327,7 @@ CSS;
      */
     public function map(mixed $value, array $config): string
     {
-        return empty($value) ? '[Kein Eintrag]' : '';
+        return empty($value) ? __('[No entry]', 'form-forge') : '';
     }
 
     /**
@@ -343,7 +352,7 @@ CSS;
         return [$field_id => [
             'label'              => $label,
             'type'               => 'signature',
-            'value'              => $materialized ? '' : '[Kein Eintrag]',
+            'value'              => $materialized ? __('[Signature present – see attachment]', 'form-forge') : __('[No entry]', 'form-forge'),
             'materialized_files' => $materialized,
         ]];
     }
@@ -380,7 +389,8 @@ CSS;
     public function getDefaultConfig(): array
     {
         return array_merge(
-            parent::getDefaultConfig(), [
+            parent::getDefaultConfig(),
+            [
             'canvas_height' => 200,
             'stroke_width'  => 2,
             'export_format' => 'png',
@@ -409,17 +419,17 @@ CSS;
             [
                 'key'   => 'canvas_height',
                 'type'  => 'number',
-                'label' => 'Höhe (px)',
+                'label' => __('Height (px)', 'form-forge'),
             ],
             [
                 'key'   => 'stroke_width',
                 'type'  => 'number',
-                'label' => 'Strichstärke',
+                'label' => __('Stroke width', 'form-forge'),
             ],
             [
                 'key'    => 'export_format',
                 'type'   => 'pill3',
-                'label'  => 'Dateiformat',
+                'label'  => __('File format', 'form-forge'),
                 'values' => ['png', 'jpeg'],
                 'labels' => ['PNG', 'JPEG'],
             ],

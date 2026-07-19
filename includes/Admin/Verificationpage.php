@@ -22,7 +22,8 @@ use Smalot\PdfParser\Parser;
 use ForgeForms\PDF\HashSeal;
 
 add_action(
-    'wp_ajax_forge_verify_push_lines', function () {
+    'wp_ajax_forge_verify_push_lines',
+    function () {
 
         /* ---- Raise limits for heavy PDF parsing ---- */
         @ini_set('memory_limit', '1024M');
@@ -68,8 +69,8 @@ add_action(
         /* ---- Path-traversal guard ---- */
         $real_verfiles_dir = realpath($verfiles_dir);
         $real_target_path  = realpath($target_path);
-        if (!$real_verfiles_dir 
-            || !$real_target_path 
+        if (!$real_verfiles_dir
+            || !$real_target_path
             || strpos($real_target_path, $real_verfiles_dir . DIRECTORY_SEPARATOR) !== 0
         ) {
             wp_send_json_error(['message' => 'Invalid PDF path'], 400);
@@ -89,7 +90,8 @@ add_action(
                 'message' => 'PDF too large ('
                 . round($file_size / 1048576, 1)
                 . ' MB). Maximum for verification is 50 MB.',
-                ], 400
+                ],
+                400
             );
         }
 
@@ -152,7 +154,8 @@ add_action(
 
 /* ---- Progress polling endpoint ---- */
 add_action(
-    'wp_ajax_forge_verify_progress', function () {
+    'wp_ajax_forge_verify_progress',
+    function () {
         check_ajax_referer('forge_verifier_nonce', 'nonce');
         if (!\ForgeForms\Plugin::userCan('use_verifier')) {
             wp_send_json_error([], 403);
@@ -165,7 +168,8 @@ add_action(
 
 /* ---- Authenticated PDF file-serving endpoint ---- */
 add_action(
-    'wp_ajax_forge_serve_pdf', function () {
+    'wp_ajax_forge_serve_pdf',
+    function () {
 
         if (!\ForgeForms\Plugin::userCan('use_verifier')) {
             wp_die('Forbidden', '', ['response' => 403]);
@@ -292,7 +296,8 @@ final class Verificationpage
     {
         add_action('admin_menu', [self::class, 'menu']);
         add_action(
-            'in_admin_header', static function (): void {
+            'in_admin_header',
+            static function (): void {
                 $screen = get_current_screen();
                 if ($screen && $screen->id === 'formforge_page_forge-pdf-verification') {
                     remove_all_actions('admin_notices');
@@ -314,8 +319,8 @@ final class Verificationpage
         if (\ForgeForms\Plugin::userCan('use_verifier')) {
             add_submenu_page(
                 'forge-forms',
-                'FormForge Verifizierung',
-                'PDF Verification',
+                __('FormForge Verification', 'form-forge'),
+                __('PDF Verification', 'form-forge'),
                 'read',
                 'forge-pdf-verification',
                 [self::class, 'render']
@@ -376,7 +381,7 @@ final class Verificationpage
 
                 // File size guard — use the actual file on disk, not the browser-reported size.
                 if (filesize($tmpName) > $max_upload_bytes) {
-                    echo self::noticeHtml('Upload skipped: file exceeds 50 MB limit.', 'warning');
+                    echo self::noticeHtml(__('Upload skipped: file exceeds 50 MB limit.', 'form-forge'), 'warning');
                     continue;
                 }
 
@@ -388,21 +393,21 @@ final class Verificationpage
                 );
 
                 if (($type_check['ext'] ?? '') !== 'pdf') {
-                    echo self::noticeHtml('Upload skipped: only PDF files are allowed.', 'warning');
+                    echo self::noticeHtml(__('Upload skipped: only PDF files are allowed.', 'form-forge'), 'warning');
                     continue;
                 }
 
                 $finfo = new \finfo(FILEINFO_MIME_TYPE);
                 $detected_mime = $finfo->file($tmpName);
                 if (!in_array($detected_mime, ['application/pdf', 'application/x-pdf'], true)) {
-                    echo self::noticeHtml('Upload skipped: MIME validation failed.', 'warning');
+                    echo self::noticeHtml(__('Upload skipped: MIME validation failed.', 'form-forge'), 'warning');
                     continue;
                 }
 
                 $safe_name = sanitize_file_name($original_name);
 
                 if ($safe_name === '' || !preg_match('/\.pdf$/i', $safe_name)) {
-                    echo self::noticeHtml('Upload skipped: invalid PDF filename.', 'warning');
+                    echo self::noticeHtml(__('Upload skipped: invalid PDF filename.', 'form-forge'), 'warning');
                     continue;
                 }
 
@@ -423,7 +428,8 @@ final class Verificationpage
                         'action' => 'forge_serve_pdf',
                         'nonce'  => wp_create_nonce('forge_verifier_nonce'),
                         'token'  => $token,
-                        ], admin_url('admin-ajax.php')
+                        ],
+                        admin_url('admin-ajax.php')
                     );
 
                     $push_payload = wp_json_encode(
@@ -503,9 +509,9 @@ final class Verificationpage
             }
             #drop-zone:hover, #drop-zone.forge-pdf-dragover,
             #drop-zone-more:hover, #drop-zone-more.forge-pdf-dragover {
-                border-color: #2271b1;
-                background: #f0f6fc;
-                color: #2271b1;
+                border-color: var(--forge-admin-accent);
+                background: color-mix(in srgb, var(--forge-admin-accent) 8%, #fff);
+                color: var(--forge-admin-accent);
             }
             #forge-pdf-file-queue,
             #forge-pdf-file-queue-more {
@@ -577,6 +583,17 @@ final class Verificationpage
             }
             #forge-pdf-scan-more-close:hover { color: #1d2327; }
 
+            /* ── Forge-coloured primary actions ── */
+            #forge-pdf-verify-btn:not([disabled]) {
+                background: var(--forge-admin-accent) !important;
+                border-color: var(--forge-admin-accent) !important;
+                color: var(--forge-accent-text, #fff) !important;
+            }
+            #forge-pdf-verify-btn:not([disabled]):hover {
+                background: color-mix(in srgb, var(--forge-admin-accent) 82%, #000) !important;
+                border-color: color-mix(in srgb, var(--forge-admin-accent) 82%, #000) !important;
+            }
+
             /* ── Floating scan-more trigger ── */
             #forge-pdf-scan-more-btn {
                 display: none;
@@ -585,8 +602,8 @@ final class Verificationpage
                 left: 50%;
                 transform: translateX(-50%);
                 z-index: 99997;
-                background: #2271b1;
-                color: #fff;
+                background: var(--forge-admin-accent);
+                color: var(--forge-accent-text, #fff);
                 border: none;
                 border-radius: 8px;
                 padding: 11px 22px;
@@ -596,7 +613,7 @@ final class Verificationpage
                 box-shadow: 0 4px 14px rgb(0 0 0 / 25%);
                 letter-spacing: .01em;
             }
-            #forge-pdf-scan-more-btn:hover { background: #135e96; }
+            #forge-pdf-scan-more-btn:hover { background: color-mix(in srgb, var(--forge-admin-accent) 82%, #000); }
             #forge-pdf-scan-more-btn.forge-pdf-visible { display: block; }
 
             /* ── Verification summary panel ── */
@@ -685,38 +702,38 @@ final class Verificationpage
         echo '
         <div id="forge-pdf-idle-state"' . $idle_style . '>
             <div class="forge-pdf-idle-card">
-                <h2>PDF Verification</h2>
-                <p>Upload one or more generated PDFs to verify their embedded seal and check for tampering.</p>
+                <h2>' . esc_html__('PDF Verification', 'form-forge') . '</h2>
+                <p>' . esc_html__('Upload one or more generated PDFs to verify their embedded seal and check for tampering.', 'form-forge') . '</p>
                 <div id="drop-zone">
-                    Drag &amp; drop PDF files here<br>
-                    <small style="opacity:.75">or click to select</small>
+                    ' . esc_html__('Drag & drop PDF files here', 'form-forge') . '<br>
+                    <small style="opacity:.75">' . esc_html__('or click to select', 'form-forge') . '</small>
                 </div>
                 <input type="file" name="pdfs[]" id="pdf-input"
                     accept="application/pdf" multiple style="display:none;">
                 <ul id="forge-pdf-file-queue"></ul>
                 <button id="forge-pdf-verify-btn" class="button button-primary"
-                    type="submit" style="width:100%;justify-content:center;" disabled>Verify PDFs</button>
+                    type="submit" style="width:100%;justify-content:center;" disabled>' . esc_html__('Verify PDFs', 'form-forge') . '</button>
             </div>
         </div>
         </form>
 
         <div id="forge-pdf-scan-more-backdrop">
             <div class="forge-pdf-idle-card">
-                <button id="forge-pdf-scan-more-close" title="Close">&times;</button>
-                <h2>Scan more PDFs</h2>
-                <p>Add more PDFs to verify.</p>
+                <button id="forge-pdf-scan-more-close" title="' . esc_attr__('Close', 'form-forge') . '">&times;</button>
+                <h2>' . esc_html__('Scan more PDFs', 'form-forge') . '</h2>
+                <p>' . esc_html__('Add more PDFs to verify.', 'form-forge') . '</p>
                 <div id="drop-zone-more">
-                    Drag &amp; drop PDF files here<br>
-                    <small style="opacity:.75">or click to select</small>
+                    ' . esc_html__('Drag & drop PDF files here', 'form-forge') . '<br>
+                    <small style="opacity:.75">' . esc_html__('or click to select', 'form-forge') . '</small>
                 </div>
                 <input type="file" id="pdf-input-more" accept="application/pdf" multiple style="display:none;">
                 <ul id="forge-pdf-file-queue-more"></ul>
                 <button id="forge-pdf-verify-more-btn" class="button button-primary"
-                    style="width:100%;justify-content:center;" disabled>Verify PDFs</button>
+                    style="width:100%;justify-content:center;" disabled>' . esc_html__('Verify PDFs', 'form-forge') . '</button>
             </div>
         </div>
 
-        <button id="forge-pdf-scan-more-btn" type="button"' . $scanmore_cls . '>+ Scan more PDFs</button>
+        <button id="forge-pdf-scan-more-btn" type="button"' . $scanmore_cls . '>+ ' . esc_html__('Scan more PDFs', 'form-forge') . '</button>
 
         <div id="forge-pdf-verification-results"></div>
         ';
@@ -758,7 +775,7 @@ final class Verificationpage
                 const btn  = document.createElement("button");
                 btn.type      = "button";
                 btn.className = "forge-pdf-remove-file";
-                btn.title     = "Remove";
+                btn.title     = "' . esc_js(__('Remove', 'form-forge')) . '";
                 btn.textContent = "×";
                 btn.addEventListener("click", () => removeFile(f.name));
                 li.appendChild(name);
@@ -833,7 +850,7 @@ final class Verificationpage
                 name.textContent = f.name;
                 const btn  = document.createElement("button");
                 btn.type = "button"; btn.className = "forge-pdf-remove-file";
-                btn.title = "Remove"; btn.textContent = "×";
+                btn.title = "' . esc_js(__('Remove', 'form-forge')) . '"; btn.textContent = "×";
                 btn.addEventListener("click", () => removeFileMore(f.name));
                 li.appendChild(name); li.appendChild(btn);
                 fileQueueMore.appendChild(li);
@@ -1065,14 +1082,14 @@ final class Verificationpage
         $uid_prefix = 'forge-pdf-' . (++$upload_id_counter) . '-' . substr(md5($file_name), 0, 8);
 
         if ($file['error'] !== UPLOAD_ERR_OK) {
-            echo self::noticeHtml('Upload failed for ' . esc_html($file_name) . '.', 'error');
+            echo self::noticeHtml(sprintf(__('Upload failed for %s.', 'form-forge'), esc_html($file_name)), 'error');
             return;
         }
 
         $finfo = new \finfo(FILEINFO_MIME_TYPE);
         $detected_mime = $finfo->file($file['tmp_name']);
         if (!in_array($detected_mime, ['application/pdf', 'application/x-pdf'], true)) {
-            echo self::noticeHtml('Invalid file type for ' . esc_html($file_name) . '.', 'error');
+            echo self::noticeHtml(sprintf(__('Invalid file type for %s.', 'form-forge'), esc_html($file_name)), 'error');
             return;
         }
 
@@ -1099,7 +1116,7 @@ final class Verificationpage
 
         // $visualLines is already available as a parameter — no disk round-trip needed.
 
-        self::setProgress('Byte-Scan: Siegel wird gesucht…', 5);
+        self::setProgress(__('Byte scan: searching for seal…', 'form-forge'), 5);
 
         // Incremental-update / shadow-attack guard: a legitimately generated PDF
         // has exactly one %%EOF marker.  A second %%EOF signals that new objects
@@ -1107,7 +1124,7 @@ final class Verificationpage
         // technique to alter visible content while leaving the original seal intact.
         $raw_for_guard = @file_get_contents($file['tmp_name']);
         if ($raw_for_guard === false) {
-            echo self::noticeHtml('Konnte PDF-Datei nicht lesen: ' . esc_html($file_name) . '.', 'error');
+            echo self::noticeHtml(sprintf(__('Could not read PDF file: %s.', 'form-forge'), esc_html($file_name)), 'error');
             return;
         }
         $eof_count                    = substr_count($raw_for_guard, '%%EOF');
@@ -1124,13 +1141,13 @@ final class Verificationpage
         // memory overhead) entirely for PDFs that have no forge seal.
         if (!self::rawPdfHasSeal($file['tmp_name'])) {
             echo self::noticeHtml(
-                esc_html($file_name) . ' enthält kein forge-pdf-Siegel und kann nicht verifiziert werden.',
+                sprintf(__('%s does not contain a forge-pdf seal and cannot be verified.', 'form-forge'), esc_html($file_name)), // phpcs:ignore Generic.Files.LineLength
                 'error'
             );
             return;
         }
 
-        self::setProgress('PDF wird geparst…', 10);
+        self::setProgress(__('Parsing PDF…', 'form-forge'), 10);
 
         $document_modified = null;
         ob_start();
@@ -1175,12 +1192,12 @@ final class Verificationpage
 
             $seal_data = json_decode($seal_json, true, 512, JSON_THROW_ON_ERROR);
 
-            self::setProgress('Siegel gefunden — Payload wird rekonstruiert…', 25);
+            self::setProgress(__('Seal found — reconstructing payload…', 'form-forge'), 25);
 
             // --- Rebuild payload ---
             $rebuilt_payload = self::rebuildPayload($seal_data);
 
-            self::setProgress('HMAC-Prüfung…', 35);
+            self::setProgress(__('HMAC check…', 'form-forge'), 35);
 
             // --- HMAC check (early, before any output, so it's available for the summary) ---
             $seal_result      = HashSeal::verify($rebuilt_payload, $seal_data['seal']);
@@ -1205,7 +1222,7 @@ final class Verificationpage
                    . " id='forge-pdf-section-structure-{$struct_sec_attr}'>";
                 echo "<div class='forge-pdf-detail-hdr'>";
                 echo "<button type='button' class='button button-small forge-pdf-toggle'"
-                   . " data-target='" . esc_attr($struct_section_id) . "'>PDF Structure</button>";
+                   . " data-target='" . esc_attr($struct_section_id) . "'>" . esc_html__('PDF Structure', 'form-forge') . "</button>";
                 echo "<span class='forge-pdf-detail-badge forge-pdf-badge-fail'>FAIL</span>";
                 echo "</div>";
                 $eof_n_disp = (int) $incremental_update_eof_count;
@@ -1235,7 +1252,7 @@ final class Verificationpage
             echo "<div class='forge-pdf-detail-section' id='forge-pdf-section-raw-" . esc_attr($uid_prefix) . "'>";
             echo "<div class='forge-pdf-detail-hdr'>";
             echo "<button type='button' class='button button-small forge-pdf-toggle'"
-               . " data-target='" . esc_attr($uid_prefix) . "-raw-content'>Raw Seal &amp; Rebuilt Data</button>";
+               . " data-target='" . esc_attr($uid_prefix) . "-raw-content'>" . esc_html__('Raw Seal & Rebuilt Data', 'form-forge') . "</button>";
             echo "<span class='forge-pdf-detail-badge forge-pdf-badge-info'>INFO</span>";
             echo "</div>";
             $flags      = JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE;
@@ -1247,8 +1264,8 @@ final class Verificationpage
 
             // Column headers — outside the scroll container so they stay fixed
             echo "<div class='forge-pdf-sbs-headers'>";
-            echo "<div class='forge-pdf-sbs-col-label'>Seal</div>";
-            echo "<div class='forge-pdf-sbs-col-label'>Rebuilt</div>";
+            echo "<div class='forge-pdf-sbs-col-label'>" . esc_html__('Seal', 'form-forge') . "</div>";
+            echo "<div class='forge-pdf-sbs-col-label'>" . esc_html__('Rebuilt', 'form-forge') . "</div>";
             echo "</div>";
 
             // Single scrollable container — one scroll event, both columns move together
@@ -1262,7 +1279,7 @@ final class Verificationpage
                 $json_diff = esc_html((string) wp_json_encode($diffs, $flags));
                 echo "<div style='padding:12px 14px;border-top:1px solid #f5c6cb;'>";
                 echo "<div class='forge-pdf-seal-pane__label'"
-                    . " style='color:#721c24;margin-bottom:4px;'>Differences</div>";
+                    . " style='color:#721c24;margin-bottom:4px;'>" . esc_html__('Differences', 'form-forge') . "</div>";
                 echo "<pre class='forge-pdf-json-pre'"
                     . " style='border-color:#f5c6cb;color:#721c24;margin:0;'>{$json_diff}</pre>";
                 echo "</div>";
@@ -1305,14 +1322,14 @@ final class Verificationpage
             );
             $fields = $rebuilt_payload['fields'] ?? [];
 
-            self::setProgress('Felder werden geprüft…', 45);
+            self::setProgress(__('Checking fields…', 'form-forge'), 45);
 
             // Section wrapper — badge + open-state injected after check runs via post-processing
             $all_visual_id = 'forge-pdf-content-fields-' . $uid_prefix;
             echo "<div class='forge-pdf-detail-section' id='forge-pdf-section-fields-" . esc_attr($uid_prefix) . "'>";
             echo "<div class='forge-pdf-detail-hdr' id='forge-pdf-hdr-fields-" . esc_attr($uid_prefix) . "'>";
             echo "<button type='button' class='button button-small forge-pdf-toggle'"
-               . " data-target='" . esc_attr($all_visual_id) . "'>Field Content</button>";
+               . " data-target='" . esc_attr($all_visual_id) . "'>" . esc_html__('Field Content', 'form-forge') . "</button>";
             echo "<span id='forge-pdf-badge-fields-" . esc_attr($uid_prefix)
                . "' class='forge-pdf-detail-badge forge-pdf-badge-pass'>PASS</span>";
             echo "</div>";
@@ -1349,9 +1366,9 @@ final class Verificationpage
                         if ($payload_index === null) {
                             echo "<div class='forge-pdf-cmp-row forge-pdf-cmp-row--fail'>"
                                . "<div class='forge-pdf-cmp-header'>"
-                               . "<span class='forge-pdf-cmp-label'>Unknown field</span>"
+                               . "<span class='forge-pdf-cmp-label'>" . esc_html__('Unknown field', 'form-forge') . "</span>"
                                . "<span class='forge-pdf-cmp-marker'>" . esc_html($start_marker) . "</span>"
-                               . "<span class='forge-pdf-pill forge-pdf-pill--fail'>NOT IN SEAL</span>"
+                               . "<span class='forge-pdf-pill forge-pdf-pill--fail'>" . esc_html__('NOT IN SEAL', 'form-forge') . "</span>"
                                . "</div></div>\n";
                             $processed_markers[] = $start_marker;
                             $new_start_found = true;
@@ -1425,7 +1442,7 @@ final class Verificationpage
                         $label      = $payload_field['label'] ?? '';
                         $row_state  = $matches_visual ? 'pass' : 'fail';
                         $pill_state = $matches_visual ? 'pass' : 'fail';
-                        $pill_text  = $matches_visual ? 'MATCH' : 'MISMATCH';
+                        $pill_text  = $matches_visual ? __('MATCH', 'form-forge') : __('MISMATCH', 'form-forge');
                         $display_label = $label !== '' ? esc_html($label) : 'Field #' . (int) $payload_index;
 
                         echo "<div class='forge-pdf-cmp-row forge-pdf-cmp-row--{$row_state}'>";
@@ -1437,11 +1454,11 @@ final class Verificationpage
                         echo "<div class='forge-pdf-cmp-body'>";
                         $seal_val = esc_html((string) ($payload_field['value'] ?? ''));
                         echo "<div class='forge-pdf-cmp-col'>"
-                           . "<div class='forge-pdf-cmp-col__label'>Seal</div>"
+                           . "<div class='forge-pdf-cmp-col__label'>" . esc_html__('Seal', 'form-forge') . "</div>"
                            . "<div class='forge-pdf-cmp-col__value'>{$seal_val}</div>"
                            . "</div>";
                         echo "<div class='forge-pdf-cmp-col'>"
-                           . "<div class='forge-pdf-cmp-col__label'>PDF</div>"
+                           . "<div class='forge-pdf-cmp-col__label'>" . esc_html__('PDF', 'form-forge') . "</div>"
                            . "<div class='forge-pdf-cmp-col__value'>" . esc_html((string) $pdf_field_text) . "</div>"
                            . "</div>";
                         echo "</div>"; // forge-pdf-cmp-body
@@ -1517,7 +1534,7 @@ final class Verificationpage
                    . " id='forge-pdf-section-seals-" . esc_attr($uid_prefix) . "'>";
                 echo "<div class='forge-pdf-detail-hdr'>";
                 echo "<button type='button' class='button button-small forge-pdf-toggle'"
-                   . " data-target='" . esc_attr($seals_section_id) . "'>Seal Blocks</button>";
+                   . " data-target='" . esc_attr($seals_section_id) . "'>" . esc_html__('Seal Blocks', 'form-forge') . "</button>";
                 echo "<span class='forge-pdf-detail-badge forge-pdf-badge-fail'>FAIL</span>";
                 echo "</div>";
                 echo "<div id='" . esc_attr($seals_section_id) . "'"
@@ -1562,7 +1579,7 @@ final class Verificationpage
 
                     $row_cls  = $is_ok ? 'forge-pdf-hash-row--pass' : 'forge-pdf-hash-row--fail';
                     $pill_cls = $is_ok ? 'forge-pdf-pill--pass'     : 'forge-pdf-pill--fail';
-                    $pill_txt = $is_ok ? 'AUTHENTIC'                 : 'FORGED / INVALID';
+                    $pill_txt = $is_ok ? __('AUTHENTIC', 'form-forge') : __('FORGED / INVALID', 'form-forge');
 
                     $seal_row_style = 'flex-direction:column;align-items:flex-start;gap:6px;padding:10px 14px';
                     echo "<div class='forge-pdf-hash-row {$row_cls}' style='{$seal_row_style}'>";
@@ -1589,13 +1606,13 @@ final class Verificationpage
                         $s_fields  = is_array($sd['fields'] ?? null) ? count($sd['fields']) : '—';
                         $s_pages   = esc_html((string) ($sd['expected_pages'] ?? '—'));
                         echo "<table style='font-size:11px;border-collapse:collapse;width:100%'>";
-                        echo "<tr><td style='color:#787c82;padding:1px 8px 1px 0;white-space:nowrap'>Form</td>"
+                        echo "<tr><td style='color:#787c82;padding:1px 8px 1px 0;white-space:nowrap'>" . esc_html__('Form', 'form-forge') . "</td>"
                            . "<td>" . $s_form . " (ID: " . $s_id . ")</td></tr>";
-                        echo "<tr><td style='color:#787c82;padding:1px 8px 1px 0'>Generated</td>"
+                        echo "<tr><td style='color:#787c82;padding:1px 8px 1px 0'>" . esc_html__('Generated', 'form-forge') . "</td>"
                            . "<td>" . $s_gen . "</td></tr>";
-                        echo "<tr><td style='color:#787c82;padding:1px 8px 1px 0'>Fields</td>"
+                        echo "<tr><td style='color:#787c82;padding:1px 8px 1px 0'>" . esc_html__('Fields', 'form-forge') . "</td>"
                            . "<td>" . $s_fields . "</td></tr>";
-                        echo "<tr><td style='color:#787c82;padding:1px 8px 1px 0'>Pages</td>"
+                        echo "<tr><td style='color:#787c82;padding:1px 8px 1px 0'>" . esc_html__('Pages', 'form-forge') . "</td>"
                            . "<td>" . $s_pages . "</td></tr>";
                         echo "</table>";
                     }
@@ -1624,7 +1641,7 @@ final class Verificationpage
 
             $annotation_fail_count = 0;
 
-            self::setProgress('Annotationen werden geprüft…', 58);
+            self::setProgress(__('Checking annotations…', 'form-forge'), 58);
 
             // Section wrapper — badge injected after annotation check via post-processing
             echo "<div class='forge-pdf-detail-section' id='forge-pdf-section-annots-" . esc_attr($uid_prefix) . "'>";
@@ -1953,9 +1970,9 @@ final class Verificationpage
                         };
                         $pill_state = $row_state;
                         $pill_text  = match ($match_type) {
-                            'Yes'        => 'MATCH',
-                            'Dupe Match' => 'DUPE',
-                            default      => 'UNMATCHED',
+                            'Yes'        => __('MATCH', 'form-forge'),
+                            'Dupe Match' => __('DUPE', 'form-forge'),
+                            default      => __('UNMATCHED', 'form-forge'),
                         };
 
                         $ann_label = 'Annot #' . ($i + 1) . ' — ' . esc_html($ann['type']);
@@ -2000,7 +2017,7 @@ final class Verificationpage
                     $unexpected_detected = true;
                 }
 
-                self::setProgress('Seitenanzahl wird geprüft…', 68);
+                self::setProgress(__('Checking page count…', 'form-forge'), 68);
 
                 $page_box_id    = 'forge-pdf-content-pgcount-' . $uid_prefix;
                 $pgcount_sec_id = 'forge-pdf-section-pgcount-' . esc_attr($uid_prefix);
@@ -2039,7 +2056,7 @@ final class Verificationpage
                 $allowed_hashes          = array_merge($allowed_template_hashes, $allowed_upload_hashes);
 
                 // IMAGE CHECK
-                self::setProgress('Bilder werden geprüft…', 75);
+                self::setProgress(__('Checking images…', 'form-forge'), 75);
 
                 $image_section_id  = 'forge-pdf-content-images-' . $uid_prefix;
                 $image_section_sec = 'forge-pdf-section-images-' . esc_attr($uid_prefix);
@@ -2130,7 +2147,7 @@ final class Verificationpage
 
                                     // Indirect reference (e.g. /Width 12 0 R)
                             $wh_pat = '/\/(Width|Height)\s+(\d+)\s+0\s+R/';
-                            if ((!$width || !$height) 
+                            if ((!$width || !$height)
                                 && preg_match_all($wh_pat, $fullObj, $refs, PREG_SET_ORDER)
                             ) {
                                 foreach ($refs as $r) {
@@ -2185,18 +2202,18 @@ final class Verificationpage
                                 // Standard color spaces
                                 if (is_string($csRaw)) {
                                     switch ($csRaw) {
-                                    case '/DeviceRGB':
+                                        case '/DeviceRGB':
                                                 $colorspace = 'DeviceRGB';
-                                        $channels = 3;
-                                        break;
-                                    case '/DeviceGray':
+                                            $channels = 3;
+                                            break;
+                                        case '/DeviceGray':
                                                 $colorspace = 'DeviceGray';
-                                        $channels = 1;
-                                        break;
-                                    case '/DeviceCMYK':
+                                            $channels = 1;
+                                            break;
+                                        case '/DeviceCMYK':
                                                 $colorspace = 'DeviceCMYK';
-                                        $channels = 4;
-                                        break;
+                                            $channels = 4;
+                                            break;
                                     }
                                 }
 
@@ -2207,7 +2224,7 @@ final class Verificationpage
                                 // Both MUST be decoded, or colors will be wrong.
 
                                 // Indexed color spaces
-                                if (str_starts_with($csRaw, '[') 
+                                if (str_starts_with($csRaw, '[')
                                     && preg_match('/\/Indexed\s+\/DeviceRGB\s+(\d+)\s+(\d+)\s+0\s+R/', $csRaw, $m)
                                 ) {
                                     $colorspace = 'IndexedRGB';
@@ -2396,31 +2413,31 @@ final class Verificationpage
                                             $up  = ord($prev[$j]);
                                             $left = $j >= $channels ? ord($row[$j - $channels]) : 0;
                                             switch ($filter) {
-                                            case 0:
-                                                $row[$j] = chr($cur);
-                                                break;
-                                            case 1:
-                                                $row[$j] = chr(($cur + $left) & 0xFF);
-                                                break;
-                                            case 2:
-                                                $row[$j] = chr(($cur + $up) & 0xFF);
-                                                break;
-                                            case 3:
-                                                $row[$j] = chr(($cur + intdiv($left + $up, 2)) & 0xFF);
-                                                break;
-                                            case 4:
-                                                $prev_c = $j >= $channels ? ord($prev[$j - $channels]) : 0;
-                                                $p  = $left + $up - $prev_c;
-                                                $pa = abs($p - $left);
-                                                $pb = abs($p - $up);
-                                                $pc = abs($p - $prev_c);
-                                                $paeth = ($pa <= $pb && $pa <= $pc)
+                                                case 0:
+                                                    $row[$j] = chr($cur);
+                                                    break;
+                                                case 1:
+                                                    $row[$j] = chr(($cur + $left) & 0xFF);
+                                                    break;
+                                                case 2:
+                                                    $row[$j] = chr(($cur + $up) & 0xFF);
+                                                    break;
+                                                case 3:
+                                                    $row[$j] = chr(($cur + intdiv($left + $up, 2)) & 0xFF);
+                                                    break;
+                                                case 4:
+                                                    $prev_c = $j >= $channels ? ord($prev[$j - $channels]) : 0;
+                                                    $p  = $left + $up - $prev_c;
+                                                    $pa = abs($p - $left);
+                                                    $pb = abs($p - $up);
+                                                    $pc = abs($p - $prev_c);
+                                                    $paeth = ($pa <= $pb && $pa <= $pc)
                                                     ? $left
                                                     : (($pb <= $pc) ? $up : $prev_c);
-                                                $row[$j] = chr(($cur + $paeth) & 0xFF);
-                                                break;
-                                            default:
-                                                $row[$j] = chr($cur);
+                                                    $row[$j] = chr(($cur + $paeth) & 0xFF);
+                                                    break;
+                                                default:
+                                                    $row[$j] = chr($cur);
                                             }
                                         }
                                         $out .= $row;
@@ -2573,7 +2590,8 @@ final class Verificationpage
                                     : in_array($check_hash, $allowed_hashes, true);
 
                                         self::emitImageSlot(
-                                            $uid, [
+                                            $uid,
+                                            [
                                             'colorspace'  => $colorspace,
                                             'width'       => $width,
                                             'height'      => $height,
@@ -2653,9 +2671,9 @@ final class Verificationpage
                                 }
 
                                 $isBackground = false;
-                                if ($colorspace === 'DeviceGray' 
-                                    && $prevSlot 
-                                    && ($prevSlot['width'] ?? 0) === $width 
+                                if ($colorspace === 'DeviceGray'
+                                    && $prevSlot
+                                    && ($prevSlot['width'] ?? 0) === $width
                                     && ($prevSlot['height'] ?? 0) === $height
                                 ) {
                                     $isBackground = true;
@@ -2785,7 +2803,7 @@ final class Verificationpage
                 $allowed_content_hashes = $rebuilt_payload['content_streams'] ?? [];
                 $content_stream_mismatch = false;
 
-                self::setProgress('Inhaltsstreams werden geprüft…', 87);
+                self::setProgress(__('Checking content streams…', 'form-forge'), 87);
 
                 $cs_section_id  = 'forge-pdf-content-streams-' . $uid_prefix;
                 $cs_section_sec = 'forge-pdf-section-streams-' . esc_attr($uid_prefix);
@@ -2882,7 +2900,7 @@ final class Verificationpage
 
                 /* ─────────────────────── GENERIC TYPE PROCESSING ──────────────────────── */
 
-                self::setProgress('Schriften werden geprüft…', 94);
+                self::setProgress(__('Checking fonts…', 'form-forge'), 94);
 
                 // ── Fonts section ─────────────────────────────────────────────────────
                 $fonts_section_id  = 'forge-pdf-content-fonts-' . $uid_prefix;
@@ -3182,7 +3200,7 @@ final class Verificationpage
                     }
                     $row_cls    = $match ? 'forge-pdf-hash-row--pass' : 'forge-pdf-hash-row--fail';
                     $pill_cls   = $match ? 'forge-pdf-pill--pass' : 'forge-pdf-pill--fail';
-                    $pill_text  = $match ? 'MATCH' : 'MISMATCH';
+                    $pill_text  = $match ? __('MATCH', 'form-forge') : __('MISMATCH', 'form-forge');
                     echo "<div class='forge-pdf-hash-row {$row_cls}'>"
                        . "<span class='forge-pdf-pill {$pill_cls}'>{$pill_text}</span>"
                        . "<code>" . esc_html($label) . "</code>"
@@ -3522,14 +3540,14 @@ final class Verificationpage
         if (!empty($d['multiple_seals_detected'])) {
             $rows .= $row(
                 false,
-                'Seal integrity',
-                'Extra seal block(s) injected — document has been tampered with',
+                __('Seal integrity', 'form-forge'),
+                __('Extra seal block(s) injected — document has been tampered with', 'form-forge'),
                 'forge-pdf-content-seals-' . $uid
             );
         }
 
-        $seal_detail = 'MISMATCH — document may have been tampered with';
-        $rows .= $row($d['seal_matches'], 'Cryptographic seal (HMAC)', $seal_detail, $uid . '-raw-content');
+        $seal_detail = __('MISMATCH — document may have been tampered with', 'form-forge');
+        $rows .= $row($d['seal_matches'], __('Cryptographic seal (HMAC)', 'form-forge'), $seal_detail, $uid . '-raw-content');
 
         if ($d['seal_matches']) {
             $key_status       = (string)($d['seal_key_status'] ?? 'active');
@@ -3537,27 +3555,27 @@ final class Verificationpage
             if ($key_compromised) {
                 $rows .= "<tr class='forge-pdf-summary-row'>"
                     . "<td>{$warn}</td>"
-                    . "<td>Seal key</td>"
+                    . "<td>" . esc_html__('Seal key', 'form-forge') . "</td>"
                     . "<td class='forge-pdf-row-detail' colspan='2'>"
                     . "<span class='forge-pdf-row-warn'>"
-                    . "COMPROMISED — manual verification strongly recommended"
+                    . esc_html__('COMPROMISED — manual verification strongly recommended', 'form-forge')
                     . "</span></td></tr>\n";
             } elseif (in_array($key_status, ['rotated-legacy', 'compromised-legacy'], true)) {
                 $rows .= "<tr class='forge-pdf-summary-row'>"
                     . "<td>&#10003;</td>"
-                    . "<td>Seal key</td>"
+                    . "<td>" . esc_html__('Seal key', 'form-forge') . "</td>"
                     . "<td class='forge-pdf-row-detail' colspan='2'>"
                     . "<span style='background:#1a56db;color:#fff;font-size:11px;font-weight:700;"
-                    . "padding:2px 8px;border-radius:3px;letter-spacing:.4px;'>Legacy</span>"
-                    . "&nbsp;Manually imported key"
+                    . "padding:2px 8px;border-radius:3px;letter-spacing:.4px;'>" . esc_html__('Legacy', 'form-forge') . "</span>"
+                    . "&nbsp;" . esc_html__('Manually imported key', 'form-forge')
                     . "</td></tr>\n";
             } elseif ($key_status !== 'active') {
                 $rows .= "<tr class='forge-pdf-summary-row'>"
                     . "<td>{$rotated}</td>"
-                    . "<td>Seal key</td>"
+                    . "<td>" . esc_html__('Seal key', 'form-forge') . "</td>"
                     . "<td class='forge-pdf-row-detail' colspan='2'>"
                     . "<span class='forge-pdf-row-rotated'>"
-                    . "Signed with a rotated (older) key"
+                    . esc_html__('Signed with a rotated (older) key', 'form-forge')
                     . "</span></td></tr>\n";
             }
         }
@@ -3565,55 +3583,55 @@ final class Verificationpage
         $fields_ok = $d['field_mismatch_count'] === 0;
         $rows .= $row(
             $fields_ok,
-            'Visual field content',
-            $d['field_mismatch_count'] . ' field(s) do not match the seal',
+            __('Visual field content', 'form-forge'),
+            sprintf(__('%d field(s) do not match the seal', 'form-forge'), $d['field_mismatch_count']),
             'forge-pdf-content-fields-' . $uid
         );
 
         $annots_ok = $d['annotation_fail_count'] === 0;
         $rows .= $row(
             $annots_ok,
-            'Annotations',
-            $d['annotation_fail_count'] . ' annotation(s) unmatched',
+            __('Annotations', 'form-forge'),
+            sprintf(__('%d annotation(s) unmatched', 'form-forge'), $d['annotation_fail_count']),
             'forge-pdf-content-annots-' . $uid
         );
 
-        $rows .= $row(!$d['pagecount_mismatch'], 'Page count', 'MISMATCH', 'forge-pdf-content-pgcount-' . $uid);
+        $rows .= $row(!$d['pagecount_mismatch'], __('Page count', 'form-forge'), __('MISMATCH', 'form-forge'), 'forge-pdf-content-pgcount-' . $uid);
 
         $rows .= $row(
             !$d['image_missmatch'],
-            'Image hashes',
-            'MISMATCH — image content changed',
+            __('Image hashes', 'form-forge'),
+            __('MISMATCH — image content changed', 'form-forge'),
             'forge-pdf-content-images-' . $uid
         );
 
         $cs_ok = !($d['content_stream_mismatch'] ?? false);
         $rows .= $row(
             $cs_ok,
-            'Page content integrity',
-            'Page content was modified or added',
+            __('Page content integrity', 'form-forge'),
+            __('Page content was modified or added', 'form-forge'),
             'forge-pdf-content-streams-' . $uid
         );
 
         $rows .= $row(
             !$d['font_missmatch'],
-            'Fonts',
-            'Undeclared or missing fonts detected',
+            __('Fonts', 'form-forge'),
+            __('Undeclared or missing fonts detected', 'form-forge'),
             'forge-pdf-content-fonts-' . $uid
         );
 
         $rows .= $row(
             !$d['unexpected_detected'],
-            'PDF Objects',
-            'Unexpected object types detected',
+            __('PDF Objects', 'form-forge'),
+            __('Unexpected object types detected', 'form-forge'),
             'forge-pdf-content-objects-' . $uid
         );
 
         if (isset($d['meta_mismatch'])) {
             $rows .= $row(
                 !$d['meta_mismatch'],
-                'PDF Metadata',
-                'Title/Author/Creator tampered',
+                __('PDF Metadata', 'form-forge'),
+                __('Title/Author/Creator tampered', 'form-forge'),
                 'forge-pdf-content-meta-' . $uid
             );
         }
@@ -3621,21 +3639,21 @@ final class Verificationpage
         if (!empty($d['all_stream_mismatch'])) {
             $rows .= $row(
                 false,
-                'Stream fingerprint',
-                'A compressed stream was added or modified',
+                __('Stream fingerprint', 'form-forge'),
+                __('A compressed stream was added or modified', 'form-forge'),
                 'forge-pdf-content-streams-' . $uid
             );
         }
 
         $verdict_class = $d['document_modified'] ? 'forge-pdf-verdict-fail' : 'forge-pdf-verdict-pass';
         $verdict_text  = $d['document_modified']
-            ? '&#10007; ' . esc_html($d['file_name']) . ' — MODIFIED or INVALID'
-            : '&#10003; ' . esc_html($d['file_name']) . ' — Authentic';
+            ? '&#10007; ' . esc_html($d['file_name']) . ' — ' . esc_html__('MODIFIED or INVALID', 'form-forge')
+            : '&#10003; ' . esc_html($d['file_name']) . ' — ' . esc_html__('Authentic', 'form-forge');
 
         $nonce_html = '';
         if (!empty($d['doc_nonce'])) {
             $nonce_disp = esc_html((string) $d['doc_nonce']);
-            $nonce_html = "<div class='forge-pdf-doc-id'>Document ID: <code>{$nonce_disp}</code></div>";
+            $nonce_html = "<div class='forge-pdf-doc-id'>" . esc_html__('Document ID:', 'form-forge') . " <code>{$nonce_disp}</code></div>";
         }
 
         return "<div class='forge-pdf-summary-panel'>"
@@ -3977,18 +3995,18 @@ final class Verificationpage
                 $up  = ord($prev[$j]);
 
                 switch ($filter) {
-                case 0: // None
-                    break;
-                case 1: // Sub (byte-wise!)
-                    $left = $j > 0 ? ord($row[$j - 1]) : 0;
-                    $cur = ($cur + $left) & 0xFF;
-                    break;
-                case 2: // Up
-                    $cur = ($cur + $up) & 0xFF;
-                    break;
-                default:
-                    // Other PNG filters are illegal for PDF predictors
-                    break;
+                    case 0: // None
+                        break;
+                    case 1: // Sub (byte-wise!)
+                        $left = $j > 0 ? ord($row[$j - 1]) : 0;
+                        $cur = ($cur + $left) & 0xFF;
+                        break;
+                    case 2: // Up
+                        $cur = ($cur + $up) & 0xFF;
+                        break;
+                    default:
+                        // Other PNG filters are illegal for PDF predictors
+                        break;
                 }
 
                 $row[$j] = chr($cur);

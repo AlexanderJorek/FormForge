@@ -93,7 +93,7 @@ CSS;
      */
     public function getLabel(): string
     {
-        return 'Radio';
+        return __('Radio', 'form-forge');
     }
 
     /**
@@ -189,7 +189,7 @@ CSS;
     public function map(mixed $value, array $config): string
     {
         if (empty($value)) {
-            return '[Kein Eintrag]';
+            return __('[No entry]', 'form-forge');
         }
         foreach ($config['options'] ?? [] as $opt) {
             $opt_val = is_array($opt) ? ($opt['value'] ?? '') : $opt;
@@ -208,7 +208,8 @@ CSS;
     public function getDefaultConfig(): array
     {
         return array_merge(
-            parent::getDefaultConfig(), [
+            parent::getDefaultConfig(),
+            [
             'layout'       => true,
             'other_option' => false,
             'options'      => [
@@ -230,25 +231,25 @@ CSS;
             [
                 'key'         => 'layout',
                 'type'        => 'bool_seg',
-                'label'       => 'Anordnung',
-                'false_label' => 'Vertikal',
-                'true_label'  => 'Horizontal',
+                'label'       => __('Anordnung', 'form-forge'),
+                'false_label' => __('Vertikal', 'form-forge'),
+                'true_label'  => __('Horizontal', 'form-forge'),
                 'swap'        => true,
             ],
             [
                 'key'   => 'description',
                 'type'  => 'text',
-                'label' => 'Hinweistext',
+                'label' => __('Hinweistext', 'form-forge'),
             ],
             [
                 'key'   => 'other_option',
                 'type'  => 'checkbox',
-                'label' => '"Sonstiges"-Option anzeigen',
+                'label' => __('Show "Other" option', 'form-forge'),
             ],
             [
                 'key'   => 'options',
                 'type'  => 'options_list',
-                'label' => 'Optionen',
+                'label' => __('Optionen', 'form-forge'),
             ],
         ];
     }

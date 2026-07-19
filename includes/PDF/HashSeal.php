@@ -275,10 +275,10 @@ class HashSeal
      *
      * @return string Derived key as hex string.
      */
-    private static function deriveKey(string $password): string
+    private static function deriveKey(string $password, string $salt): string
     {
         return bin2hex(
-            hash_pbkdf2('sha256', $password, self::PEPPER, self::KDF_ROUNDS, self::KDF_LEN, true)
+            hash_pbkdf2('sha256', $password, self::PEPPER . '|' . $salt, self::KDF_ROUNDS, self::KDF_LEN, true)
         );
     }
 
@@ -342,7 +342,7 @@ class HashSeal
         ];
 
         $new_uuid    = self::generateUuid();
-        $new_raw_key = self::deriveKey($password);
+        $new_raw_key = self::deriveKey($password, $new_uuid);
 
         update_option(
             'forge_forms_seal_key',
@@ -451,7 +451,8 @@ class HashSeal
                     }
                 }
                 return $entry;
-            }, $history
+            },
+            $history
         );
     }
 

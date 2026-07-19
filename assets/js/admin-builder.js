@@ -38,13 +38,19 @@ function makeSortable(list, handleSel, rowSel, onReorder) {
             'box-shadow:0 4px 16px rgba(0,0,0,.2);';
         document.body.appendChild(item);
 
+        /* Snapshot rows and their midpoints once at drag start — avoids
+           querySelectorAll + getBoundingClientRect on every pointermove. */
+        var sortRows = Array.from(list.querySelectorAll(rowSel)).filter(function (r) { return r !== item; });
+        var sortMids = sortRows.map(function (r) {
+            var b = r.getBoundingClientRect();
+            return b.top + b.height / 2;
+        });
+
         function onMove(ev) {
             item.style.top = (ev.clientY - offY) + 'px';
-            var rows = Array.from(list.querySelectorAll(rowSel));
             var before = null;
-            for (var i = 0; i < rows.length; i++) {
-                var r = rows[i].getBoundingClientRect();
-                if (ev.clientY < r.top + r.height / 2) { before = rows[i]; break; }
+            for (var i = 0; i < sortMids.length; i++) {
+                if (ev.clientY < sortMids[i]) { before = sortRows[i]; break; }
             }
             before ? list.insertBefore(ph, before) : list.appendChild(ph);
         }
@@ -67,6 +73,7 @@ var NONCE          = '';
 var FORM_ID        = 0;
 var PALETTE_GROUPS  = [];
 var TYPE_COLOR_MAP  = {};
+var _lastRenderedFieldsJson = null; /* dirty-check cache for renderFieldList */
 
 var state = {
     fields: [], notifications: [], formName: 'Neues Formular',
@@ -77,6 +84,80 @@ var state = {
         submit_conditions: { enabled: false, match: 'all', rules: [] },
     },
 };
+var _dirty = false;
+var _bypassUnload = false;
+window.forgeBypassUnload  = function () { _bypassUnload = true; };
+window.forgeGuardedReload = function () {
+    if (!_dirty) { location.reload(); return; }
+    showUnsavedDialog(function () { _bypassUnload = true; location.reload(); });
+};
+function markDirty() { _dirty = true; }
+function markClean() { _dirty = false; }
+
+window.addEventListener('beforeunload', function (e) {
+    if (!_dirty || _bypassUnload) { return; }
+    e.preventDefault();
+    /* Non-empty string required for legacy browsers; modern browsers show their own text */
+    e.returnValue = 'unsaved';
+    return 'unsaved';
+});
+
+/* ── Unsaved-changes guard: custom modal for in-page navigations ── */
+function showUnsavedDialog(onDiscard) {
+    var backdrop = document.createElement('div');
+    backdrop.className = 'forge-modal-backdrop';
+    backdrop.style.cssText = 'display:flex;z-index:1000000;';
+
+    var box = document.createElement('div');
+    box.className = 'forge-modal-box';
+    box.style.cssText = 'max-width:400px;padding:28px 28px 22px;';
+    box.innerHTML =
+        '<h2 style="margin:0 0 10px;font-size:16px;display:flex;align-items:center;gap:8px;">' +
+            '<i class="fa-solid fa-triangle-exclamation" style="color:#d63638;"></i> Ungespeicherte Änderungen' +
+        '</h2>' +
+        '<p style="margin:0 0 20px;color:#50575e;font-size:13px;">' +
+            'Das Formular enthält ungespeicherte Änderungen. Wirklich verlassen?' +
+        '</p>' +
+        '<div style="display:flex;gap:8px;justify-content:space-between;">' +
+            '<button class="button forge-guard-stay">Bleiben</button>' +
+            '<button class="button forge-guard-discard" style="color:#d63638;border-color:#d63638;">Verlassen</button>' +
+        '</div>';
+
+    backdrop.appendChild(box);
+    document.body.appendChild(backdrop);
+
+    box.querySelector('.forge-guard-stay').addEventListener('click', function () {
+        document.body.removeChild(backdrop);
+    });
+    box.querySelector('.forge-guard-discard').addEventListener('click', function () {
+        _bypassUnload = true;
+        document.body.removeChild(backdrop);
+        onDiscard();
+    });
+}
+
+/* F5 / Ctrl+R: browsers suppress beforeunload for reloads when no prior interaction exists
+   (carry-dirty pages have no interaction yet) — intercept the key directly instead. */
+document.addEventListener('keydown', function (e) {
+    if (!_dirty) { return; }
+    if (e.key !== 'F5' && !((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'r')) { return; }
+    e.preventDefault();
+    showUnsavedDialog(function () { _bypassUnload = true; location.reload(); });
+}, true);
+
+/* Intercept WP admin link clicks when dirty — skip links inside the editor itself */
+document.addEventListener('click', function (e) {
+    if (!_dirty) { return; }
+    var a = e.target.closest('a[href]');
+    if (!a) { return; }
+    var href = a.getAttribute('href');
+    if (!href || href.charAt(0) === '#' || a.target === '_blank') { return; }
+    /* Skip links inside the forge editor wrap (canvas, modals, etc.) */
+    if (a.closest('.forge-editor-wrap, .forge-modal-backdrop')) { return; }
+    e.preventDefault();
+    showUnsavedDialog(function () { window.location.href = href; });
+}, true);
+
 var dragSrcIdx           = null;
 var dragBrokenPartnerIdx = null; /* partner idx whose cols we set to 12 on dragstart */
 var dropSideMode         = null; /* 'left' | 'right' | null */
@@ -105,9 +186,11 @@ var OPERATORS = [
     ['less',        'kleiner als'],
 ];
 
-var fieldPickerModal  = null;
-var settingsModal     = null;
-var settingsModalIdx  = null;
+var fieldPickerModal           = null;
+var fieldPickerCachedBody      = null;  /* DOM fragment for the empty-query render */
+var fieldPickerCacheIsGroupCtx = false; /* context the cache was built for */
+var settingsModal         = null;
+var settingsModalIdx      = null;
 
 var cachedMidpoints = [];
 var rafPending      = false;
@@ -122,11 +205,12 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
             var fd  = JSON.parse(el.dataset.form    || '{}');
             var pal = JSON.parse(el.dataset.palette || '[]');
+
             state.fields        = fd.fields        || [];
             state.notifications = (fd.notifications || []).map(normalizeNotifBodyFields);
             state.formName      = fd.title         || 'Neues Formular';
-            if (fd.settings) {
-                var s = fd.settings;
+            var s = fd.settings;
+            if (s) {
                 if (s.submit_label    !== undefined) state.settings.submit_label    = s.submit_label;
                 if (s.submit_working  !== undefined) state.settings.submit_working  = s.submit_working;
                 if (s.success_message !== undefined) state.settings.success_message = s.success_message;
@@ -147,10 +231,25 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (e) { /* ignore */ }
     }
 
+    /* Emit one <style> block driving border-left-color via [data-type] so
+       buildFieldRow never needs to set an inline style per row. */
+    (function () {
+        var rules = '';
+        for (var t in TYPE_COLOR_MAP) {
+            if (Object.prototype.hasOwnProperty.call(TYPE_COLOR_MAP, t)) {
+                rules += '.forge-field-row[data-type="' + t + '"],'
+                       + '.forge-child-row[data-type="' + t + '"]{border-left-color:'
+                       + TYPE_COLOR_MAP[t] + ';}';
+            }
+        }
+        if (rules) {
+            var s = document.createElement('style');
+            s.textContent = rules;
+            document.head.appendChild(s);
+        }
+    }());
+
     createFieldPickerModal();
-    createSettingsModal();
-    createNotifModal();
-    createSubmitModal();
     renderFieldList();
     initDragDrop();
     bindAddFieldButton();
@@ -160,6 +259,14 @@ document.addEventListener('DOMContentLoaded', function () {
     bindCanvasTabs();
     renderNotifications();
     renderSubmitPreview();
+    /* Defer heavy modal DOM creation until after first paint */
+    setTimeout(function () {
+        createSettingsModal();
+        createNotifModal();
+        createSubmitModal();
+        /* Pre-warm the field picker cache so first open is instant */
+        renderFieldPickerGroups('');
+    }, 0);
 });
 
 /* ================================================================
@@ -168,6 +275,10 @@ document.addEventListener('DOMContentLoaded', function () {
 function renderFieldList() {
     var list = document.getElementById('forge-field-list');
     if (!list) return;
+    var json = JSON.stringify(state.fields);
+    if (json === _lastRenderedFieldsJson) return;
+    if (_lastRenderedFieldsJson !== null) { markDirty(); } /* skip initial render */
+    _lastRenderedFieldsJson = json;
     list.innerHTML = '';
 
     if (state.fields.length === 0) {
@@ -199,9 +310,6 @@ function buildFieldRow(field, idx) {
     var typeLabel = pal ? pal.label : field.type;
     var condBadge = (field.conditions && field.conditions.rules && field.conditions.rules.length)
         ? ' <i class="fa-solid fa-code-branch forge-cond-badge" title="Bedingungen aktiv"></i>' : '';
-    var color = TYPE_COLOR_MAP[field.type] || '';
-    if (color) { row.style.borderLeftColor = color; }
-
     row.innerHTML =
         '<div class="forge-row-handle"><i class="fa-solid fa-grip-vertical"></i></div>' +
         '<div class="forge-row-icon"><i class="' + escHtml(icon) + '"></i></div>' +
@@ -209,7 +317,7 @@ function buildFieldRow(field, idx) {
             '<div class="forge-row-label">' + escHtml(field.label || '(kein Label)') + condBadge + '</div>' +
             '<div class="forge-row-type">' + escHtml(typeLabel) + '</div>' +
         '</div>' +
-        '<span class="forge-row-id">' + escHtml(field.id || '') + '</span>' +
+        '<span class="forge-row-id">{' + escHtml(field.id || '') + '}</span>' +
         '<div class="forge-row-actions">' +
             '<button class="forge-row-btn forge-row-edit"      title="Bearbeiten"><i class="fa-solid fa-pen-to-square"></i></button>' +
             '<button class="forge-row-btn forge-row-duplicate" title="Duplizieren"><i class="fa-solid fa-copy"></i></button>' +
@@ -221,6 +329,19 @@ function buildFieldRow(field, idx) {
             e.target.closest('.forge-row-duplicate')) return;
         openSettingsModal(parseInt(row.dataset.idx, 10));
     });
+
+    var rowIdBadge = row.querySelector('.forge-row-id');
+    if (rowIdBadge) {
+        rowIdBadge.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var id = '{' + state.fields[parseInt(row.dataset.idx, 10)].id + '}';
+            navigator.clipboard.writeText(id).then(function () {
+                var prev = rowIdBadge.textContent;
+                rowIdBadge.textContent = '✓ kopiert';
+                setTimeout(function () { rowIdBadge.textContent = prev; }, 1500);
+            });
+        });
+    }
 
     row.querySelector('.forge-row-duplicate').addEventListener('click', function (e) {
         e.stopPropagation();
@@ -270,6 +391,7 @@ function buildFieldRow(field, idx) {
             if (dropSideMode !== 'left' || dropSideTargetIdx !== tIdx) {
                 clearDropIndicators();
                 row.classList.add('forge-drop-left');
+                activeDropIndicatorEl = row;
                 dropSideMode      = 'left';
                 dropSideTargetIdx = tIdx;
                 hideDropLine();
@@ -278,6 +400,7 @@ function buildFieldRow(field, idx) {
             if (dropSideMode !== 'right' || dropSideTargetIdx !== tIdx) {
                 clearDropIndicators();
                 row.classList.add('forge-drop-right');
+                activeDropIndicatorEl = row;
                 dropSideMode      = 'right';
                 dropSideTargetIdx = tIdx;
                 hideDropLine();
@@ -294,7 +417,7 @@ function buildFieldRow(field, idx) {
     row.addEventListener('dragleave', function (e) {
         if (row.contains(e.relatedTarget)) return;
         if (dropSideTargetIdx === parseInt(row.dataset.idx, 10)) {
-            row.classList.remove('forge-drop-left', 'forge-drop-right');
+            clearDropIndicators();
             dropSideMode      = null;
             dropSideTargetIdx = null;
         }
@@ -425,8 +548,7 @@ function buildGroupRow(field, idx) {
     row.dataset.idx  = idx;
     row.dataset.type = 'group';
     row.dataset.cols = 12;
-    var groupColor = TYPE_COLOR_MAP['group'] || '';
-    if (groupColor) { row.style.borderLeftColor = groupColor; }
+
 
     /* ---- Compact header bar ---- */
     var hdr = document.createElement('div');
@@ -563,6 +685,7 @@ function buildGroupRow(field, idx) {
                     e.preventDefault(); e.stopPropagation();
                     clearGroupDropIndicators();
                     childRow.classList.add('forge-drop-left');
+                    activeGroupDropIndicatorEl = childRow;
                     childDropSideMode = 'left'; childDropTgtIdx = ci;
                     childGroupDropTarget = null;
                     hideDropLine();
@@ -571,6 +694,7 @@ function buildGroupRow(field, idx) {
                     e.preventDefault(); e.stopPropagation();
                     clearGroupDropIndicators();
                     childRow.classList.add('forge-drop-right');
+                    activeGroupDropIndicatorEl = childRow;
                     childDropSideMode = 'right'; childDropTgtIdx = ci;
                     childGroupDropTarget = null;
                     hideDropLine();
@@ -578,7 +702,7 @@ function buildGroupRow(field, idx) {
                 } else {
                     /* Center: clear side indicators, let event bubble to zone for drop line */
                     if (childDropTgtIdx === ci) {
-                        childRow.classList.remove('forge-drop-left', 'forge-drop-right');
+                        clearGroupDropIndicators();
                         childDropSideMode = null; childDropTgtIdx = null;
                     }
                 }
@@ -586,7 +710,7 @@ function buildGroupRow(field, idx) {
 
             childRow.addEventListener('dragleave', function (e) {
                 if (!childRow.contains(e.relatedTarget) && childDropTgtIdx === ci) {
-                    childRow.classList.remove('forge-drop-left', 'forge-drop-right');
+                    clearGroupDropIndicators();
                     childDropSideMode = null; childDropTgtIdx = null;
                 }
             });
@@ -796,9 +920,6 @@ function buildChildRow(child, childIdx, groupIdx, onRerender) {
     var pal       = findPaletteItem(child.type);
     var icon      = pal ? pal.icon  : 'fa-solid fa-square';
     var typeLabel = pal ? pal.label : child.type;
-    var childColor = TYPE_COLOR_MAP[child.type] || '';
-    if (childColor) { row.style.borderLeftColor = childColor; }
-
     row.innerHTML =
         '<div class="forge-child-row-icon"><i class="' + escHtml(icon) + '"></i></div>' +
         '<div class="forge-child-row-info">' +
@@ -946,17 +1067,20 @@ function repairGroupPairs(groupIdx) {
     }
 }
 
+var activeDropIndicatorEl      = null;
+var activeGroupDropIndicatorEl = null;
+
 function clearDropIndicators() {
-    var els = document.querySelectorAll('.forge-field-row.forge-drop-left, .forge-field-row.forge-drop-right');
-    for (var i = 0; i < els.length; i++) {
-        els[i].classList.remove('forge-drop-left', 'forge-drop-right');
+    if (activeDropIndicatorEl) {
+        activeDropIndicatorEl.classList.remove('forge-drop-left', 'forge-drop-right');
+        activeDropIndicatorEl = null;
     }
 }
 
 function clearGroupDropIndicators() {
-    var els = document.querySelectorAll('.forge-child-row.forge-drop-left, .forge-child-row.forge-drop-right');
-    for (var i = 0; i < els.length; i++) {
-        els[i].classList.remove('forge-drop-left', 'forge-drop-right');
+    if (activeGroupDropIndicatorEl) {
+        activeGroupDropIndicatorEl.classList.remove('forge-drop-left', 'forge-drop-right');
+        activeGroupDropIndicatorEl = null;
     }
 }
 
@@ -1093,6 +1217,50 @@ function createFieldPickerModal() {
     fieldPickerModal.querySelector('#forge-field-search').addEventListener('input', function () {
         renderFieldPickerGroups(this.value);
     });
+
+    /* Single delegated click listener on the body — no per-card listeners. */
+    var pickerBody = fieldPickerModal.querySelector('#forge-field-modal-body');
+    pickerBody.addEventListener('click', function (e) {
+        var card = e.target.closest('.forge-modal-card');
+        if (!card) return;
+        var type = card.dataset.type;
+        if (!type) return;
+        var tgt = fieldPickerTargetGroup;
+        closeFieldPickerModal();
+        addField(type, tgt);
+    });
+}
+
+function buildPickerFragment(groups, filterFn) {
+    var frag = document.createDocumentFragment();
+    var hasItems = false;
+    groups.forEach(function (group) {
+        var items = group.items.filter(filterFn);
+        if (!items.length) return;
+        hasItems = true;
+        var hdr = document.createElement('div');
+        hdr.className = 'forge-modal-group-label';
+        if (group.color) {
+            hdr.innerHTML = '<span class="forge-palette-dot" style="background:' + escHtml(group.color) + '"></span>' + escHtml(group.label);
+        } else {
+            hdr.textContent = group.label;
+        }
+        frag.appendChild(hdr);
+        var grid = document.createElement('div');
+        grid.className = 'forge-modal-grid';
+        items.forEach(function (item) {
+            var card = document.createElement('button');
+            card.type          = 'button';
+            card.className     = 'forge-modal-card';
+            card.dataset.type  = item.type;
+            card.innerHTML =
+                '<span class="forge-modal-card-icon"><i class="' + escHtml(item.icon) + '"></i></span>' +
+                '<span class="forge-modal-card-label">' + escHtml(item.label) + '</span>';
+            grid.appendChild(card);
+        });
+        frag.appendChild(grid);
+    });
+    return hasItems ? frag : null;
 }
 
 function renderFieldPickerGroups(query) {
@@ -1101,37 +1269,29 @@ function renderFieldPickerGroups(query) {
     body.innerHTML = '';
     var q = query.toLowerCase().trim();
 
-    PALETTE_GROUPS.forEach(function (group) {
-        var items = group.items.filter(function (item) {
-            if (fieldPickerTargetGroup !== null && item.type === 'group') return false;
-            return !q || item.label.toLowerCase().indexOf(q) !== -1 || item.type.toLowerCase().indexOf(q) !== -1;
-        });
-        if (!items.length) return;
-
-        if (!q) {
-            var hdr = document.createElement('div');
-            hdr.className = 'forge-modal-group-label';
-            if (group.color) {
-                hdr.innerHTML = '<span class="forge-palette-dot" style="background:' + escHtml(group.color) + '"></span>' + escHtml(group.label);
-            } else {
-                hdr.textContent = group.label;
-            }
-            body.appendChild(hdr);
+    if (!q) {
+        /* Cache is keyed by context (top-level vs. inside a group) so opening
+           the picker in a group doesn't serve the cached top-level DOM that
+           still contains the "Feldgruppe" card. */
+        var isGroupCtx = fieldPickerTargetGroup !== null;
+        if (!fieldPickerCachedBody || fieldPickerCacheIsGroupCtx !== isGroupCtx) {
+            fieldPickerCachedBody = buildPickerFragment(PALETTE_GROUPS, function (item) {
+                return !(isGroupCtx && item.type === 'group');
+            });
+            fieldPickerCacheIsGroupCtx = isGroupCtx;
         }
-        var grid = document.createElement('div');
-        grid.className = 'forge-modal-grid';
-        items.forEach(function (item) {
-            var card = document.createElement('button');
-            card.type      = 'button';
-            card.className = 'forge-modal-card';
-            card.innerHTML =
-                '<span class="forge-modal-card-icon"><i class="' + escHtml(item.icon) + '"></i></span>' +
-                '<span class="forge-modal-card-label">' + escHtml(item.label) + '</span>';
-            card.addEventListener('click', function () { var tgt = fieldPickerTargetGroup; closeFieldPickerModal(); addField(item.type, tgt); });
-            grid.appendChild(card);
+        if (fieldPickerCachedBody) {
+            body.appendChild(fieldPickerCachedBody.cloneNode(true));
+        }
+    } else {
+        var frag = buildPickerFragment(PALETTE_GROUPS, function (item) {
+            if (fieldPickerTargetGroup !== null && item.type === 'group') return false;
+            return item.label.toLowerCase().indexOf(q) !== -1 || item.type.toLowerCase().indexOf(q) !== -1;
         });
-        body.appendChild(grid);
-    });
+        if (frag) {
+            body.appendChild(frag);
+        }
+    }
 
     if (!body.children.length) {
         var msg = document.createElement('p');
@@ -1203,6 +1363,7 @@ function createSettingsModal() {
                     '<span class="forge-settings-field-icon"></span>' +
                     '<h2 class="forge-modal-title" id="forge-sp-title">Feldeinstellungen</h2>' +
                 '</div>' +
+                '<button class="forge-field-id-chip" id="forge-sp-id-chip" type="button" title="Feld-ID kopieren"></button>' +
                 '<button class="forge-modal-close" type="button">&#x2715;</button>' +
             '</div>' +
             '<div class="forge-stab-bar">' +
@@ -1225,18 +1386,25 @@ function createSettingsModal() {
     settingsModal.querySelector('#forge-sp-done').addEventListener('click', closeSettingsModal);
     settingsModal.addEventListener('click', function (e) { if (e.target === settingsModal) closeSettingsModal(); });
 
-    settingsModal.querySelectorAll('.forge-stab').forEach(function (btn) {
+    /* Cache tab buttons and panels once — they never change after creation. */
+    var stabBtns   = Array.from(settingsModal.querySelectorAll('.forge-stab'));
+    var stabPanels = Array.from(settingsModal.querySelectorAll('.forge-stab-panel'));
+
+    stabBtns.forEach(function (btn) {
         btn.addEventListener('click', function () {
-            settingsModal.querySelectorAll('.forge-stab').forEach(function (b) { b.classList.remove('forge-stab-active'); });
-            settingsModal.querySelectorAll('.forge-stab-panel').forEach(function (p) { p.classList.remove('forge-stab-active'); });
+            stabBtns.forEach(function (b)   { b.classList.remove('forge-stab-active'); });
+            stabPanels.forEach(function (p) { p.classList.remove('forge-stab-active'); });
             btn.classList.add('forge-stab-active');
             var panel = document.getElementById('forge-stab-' + btn.dataset.stab);
             if (panel) panel.classList.add('forge-stab-active');
         });
     });
+    settingsModal._stabBtns   = stabBtns;
+    settingsModal._stabPanels = stabPanels;
 }
 
 function openSettingsModal(idx, ctx) {
+    if (!settingsModal) createSettingsModal();
     if (!settingsModal || !state.fields[idx]) return;
     settingsCtx      = ctx || null;
     settingsModalIdx = idx;
@@ -1250,10 +1418,23 @@ function openSettingsModal(idx, ctx) {
     var pal = findPaletteItem(field.type);
     if (pal && pal.noPanel) return;
 
-    settingsModal.querySelectorAll('.forge-stab').forEach(function (b) { b.classList.remove('forge-stab-active'); });
-    settingsModal.querySelectorAll('.forge-stab-panel').forEach(function (p) { p.classList.remove('forge-stab-active'); });
-    settingsModal.querySelector('[data-stab="general"]').classList.add('forge-stab-active');
-    document.getElementById('forge-stab-general').classList.add('forge-stab-active');
+    settingsModal._stabBtns.forEach(function (b)   { b.classList.remove('forge-stab-active'); });
+    settingsModal._stabPanels.forEach(function (p)  { p.classList.remove('forge-stab-active'); });
+    settingsModal._stabBtns[0].classList.add('forge-stab-active');   /* "Allgemein" is always first */
+    settingsModal._stabPanels[0].classList.add('forge-stab-active');
+
+    var idChip = document.getElementById('forge-sp-id-chip');
+    if (idChip) {
+        idChip.textContent = '{' + field.id + '}';
+        idChip.onclick = function () {
+            var currentId = '{' + (ctx ? state.fields[ctx.groupIdx].children[ctx.childIdx] : state.fields[idx]).id + '}';
+            navigator.clipboard.writeText(currentId).then(function () {
+                var prev = idChip.textContent;
+                idChip.textContent = '✓ kopiert';
+                setTimeout(function () { idChip.textContent = prev; }, 1500);
+            });
+        };
+    }
 
     buildSettingsTabs(idx, field);
     settingsModal.hidden = false;
@@ -1293,6 +1474,7 @@ function buildGeneralTab(idx, field, pal) {
     var schema = (pal && pal.generalSchema) ? pal.generalSchema : [];
 
     function change(key, val) {
+        markDirty();
         if (settingsCtx) {
             /* Writing to a group child field */
             var gf = state.fields[settingsCtx.groupIdx];
@@ -1311,6 +1493,7 @@ function buildGeneralTab(idx, field, pal) {
     }
 
     spRow(panel, 'label', 'Label', 'text', field.label || '', function (v) { change('label', v); });
+    spCheckbox(panel, 'hide_label', 'Label ausblenden', !!field.hide_label, function (v) { change('hide_label', v); });
 
     /* Hide the global "Pflichtfeld" checkbox for fields that manage required
      * per sub-component (identified by having a subfields schema entry that is
@@ -1406,7 +1589,7 @@ function buildGeneralTab(idx, field, pal) {
             spNotice(panel, s.text || s.label || '', s.level || 'info');
         } else if (s.type === 'html_editor') {
             (function (schema_entry) {
-                spHtmlEditor(panel, schema_entry.key, schema_entry.label, cur,
+                spHtmlFieldEditor(panel, schema_entry.key, schema_entry.label, cur,
                     function (v) { change(schema_entry.key, v); });
             }(s));
         } else if (s.type === 'icon_row') {
@@ -1641,13 +1824,20 @@ function buildAdvancedTab(idx, field) {
     idInp.value      = field.id || '';
     idInp.spellcheck = false;
     idInp.addEventListener('input', function () {
-        var slug = this.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-{2,}/g, '-');
+        var slug   = this.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-{2,}/g, '-');
         this.value = slug;
-        state.fields[idx].id = slug || generateId(field.type);
+        var target = settingsCtx
+            ? state.fields[settingsCtx.groupIdx].children[settingsCtx.childIdx]
+            : state.fields[idx];
+        target.id = slug || generateId(field.type);
         var hintCode = idRow.querySelector('code');
-        if (hintCode) hintCode.textContent = '{' + (slug || state.fields[idx].id) + '}';
-        var rowIdBadge = document.querySelector('.forge-field-row[data-idx="' + idx + '"] .forge-row-id');
-        if (rowIdBadge) rowIdBadge.textContent = state.fields[idx].id;
+        if (hintCode) hintCode.textContent = '{' + target.id + '}';
+        var chip = document.getElementById('forge-sp-id-chip');
+        if (chip && chip.textContent !== '✓ kopiert') chip.textContent = '{' + target.id + '}';
+        if (!settingsCtx) {
+            var rowIdBadge = document.querySelector('.forge-field-row[data-idx="' + idx + '"] .forge-row-id');
+            if (rowIdBadge) rowIdBadge.textContent = '{' + target.id + '}';
+        }
     });
     idRow.appendChild(idInp);
     var idHint = document.createElement('p');
@@ -2036,8 +2226,18 @@ function buildConditionsTab(idx, field) {
     addBtn.className = 'forge-cond-add';
     addBtn.innerHTML = '<i class="fa-solid fa-plus"></i> Bedingung hinzufügen';
     addBtn.addEventListener('click', function () {
-        var others = state.fields.filter(function (f, fi) { return fi !== idx; });
-        cond.rules.push({ field_id: others.length ? others[0].id : '', operator: 'equals', value: '' });
+        var SKIP = ['group', 'html', 'pagebreak'];
+        var addable = [];
+        state.fields.forEach(function (f, fi) {
+            if (SKIP.indexOf(f.type) !== -1) {
+                (f.children || []).forEach(function (c) {
+                    if (c.id && SKIP.indexOf(c.type) === -1) addable.push(c);
+                });
+            } else if (fi !== idx && f.id) {
+                addable.push(f);
+            }
+        });
+        cond.rules.push({ field_id: addable.length ? addable[0].id : '', operator: 'equals', value: '' });
         rebuildRules();
     });
     body.appendChild(addBtn);
@@ -2925,6 +3125,54 @@ function spHtmlEditor(parent, key, label, value, onChange, opts) {
 
 /* Rich text editor: sandboxed iframe in designMode (not contenteditable —
  * that strips the <html>/<head>/<body> wrapper and is an extension target). */
+/* HTML field editor: Visuell|Code toggle — same pattern as buildNotifContentTab */
+function spHtmlFieldEditor(parent, key, label, value, onChange) {
+    var currentValue = value || '';
+    var currentMode  = 'text'; /* 'text' = visual iframe, 'html' = plain code textarea */
+
+    /* Header row: label + Visuell|Code pill */
+    var hdrWrap = document.createElement('div');
+    hdrWrap.className = 'forge-sp-row';
+    var hdr = document.createElement('div');
+    hdr.className = 'forge-sp-html-hdr';
+    if (label) {
+        var lbl = document.createElement('div');
+        lbl.className   = 'forge-sp-label';
+        lbl.textContent = label;
+        hdr.appendChild(lbl);
+    }
+    var modeBar = document.createElement('div');
+    modeBar.className = 'forge-sp-html-modebar';
+    modeBar.appendChild(mkSeg(['text', 'html'], ['Visuell', 'Code'], 'text', function (v) {
+        currentMode = v;
+        renderEditor();
+    }));
+    hdr.appendChild(modeBar);
+    hdrWrap.appendChild(hdr);
+    parent.appendChild(hdrWrap);
+
+    /* Swap container — editor re-renders here on mode change */
+    var contentWrap = document.createElement('div');
+    parent.appendChild(contentWrap);
+
+    function renderEditor() {
+        contentWrap.innerHTML = '';
+        if (currentMode === 'html') {
+            spHtmlEditor(contentWrap, key, '', currentValue, function (v) {
+                currentValue = v;
+                onChange(v);
+            }, { showToggle: false });
+        } else {
+            spRichTextEditor(contentWrap, key, '', currentValue, function (v) {
+                currentValue = v;
+                onChange(v);
+            });
+        }
+    }
+
+    renderEditor();
+}
+
 function spRichTextEditor(parent, key, label, value, onChange) {
     var row = document.createElement('div');
     row.className = 'forge-sp-row';
@@ -3014,6 +3262,12 @@ function spRichTextEditor(parent, key, label, value, onChange) {
 
     function loadDoc(html) {
         var doc = iframe.contentDocument;
+        if (!doc) {
+            /* iframe is in a detached subtree (inline row render) — defer until
+               the caller inserts the row into the live DOM. */
+            setTimeout(function () { loadDoc(html); }, 0);
+            return;
+        }
         var full = /<html[\s>]/i.test(html || '')
             ? html
             : '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'
@@ -3434,6 +3688,7 @@ function renderNotifications() {
     addBtn.id        = 'forge-add-notif-btn';
     addBtn.innerHTML = '<i class="fa-solid fa-plus"></i> Benachrichtigung hinzufügen';
     addBtn.addEventListener('click', function () {
+        markDirty();
         var n = state.notifications.length + 1;
         state.notifications.push({
             slug: 'notification-' + n,
@@ -3476,6 +3731,7 @@ function buildNotifRow(notif, idx) {
     });
     row.querySelector('.forge-row-delete').addEventListener('click', function (e) {
         e.stopPropagation();
+        markDirty();
         state.notifications.splice(idx, 1);
         renderNotifications();
     });
@@ -3528,6 +3784,7 @@ function createNotifModal() {
 }
 
 function openNotifModal(idx) {
+    if (!notifModal) createNotifModal();
     if (!notifModal) return;
     notifModalIdx = idx;
     var notif = state.notifications[idx];
@@ -3540,7 +3797,7 @@ function openNotifModal(idx) {
 
     var nameInp = document.getElementById('forge-notif-name-inp');
     nameInp.value  = notif.name || '';
-    nameInp.oninput = function () { state.notifications[notifModalIdx].name = this.value; };
+    nameInp.oninput = function () { markDirty(); state.notifications[notifModalIdx].name = this.value; };
 
     buildNotifRecipientTab(notif);
     buildNotifContentTab(notif);
@@ -3654,8 +3911,16 @@ function buildNotifRecipientTab(notif) {
 
                 var fSel = document.createElement('select');
                 fSel.className = 'forge-cond-sel';
-                var eligible = state.fields.filter(function (f) {
-                    return f.id && ['group','html','pagebreak'].indexOf(f.type) === -1;
+                var SKIP_E = ['group', 'html', 'pagebreak'];
+                var eligible = [];
+                state.fields.forEach(function (f) {
+                    if (SKIP_E.indexOf(f.type) !== -1) {
+                        (f.children || []).forEach(function (c) {
+                            if (c.id && SKIP_E.indexOf(c.type) === -1) eligible.push(c);
+                        });
+                    } else if (f.id) {
+                        eligible.push(f);
+                    }
                 });
                 if (!eligible.length) {
                     var ph = document.createElement('option');
@@ -3795,10 +4060,17 @@ function buildNotifRecipientTab(notif) {
             addRule.type = 'button'; addRule.className = 'forge-cond-add';
             addRule.innerHTML = '<i class="fa-solid fa-plus"></i> Regel hinzufügen';
             addRule.addEventListener('click', function () {
-                var first = state.fields.find(function (f) {
-                    return f.id && ['group','html','pagebreak'].indexOf(f.type) === -1;
+                var SKIP_R = ['group', 'html', 'pagebreak'];
+                var firstEligible = null;
+                state.fields.some(function (f) {
+                    if (SKIP_R.indexOf(f.type) !== -1) {
+                        return (f.children || []).some(function (c) {
+                            if (c.id && SKIP_R.indexOf(c.type) === -1) { firstEligible = c; return true; }
+                        });
+                    }
+                    if (f.id) { firstEligible = f; return true; }
                 });
-                rules.push({ field_id: first ? first.id : '', operator: 'equals', value: '', email: '' });
+                rules.push({ field_id: firstEligible ? firstEligible.id : '', operator: 'equals', value: '', email: '' });
                 state.notifications[notifModalIdx].routing_rules = rules;
                 rebuildRoutingRules();
             });
@@ -3932,6 +4204,7 @@ function createSubmitModal() {
 }
 
 function openSubmitModal() {
+    if (!submitModal) createSubmitModal();
     if (!submitModal) return;
 
     /* Reset to first tab */
@@ -3960,15 +4233,15 @@ function buildSubmitLabelsTab() {
     var s = state.settings;
 
     spRow(panel, 'smt-label', 'Beschriftung', 'text', s.submit_label || 'Absenden',
-        function (v) { state.settings.submit_label = v; renderSubmitPreview(); },
+        function (v) { markDirty(); state.settings.submit_label = v; renderSubmitPreview(); },
         'Sichtbarer Text der Schaltfläche');
 
     spRow(panel, 'smt-working', 'Beschriftung beim Senden', 'text', s.submit_working || 'Wird gesendet…',
-        function (v) { state.settings.submit_working = v; },
+        function (v) { markDirty(); state.settings.submit_working = v; },
         'Wird w\xe4hrend der \xdcbermittlung angezeigt');
 
     spRow(panel, 'smt-success', 'Erfolgsmeldung', 'textarea', s.success_message || '',
-        function (v) { state.settings.success_message = v; },
+        function (v) { markDirty(); state.settings.success_message = v; },
         'Nachricht nach erfolgreichem Eintrag');
 }
 
@@ -4017,8 +4290,16 @@ function buildSubmitConditionsTab() {
         content.className = 'forge-cond-rule-content';
         rr.appendChild(content);
 
-        var eligible = state.fields.filter(function (f) {
-            return f.id && ['group','html','pagebreak'].indexOf(f.type) === -1;
+        var SKIP_SC = ['group', 'html', 'pagebreak'];
+        var eligible = [];
+        state.fields.forEach(function (f) {
+            if (SKIP_SC.indexOf(f.type) !== -1) {
+                (f.children || []).forEach(function (c) {
+                    if (c.id && SKIP_SC.indexOf(c.type) === -1) eligible.push(c);
+                });
+            } else if (f.id) {
+                eligible.push(f);
+            }
         });
 
         var topRow = document.createElement('div');
@@ -4150,10 +4431,17 @@ function buildSubmitConditionsTab() {
     smAddBtn.type = 'button'; smAddBtn.className = 'forge-cond-add';
     smAddBtn.innerHTML = '<i class="fa-solid fa-plus"></i> Bedingung hinzuf\xfcgen';
     smAddBtn.addEventListener('click', function () {
-        var first = state.fields.find(function (f) {
-            return f.id && ['group','html','pagebreak'].indexOf(f.type) === -1;
+        var SKIP_SM = ['group', 'html', 'pagebreak'];
+        var firstSm = null;
+        state.fields.some(function (f) {
+            if (SKIP_SM.indexOf(f.type) !== -1) {
+                return (f.children || []).some(function (c) {
+                    if (c.id && SKIP_SM.indexOf(c.type) === -1) { firstSm = c; return true; }
+                });
+            }
+            if (f.id) { firstSm = f; return true; }
         });
-        cond.rules.push({ field_id: first ? first.id : '', operator: 'equals', value: '' });
+        cond.rules.push({ field_id: firstSm ? firstSm.id : '', operator: 'equals', value: '' });
         smRebuildRules();
     });
     smBody.appendChild(smAddBtn);
@@ -4216,7 +4504,7 @@ function bindFormName() {
     var inp = document.getElementById('forge-form-name');
     if (!inp) return;
     inp.value = state.formName;
-    inp.addEventListener('input', function () { state.formName = this.value; });
+    inp.addEventListener('input', function () { state.formName = this.value; markDirty(); });
 }
 
 function setSaveStatus(status, state, msg) {
@@ -4260,6 +4548,7 @@ function bindSave() {
                 btn.disabled = false;
                 if (data.success && data.data && data.data.form_id) FORM_ID = data.data.form_id;
                 if (data.success) {
+                    markClean();
                     setSaveStatus(status, 'ok');
                 } else {
                     var msg = (data.data && data.data.message) ? data.data.message : (typeof data.data === 'string' ? data.data : 'Unbekannter Fehler');
@@ -4284,6 +4573,7 @@ function bindPreview() {
         fd.append('action',   'forge_forms_preview');
         fd.append('nonce',    NONCE);
         fd.append('form_id',  FORM_ID);
+        fd.append('fields',   JSON.stringify(state.fields));
         fd.append('settings', JSON.stringify(state.settings));
         fetch(AJAX_URL, { method: 'POST', body: fd })
             .then(function (r) { return r.json(); })
@@ -4385,7 +4675,7 @@ function findPaletteItem(type) {
     return null;
 }
 
-function removePlaceholder() { /* no-op — replaced by drop line */ }
+function rebuildPreview() { renderFieldList(); }
 
 /* Generate sequential IDs like "text-1", "email-3" — unique across top-level and all group children */
 function generateId(type) {

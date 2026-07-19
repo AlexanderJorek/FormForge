@@ -69,7 +69,7 @@ CSS;
      */
     public function getLabel(): string
     {
-        return 'Datum';
+        return __('Date', 'form-forge');
     }
 
     /**
@@ -134,14 +134,14 @@ CSS;
                 if (!inp || !inp.value.trim()) return null;
                 var v = inp.value.trim();
                 if (!/^\d{2}\.\d{2}\.\d{4}$/.test(v))
-                    return 'Bitte Datum im Format TT.MM.JJJJ eingeben.';
+                    return 'Please enter a date in DD.MM.YYYY format.';
                 var p  = v.split('.');
                 var d  = parseInt(p[0], 10);
                 var m  = parseInt(p[1], 10);
                 var y  = parseInt(p[2], 10);
                 var dt = new Date(y, m - 1, d);
                 if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d)
-                    return 'Bitte geben Sie ein gültiges Datum ein.';
+                    return 'Please enter a valid date.';
                 return null;
             }
             JS]];
@@ -166,7 +166,7 @@ CSS;
             . '<input type="text" id="' . esc_attr($field_id) . '"'
             . ' name="' . esc_attr($field_id) . '"'
             . ' class="forge-input forge-date-text"'
-            . ' placeholder="TT.MM.JJJJ"'
+            . ' placeholder="' . esc_attr__('DD.MM.YYYY', 'form-forge') . '"'
             . ' maxlength="10"'
             . ' autocomplete="bday"'
             . ' value="' . esc_attr((string)($value ?? '')) . '"'
@@ -174,7 +174,7 @@ CSS;
 
         if ($picker) {
             $inner .= '<button type="button" class="forge-date-cal-btn" data-for="' . esc_attr($field_id) . '"'
-                . ' aria-label="Kalender öffnen" title="Kalender öffnen">'
+                . ' aria-label="' . esc_attr__('Open calendar', 'form-forge') . '" title="' . esc_attr__('Open calendar', 'form-forge') . '">'
                 . '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"'
                 . ' viewBox="0 0 24 24" fill="none" stroke="currentColor"'
                 . ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round"'
@@ -205,17 +205,18 @@ CSS;
     {
         if (empty($value) || trim((string)$value) === '') {
             if (!empty($config['required'])) {
-                return ($config['label'] ?? 'Datum') . ': Pflichtfeld.';
+                $label = $config['label'] ?? __('Date', 'form-forge');
+                return sprintf(__('%s: Required field.', 'form-forge'), esc_html($label));
             }
             return true;
         }
         $v = trim((string)$value);
         if (!preg_match('/^\d{2}\.\d{2}\.\d{4}$/', $v)) {
-            return 'Bitte Datum im Format TT.MM.JJJJ eingeben.';
+            return __('Please enter a date in DD.MM.YYYY format.', 'form-forge');
         }
         [$d, $m, $y] = explode('.', $v);
         if (!checkdate((int)$m, (int)$d, (int)$y)) {
-            return 'Bitte geben Sie ein gültiges Datum ein.';
+            return __('Please enter a valid date.', 'form-forge');
         }
         return true;
     }
@@ -231,7 +232,7 @@ CSS;
     public function map(mixed $value, array $config): string
     {
         if (empty($value)) {
-            return '[Kein Eintrag]';
+            return __('[No entry]', 'form-forge');
         }
         return (string)$value;
     }
@@ -244,7 +245,8 @@ CSS;
     public function getDefaultConfig(): array
     {
         return array_merge(
-            parent::getDefaultConfig(), [
+            parent::getDefaultConfig(),
+            [
             'show_picker'   => true,
             'prefill_today' => false,
             'min_date'      => '',
@@ -264,17 +266,17 @@ CSS;
             [
                 'key'   => 'description',
                 'type'  => 'text',
-                'label' => 'Beschreibung',
+                'label' => __('Description', 'form-forge'),
             ],
             [
                 'key'   => 'show_picker',
                 'type'  => 'checkbox',
-                'label' => 'Kalender-Icon anzeigen',
+                'label' => __('Show calendar icon', 'form-forge'),
             ],
             [
                 'key'   => 'prefill_today',
                 'type'  => 'checkbox',
-                'label' => 'Heute vorausfüllen',
+                'label' => __('Pre-fill with today', 'form-forge'),
             ],
         ];
     }

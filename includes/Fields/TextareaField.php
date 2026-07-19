@@ -35,7 +35,7 @@ class TextareaField extends BaseField
      */
     public function getLabel(): string
     {
-        return 'Textbereich';
+        return __('Text area', 'form-forge');
     }
 
     /**
@@ -117,7 +117,7 @@ class TextareaField extends BaseField
         if ($max > 0 && $type === 'words' && !empty($value)) {
             $count = count(preg_split('/\s+/', trim((string)$value), -1, PREG_SPLIT_NO_EMPTY));
             if ($count > $max) {
-                return 'Bitte maximal ' . $max . ' Wörter eingeben (aktuell: ' . $count . ').';
+                return sprintf(__('Please enter at most %1$d words (currently: %2$d).', 'form-forge'), $max, $count);
             }
         }
         return true;
@@ -138,7 +138,7 @@ class TextareaField extends BaseField
                 if (!limit) return null;
                 var count = inp.value.trim().split(/\s+/).filter(Boolean).length;
                 return count <= limit ? null
-                    : 'Bitte maximal ' + limit + ' Wörter eingeben (aktuell: ' + count + ').';
+                    : 'Please enter at most ' + limit + ' words (currently: ' + count + ').';
             }
             JS]];
     }
@@ -183,13 +183,13 @@ class TextareaField extends BaseField
             [
                 'key'   => 'rows',
                 'type'  => 'number',
-                'label' => 'Zeilen',
-                'hint'  => 'Sichtbare Höhe des Feldes (Anzahl Textzeilen)',
+                'label' => __('Rows', 'form-forge'),
+                'hint'  => __('Visible height of the field (number of text rows)', 'form-forge'),
             ],
             [
                 'key'       => 'limit_type',
                 'type'      => 'limit_row',
-                'label'     => 'Begrenzung',
+                'label'     => __('Limit', 'form-forge'),
                 'count_key' => 'limit_max',
             ],
             ]

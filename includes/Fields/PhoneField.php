@@ -35,7 +35,7 @@ class PhoneField extends BaseField
      */
     public function getLabel(): string
     {
-        return 'Telefon';
+        return __('Phone', 'form-forge');
     }
 
     /**
@@ -64,19 +64,19 @@ class PhoneField extends BaseField
                 var v = inp.value.replace(/[\s\-\(\)\/]/g, '');
                 if (mode === 'any') {
                     return /^\+?[0-9]{7,15}$/.test(v)
-                        ? null : 'Bitte geben Sie eine gültige Telefonnummer ein.';
+                        ? null : 'Please enter a valid phone number.';
                 }
                 if (mode === 'countries') {
                     if (v.charAt(0) !== '+')
-                        return 'Bitte geben Sie die Nummer mit internationaler Vorwahl (+...) ein.';
+                        return 'Please enter the number with international prefix (+...).';
                     var digits = v.slice(1);
                     var cmode  = inp.dataset.phoneCountryMode || 'allow';
                     var list   = JSON.parse(inp.dataset.phoneCountryList || '[]')
                                     .map(function (c) { return c.replace('+', ''); });
                     list.sort(function (a, b) { return b.length - a.length; });
                     var inList = list.some(function (code) { return digits.indexOf(code) === 0; });
-                    if (cmode === 'allow'    && !inList) return 'Diese Telefonnummer ist für Ihr Land nicht zugelassen.';
-                    if (cmode === 'disallow' &&  inList) return 'Diese Telefonnummer ist für Ihr Land nicht zugelassen.';
+                    if (cmode === 'allow'    && !inList) return 'This phone number is not allowed for your country.';
+                    if (cmode === 'disallow' &&  inList) return 'This phone number is not allowed for your country.';
                 }
                 return null;
             }
@@ -104,7 +104,7 @@ class PhoneField extends BaseField
             $list  = array_values((array)($config['phone_country_list'] ?? []));
             $attrs .= ' data-phone-country-mode="' . esc_attr($cmode) . '"';
             if (!empty($list)) {
-                $attrs .= " data-phone-country-list='" . esc_attr(json_encode($list)) . "'";
+                $attrs .= " data-phone-country-list='" . esc_attr(wp_json_encode($list)) . "'";
             }
         }
         return $this->wrap($field_id, $config, '<input' . $attrs . '>');
@@ -132,42 +132,42 @@ class PhoneField extends BaseField
         $mode = $config['phone_mode'] ?? '';
 
         switch ($mode) {
-        case 'any':
-            if (!preg_match('/^\+?[0-9]{7,15}$/', $v)) {
-                return 'Bitte geben Sie eine gültige Telefonnummer ein.';
-            }
-            break;
+            case 'any':
+                if (!preg_match('/^\+?[0-9]{7,15}$/', $v)) {
+                    return __('Please enter a valid phone number.', 'form-forge');
+                }
+                break;
 
-        case 'countries':
-            if (!str_starts_with($v, '+')) {
-                return 'Bitte geben Sie die Nummer mit internationaler Vorwahl (+...) ein.';
-            }
-            $digits = substr($v, 1);
-            $list   = (array)($config['phone_country_list'] ?? []); /* e.g. ['+49', '+43'] */
-            $cmode  = $config['phone_country_mode'] ?? 'allow';
-            $in     = false;
-            /* Sort by code length descending so longer codes (e.g. +358) match before shorter (+35) */
-            $sorted = $list;
-            usort(
-                $sorted,
-                static function ($a, $b) {
-                    return strlen($b) - strlen($a);
+            case 'countries':
+                if (!str_starts_with($v, '+')) {
+                    return __('Please enter the number with international prefix (+...).', 'form-forge');
                 }
-            );
-            foreach ($sorted as $entry) {
-                $code = ltrim((string)$entry, '+');
-                if (str_starts_with($digits, $code)) {
-                    $in = true;
-                    break;
+                $digits = substr($v, 1);
+                $list   = (array)($config['phone_country_list'] ?? []); /* e.g. ['+49', '+43'] */
+                $cmode  = $config['phone_country_mode'] ?? 'allow';
+                $in     = false;
+                /* Sort by code length descending so longer codes (e.g. +358) match before shorter (+35) */
+                $sorted = $list;
+                usort(
+                    $sorted,
+                    static function ($a, $b) {
+                        return strlen($b) - strlen($a);
+                    }
+                );
+                foreach ($sorted as $entry) {
+                    $code = ltrim((string)$entry, '+');
+                    if (str_starts_with($digits, $code)) {
+                        $in = true;
+                        break;
+                    }
                 }
-            }
-            if ($cmode === 'allow' && !$in) {
-                return 'Diese Telefonnummer ist für Ihr Land nicht zugelassen.';
-            }
-            if ($cmode === 'disallow' && $in) {
-                return 'Diese Telefonnummer ist für Ihr Land nicht zugelassen.';
-            }
-            break;
+                if ($cmode === 'allow' && !$in) {
+                    return __('This phone number is not allowed for your country.', 'form-forge');
+                }
+                if ($cmode === 'disallow' && $in) {
+                    return __('This phone number is not allowed for your country.', 'form-forge');
+                }
+                break;
         }
 
         return true;
@@ -181,7 +181,8 @@ class PhoneField extends BaseField
     public function getDefaultConfig(): array
     {
         return array_merge(
-            parent::getDefaultConfig(), [
+            parent::getDefaultConfig(),
+            [
             'phone_mode'         => '',
             'phone_country_mode' => 'allow',
             'phone_country_list' => [],

@@ -35,7 +35,7 @@ class EmailField extends BaseField
      */
     public function getLabel(): string
     {
-        return 'E-Mail';
+        return __('Email', 'form-forge');
     }
 
     /**
@@ -64,7 +64,7 @@ class EmailField extends BaseField
                     if (!inp || !inp.value.trim()) return null;
                     var v = inp.value.trim().toLowerCase();
                     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v))
-                        return 'Bitte geben Sie eine gültige E-Mail-Adresse ein.';
+                        return 'Please enter a valid email address.';
                     var mode = inp.dataset.filterMode || '';
                     if (!mode) return null;
                     var list = JSON.parse(inp.dataset.filterPatterns || '[]');
@@ -76,8 +76,8 @@ class EmailField extends BaseField
                         );
                         return re.test(v);
                     });
-                    if (mode === 'allow' && !matched) return 'Diese E-Mail-Adresse ist nicht zugelassen.';
-                    if (mode === 'block' &&  matched) return 'Diese E-Mail-Adresse ist nicht zugelassen.';
+                    if (mode === 'allow' && !matched) return 'This email address is not allowed.';
+                    if (mode === 'block' &&  matched) return 'This email address is not allowed.';
                     return null;
                 }
                 JS,
@@ -103,7 +103,7 @@ class EmailField extends BaseField
             $patterns = trim((string)($config['filter_patterns'] ?? ''));
             if ($patterns !== '') {
                 $list  = array_values(array_filter(array_map('trim', preg_split('/[\r\n;]+/', $patterns))));
-                $attrs .= " data-filter-patterns='" . esc_attr(json_encode($list)) . "'";
+                $attrs .= " data-filter-patterns='" . esc_attr(wp_json_encode($list)) . "'";
             }
         }
         return $this->wrap($field_id, $config, '<input' . $attrs . '>');
@@ -129,7 +129,7 @@ class EmailField extends BaseField
         $v = strtolower(trim((string)$value));
         if ($config['validate_format'] ?? true) {
             if (!is_email($v)) {
-                return 'Bitte geben Sie eine gültige E-Mail-Adresse ein.';
+                return __('Please enter a valid email address.', 'form-forge');
             }
         }
         $mode     = $config['filter_mode']     ?? '';
@@ -145,10 +145,10 @@ class EmailField extends BaseField
                 }
             }
             if ($mode === 'allow' && !$matched) {
-                return 'Diese E-Mail-Adresse ist nicht zugelassen.';
+                return __('This email address is not allowed.', 'form-forge');
             }
             if ($mode === 'block' && $matched) {
-                return 'Diese E-Mail-Adresse ist nicht zugelassen.';
+                return __('This email address is not allowed.', 'form-forge');
             }
         }
         return true;
@@ -172,7 +172,8 @@ class EmailField extends BaseField
     public function getDefaultConfig(): array
     {
         return array_merge(
-            parent::getDefaultConfig(), [
+            parent::getDefaultConfig(),
+            [
             'validate_format' => true,
             'filter_mode'     => '',
             'filter_patterns' => '',
@@ -188,11 +189,12 @@ class EmailField extends BaseField
     public function getGeneralSchema(): array
     {
         return array_merge(
-            $this->baseGeneralEntries(), [
+            $this->baseGeneralEntries(),
+            [
             [
                 'key'   => 'validate_format',
                 'type'  => 'checkbox',
-                'label' => 'Auf gültiges E-Mail-Format prüfen',
+                'label' => __('Validate email format', 'form-forge'),
             ],
             ]
         );
@@ -209,14 +211,14 @@ class EmailField extends BaseField
             [
                 'key'    => 'filter_mode',
                 'type'   => 'pill3',
-                'label'  => 'E-Mail-Filter',
+                'label'  => __('Email filter', 'form-forge'),
                 'values' => ['', 'allow', 'block'],
-                'labels' => ['Aus', 'Erlaubt', 'Gesperrt'],
+                'labels' => [__('Off', 'form-forge'), __('Allowed', 'form-forge'), __('Blocked', 'form-forge')],
             ],
             [
                 'key'        => 'filter_patterns',
                 'type'       => 'textarea',
-                'label'      => 'Muster (je Zeile oder mit ; trennen)',
+                'label'      => __('Pattern (one per line or separated by ;)', 'form-forge'),
                 'hint'       => '*no-reply* · *.outlook.com · user@example.com',
                 'depends_on' => ['key' => 'filter_mode', 'not' => ''],
             ],

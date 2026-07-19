@@ -110,7 +110,7 @@ CSS;
      */
     public function getLabel(): string
     {
-        return 'Seitenumbruch';
+        return __('Page break', 'form-forge');
     }
 
     /**
@@ -187,8 +187,8 @@ CSS;
      */
     public function renderBreak(array $config, int $page): string
     {
-        $prev_label = esc_html($config['prev_btn'] ?? '← Zurück');
-        $next_label = esc_html($config['next_btn'] ?? 'Weiter →');
+        $prev_label = esc_html($config['prev_btn'] ?? __('← Back', 'form-forge'));
+        $next_label = esc_html($config['next_btn'] ?? __('Next →', 'form-forge'));
         $prev_btn   = $page > 1
             ? '<button type="button" class="forge-btn forge-btn-prev">' . $prev_label . '</button>'
             : '<span></span>';
@@ -260,9 +260,9 @@ CSS;
     public function getDefaultConfig(): array
     {
         return [
-            'label'       => 'Seitenumbruch',
-            'prev_btn'    => '← Zurück',
-            'next_btn'    => 'Weiter →',
+            'label'       => __('Page break', 'form-forge'),
+            'prev_btn'    => __('← Back', 'form-forge'),
+            'next_btn'    => __('Next →', 'form-forge'),
             'required'    => false,
             'description' => '',
         ];
@@ -279,12 +279,12 @@ CSS;
             [
                 'key'   => 'prev_btn',
                 'type'  => 'text',
-                'label' => 'Zurück-Button',
+                'label' => __('Back button', 'form-forge'),
             ],
             [
                 'key'   => 'next_btn',
                 'type'  => 'text',
-                'label' => 'Weiter-Button',
+                'label' => __('Next button', 'form-forge'),
             ],
         ];
     }

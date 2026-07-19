@@ -35,7 +35,7 @@ class NameField extends BaseField
      */
     public function getLabel(): string
     {
-        return 'Name';
+        return __('Name', 'form-forge');
     }
 
     /**
@@ -81,10 +81,10 @@ CSS;
     }
 
     private const SUBFIELDS = [
-        ['key' => 'prefix', 'optional' => true, 'label' => 'Anrede',    'is_select' => true],
-        ['key' => 'fname',  'optional' => true, 'label' => 'Vorname'],
-        ['key' => 'mname',  'optional' => true, 'label' => 'Mittelname'],
-        ['key' => 'lname',  'optional' => true, 'label' => 'Nachname'],
+        ['key' => 'prefix', 'optional' => true, 'label' => 'Salutation',  'is_select' => true],
+        ['key' => 'fname',  'optional' => true, 'label' => 'First name'],
+        ['key' => 'mname',  'optional' => true, 'label' => 'Middle name'],
+        ['key' => 'lname',  'optional' => true, 'label' => 'Last name'],
     ];
 
     /**
@@ -123,7 +123,7 @@ CSS;
                 $cur    = esc_attr((string)($val[$k] ?? ''));
                 $inner .= '<select name="' . esc_attr($field_id) . '[' . $k . ']"'
                     . ' class="forge-input forge-name-prefix" aria-label="' . $label . '"' . $req . '>';
-                foreach (['', 'Herr', 'Frau', 'Divers', 'Dr.', 'Prof.', 'Dipl.', 'Ing.'] as $opt) {
+                foreach (['', __('Mr.', 'form-forge'), __('Ms.', 'form-forge'), __('Diverse', 'form-forge'), 'Dr.', 'Prof.', 'Dipl.', 'Ing.'] as $opt) {
                     $inner .= '<option value="' . esc_attr($opt) . '"' . selected($cur, $opt, false) . '>'
                         . ($opt === '' ? '—' : esc_html($opt)) . '</option>';
                 }
@@ -152,11 +152,11 @@ CSS;
      */
     public function extractValue(string $field_id): mixed
     {
-        $raw = $_POST[$field_id] ?? [];
-        if (!is_array($raw)) {
-            return null;
+        $raw = $_POST[$field_id] ?? '';
+        if (is_array($raw)) {
+            return array_map(static fn($v) => sanitize_text_field(wp_unslash($v)), $raw);
         }
-        return array_map(static fn($v) => sanitize_text_field(wp_unslash($v)), $raw);
+        return sanitize_text_field(wp_unslash((string) $raw));
     }
 
     /**
@@ -171,7 +171,8 @@ CSS;
     {
         if (empty($config['expanded'])) {
             if (!empty($config['required']) && trim((string)($value ?? '')) === '') {
-                return ($config['label'] ?? 'Name') . ': Pflichtfeld.';
+                $label = $config['label'] ?? __('Name', 'form-forge');
+                return sprintf(__('%s: Required field.', 'form-forge'), esc_html($label));
             }
             return true;
         }
@@ -186,11 +187,13 @@ CSS;
             }
             if (!empty($config[$k . '_required'])) {
                 if (trim((string)(is_array($value) ? ($value[$k] ?? '') : '')) === '') {
-                    $errors[] = $config[$k . '_label'] ?? $sf['label'];
+                    $errors[] = $config[$k . '_label'] ?? __($sf['label'], 'form-forge');
                 }
             }
         }
-        return $errors ? implode(', ', $errors) . ': Pflichtfeld.' : true;
+        return $errors
+            ? sprintf(__('%s: Required field.', 'form-forge'), implode(', ', $errors))
+            : true;
     }
 
     /**
@@ -204,10 +207,10 @@ CSS;
     public function map(mixed $value, array $config): string
     {
         if (empty($config['expanded'])) {
-            return trim((string)($value ?? '')) ?: '[Kein Eintrag]';
+            return trim((string)($value ?? '')) ?: __('[No entry]', 'form-forge');
         }
         if (!is_array($value)) {
-            return '[Kein Eintrag]';
+            return __('[No entry]', 'form-forge');
         }
         $parts = [];
         foreach (self::SUBFIELDS as $sf) {
@@ -220,7 +223,7 @@ CSS;
                 $parts[] = $v;
             }
         }
-        return $parts ? implode(' ', $parts) : '[Kein Eintrag]';
+        return $parts ? implode(' ', $parts) : __('[No entry]', 'form-forge');
     }
 
     /**
@@ -231,22 +234,23 @@ CSS;
     public function getDefaultConfig(): array
     {
         return array_merge(
-            parent::getDefaultConfig(), [
+            parent::getDefaultConfig(),
+            [
             'expanded'           => false,
             'prefix_enabled'     => false,
-            'prefix_label'       => 'Anrede',
+            'prefix_label'       => __('Salutation', 'form-forge'),
             'prefix_placeholder' => '',
             'prefix_required'    => false,
             'fname_enabled'      => true,
-            'fname_label'        => 'Vorname',
+            'fname_label'        => __('First name', 'form-forge'),
             'fname_placeholder'  => '',
             'fname_required'     => true,
             'mname_enabled'      => false,
-            'mname_label'        => 'Mittelname',
+            'mname_label'        => __('Middle name', 'form-forge'),
             'mname_placeholder'  => '',
             'mname_required'     => false,
             'lname_enabled'      => true,
-            'lname_label'        => 'Nachname',
+            'lname_label'        => __('Last name', 'form-forge'),
             'lname_placeholder'  => '',
             'lname_required'     => true,
             ]
@@ -264,27 +268,27 @@ CSS;
             [
                 'key'         => 'expanded',
                 'type'        => 'bool_seg',
-                'label'       => 'Modus',
-                'false_label' => 'Einzeln',
-                'true_label'  => 'Erweitert',
+                'label'       => __('Mode', 'form-forge'),
+                'false_label' => __('Simple', 'form-forge'),
+                'true_label'  => __('Extended', 'form-forge'),
                 'rebuild'     => true,
             ],
             [
                 'key'        => 'placeholder',
                 'type'       => 'text',
-                'label'      => 'Platzhalter',
+                'label'      => __('Placeholder', 'form-forge'),
                 'depends_on' => ['expanded' => false],
             ],
             [
                 'key'        => 'description',
                 'type'       => 'text',
-                'label'      => 'Hinweistext',
+                'label'      => __('Hint text', 'form-forge'),
                 'depends_on' => ['expanded' => false],
             ],
             [
                 'key'        => 'subfields',
                 'type'       => 'subfields',
-                'label'      => 'Teilfelder',
+                'label'      => __('Sub-fields', 'form-forge'),
                 'depends_on' => ['expanded' => true],
                 'items'      => self::SUBFIELDS,
             ],

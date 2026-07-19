@@ -50,7 +50,7 @@ CSS;
      */
     public function getLabel(): string
     {
-        return 'Uhrzeit';
+        return __('Time', 'form-forge');
     }
 
     /**
@@ -91,7 +91,8 @@ CSS;
     public function getDefaultConfig(): array
     {
         return array_merge(
-            parent::getDefaultConfig(), [
+            parent::getDefaultConfig(),
+            [
             'time_format'  => false,
             'prefill_now'  => false,
             ]
@@ -106,7 +107,8 @@ CSS;
     public function getGeneralSchema(): array
     {
         return array_merge(
-            $this->baseGeneralEntries(), [
+            $this->baseGeneralEntries(),
+            [
             [
                 'type'        => 'time_row',
                 'format_key'  => 'time_format',

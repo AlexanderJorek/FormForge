@@ -17,77 +17,112 @@
  *  HOW TO ADD A NEW FIELD — read this file top to bottom
  * ════════════════════════════════════════════════════════════
  *
- * This file is a teaching document. It is intentionally NOT
- * registered in FieldRegistry, so it has zero runtime effect.
+ * This file is a teaching document — intentionally NOT registered in
+ * FieldRegistry, so it has zero runtime effect.
  *
- * QUICK-START (3 steps)
- * ──────────────────────
- * 1. Copy this file → YourField.php, rename the class.
- * 2. Implement the three mandatory methods (getLabel, getIcon, render).
- * 3. Register in FieldRegistry::registerDefaults() — the comment there
- *    tells you exactly what to add and where. The first argument is the
- *    type key — it becomes the field type used throughout the builder,
- *    frontend, and stored form configs.
+ * Every field extends BaseField (includes/Fields/BaseField.php), which
+ * provides sensible defaults for every method. Field classes are fully
+ * self-contained: no file outside includes/Fields/ branches on type slugs.
+ * If you find yourself writing if ($field['type'] === '...') elsewhere,
+ * add a method to BaseField and override it in the field class instead.
  *
- * Everything else (validate, map, settings schema, client-side validation,
- * client-side init, skip validation, output flags) has a sensible default
- * in BaseField and only needs overriding when you want custom behaviour.
+ * THE MINIMUM VIABLE FIELD — everything else in this file is optional
+ * ──────────────────────────────────────────────────────────────────
+ *   class MyField extends BaseField
+ *   {
+ *       public function getLabel(): string { return __('My field', 'form-forge'); }
+ *       public function getIcon(): string { return 'fa-solid fa-star'; }
  *
- * ARCHITECTURE SUMMARY
- * ─────────────────────
- * Every field type encapsulates all of its behavior in one PHP file:
+ *       public function render(array $config, string $field_id, mixed $value = null): string
+ *       {
+ *           $attrs = $this->inputAttrs($config, $field_id, 'text', [
+ *               'value' => esc_attr((string)($value ?? '')),
+ *           ]);
+ *           return $this->wrap($field_id, $config, '<input' . $attrs . '>');
+ *       }
+ *   }
  *
- *   render()               → frontend HTML
- *   getStyles()            → field-specific CSS injected inline on the page
- *   getClientInit()        → client-side init / interaction
- *                             (→ window.ForgeFieldInits)
- *   getClientEmptyCheck()  → client-side empty check
- *                             (→ window.ForgeEmptyChecks)
- *   getClientValidation()  → client-side format validators
- *                             (→ window.ForgeValidators)
- *   extractValue()           → assembles the raw value from $_POST/$_FILES before validate()
- *   extractFromRaw()         → sanitizes a value already pulled from a group copy array
- *   skipValidation()         → true for purely presentational fields (pagebreak, html)
- *   getGeneralSchema()       → settings schema for the General tab
- *   getAdvancedSchema()      → settings schema for the Advanced tab
- *   hasSettingsPanel()       → false hides the panel entirely (default true)
- *   hasRequired()            → false hides the Required checkbox (default true)
- *   getDefaultConfig()       → initial config when dropped onto canvas
- *   validate()               → server-side validation, runs after form submission
- *   map()                    → value → human-readable string for email / PDF
- *   mapNormalized()          → value → normalized output entries for PDF/email
- *                              (override for file-bearing or multi-entry fields)
- *   isPageBreak()            → structural: FormRenderer calls renderBreak() instead of render()
- *   isGroupContainer()       → structural: FormRenderer recurses into children[]
- *   needsMultipartEncoding() → structural: adds enctype="multipart/form-data" to the form tag
- *   enqueueFrontScripts()    → registers third-party scripts required by this field (e.g. reCAPTCHA)
- *   includeInEmailSummary()  → false to exclude from {all_fields} email block (default true)
- *   includeValueInSeal()     → false to suppress value from HMAC integrity seal (default true)
- *   hasTextPreview()         → true to include in PDF token-picker preview (default false)
+ *   Then register it — one line, easy to forget:
+ *     FieldRegistry::registerDefaults() → add ['my-field' => MyField::class]
  *
- * Assets::enqueueFront() collects getStyles() and the three client-side callback methods and injects them inline before front.js loads.
- * front.js itself contains zero field-specific logic.
+ *   That's a complete, working field. Don't worry about what inputAttrs()
+ *   and wrap() do internally yet — they generate the standard input
+ *   attributes and the outer .forge-field wrapper (label, description,
+ *   error placeholder). Every simple text-like field follows this exact
+ *   pattern. BaseField already handles the required check, the default
+ *   map() → string, and a plain-text PDF row — so the four methods above
+ *   are all a simple field needs.
  *
- * WHEN TO OVERRIDE
- * ─────────────────
- * You are building...               Override
- * ──────────────────────────────────────────────────────────────────────
- * Any field (always required)       getLabel(), getIcon(), render()
- * Custom CSS                        getStyles()
- * Interactive widget                getClientInit()
- * Custom "blank" check              getClientEmptyCheck()
- * Format validation                 validate() + getClientValidation()
- * Non-standard $_POST/$_FILES shape extractValue()
- * Field inside groups w/ above      extractFromRaw()
- * Composite or formatted value      map()
- * File-bearing or multi-entry       mapNormalized()
- * Custom PDF output                 pdfData()
- * Presentational / no user input    skipValidation()
- * Requires multipart form encoding  needsMultipartEncoding()
- * Requires a third-party script     enqueueFrontScripts()
- * Exclude from {all_fields} email   includeInEmailSummary() → false
- * Exclude value from HMAC seal      includeValueInSeal() → false
- * Include in PDF token-picker       hasTextPreview() → true
+ *   Everything from here on is a reference for the optional pieces you
+ *   reach for only when a field needs more than that: format validation,
+ *   custom CSS/JS, non-text values, composite sub-inputs, or PDF images.
+ *
+ * WHEN TO OVERRIDE — grouped by how often fields need it
+ * ─────────────────────────────────────────────────────
+ * Every field (always)
+ *   getLabel(), getIcon(), render()
+ *
+ * Common (most fields)
+ *   validate() + getClientValidation()   format rules
+ *   map()                                composite or formatted value → string
+ *   getStyles()                          field-specific CSS
+ *   getClientInit()                      interactive JS widget
+ *   getClientEmptyCheck()                custom blank check (non-standard widgets)
+ *   getDefaultConfig()                   config keys the field uses
+ *   getGeneralSchema()                   General settings tab controls
+ *
+ * Occasional (specialized fields)
+ *   extractValue()                       non-standard $_POST / $_FILES shape
+ *   extractFromRaw()                     same field can appear inside a group
+ *   mapNormalized()                      file uploads or multiple output entries
+ *   pdfData()                            image embed or raw HTML in PDF
+ *   hasTextPreview() → true              include in PDF token-picker preview
+ *
+ * Rare (framework features)
+ *   skipValidation() → true              purely presentational, no user input
+ *   includeInEmailSummary() → false      exclude from {all_fields} email block
+ *   includeValueInSeal() → false         exclude value from HMAC integrity seal
+ *   needsMultipartEncoding() → true      field uses a file input
+ *   enqueueFrontScripts()                third-party script required (e.g. reCAPTCHA)
+ *   isPageBreak() + renderBreak()        structural page-nav field
+ *   isGroupContainer() + openTag/closeTag structural section container
+ *
+ * DECISION TREE — "what do I need to touch?"
+ * ────────────────────────────────────────────
+ *   Simple text-like input?        → render()
+ *   Needs format validation?       → validate() + getClientValidation()
+ *   Needs interactive JS?          → getClientInit()
+ *   Needs field-specific CSS?      → getStyles()
+ *   Reads $_FILES or a custom
+ *     $_POST shape?                → extractValue() (+ extractFromRaw() for groups)
+ *   Value is composite/array?      → map()
+ *   Needs multiple output rows
+ *     or materializes files?       → mapNormalized()
+ *   Embeds an image / raw HTML
+ *     in the PDF?                  → pdfData()
+ *
+ * FIELD LIFECYCLE — when each method is called
+ * ─────────────────────────────────────────────
+ *   Builder  →  Render  →  Submit  →  Output
+ *   getDefaultConfig()      enqueueFrontScripts()   extractValue()   map()
+ *   getGeneralSchema()      getStyles() · render()  validate()       ↓ mapNormalized()
+ *   getAdvancedSchema()     getClientInit()                          ↓ pdfData()
+ *                           getClientEmptyCheck()
+ *                           getClientValidation()
+ *
+ * REAL-WORLD EXAMPLES — where to look
+ * ─────────────────────────────────────
+ * UploadField      render(), extractValue(), validate(), mapNormalized(), pdfData(),
+ *                  needsMultipartEncoding()
+ * TextareaField    extractValue(), extractFromRaw()
+ * SignatureField   mapNormalized(), pdfData(), includeValueInSeal()
+ * CheckboxField    extractValue(), extractFromRaw()
+ * SepaField        extractValue(), mapNormalized()
+ * CaptchaField     enqueueFrontScripts(), validate()
+ * GroupField       isGroupContainer(), openTag(), closeTag()
+ * PageBreakField   isPageBreak(), renderBreak(), skipValidation(), includeInEmailSummary()
+ * HtmlField        skipValidation(), includeInEmailSummary()
+ * TextField        hasTextPreview()
  */
 
 namespace ForgeForms\Fields;
@@ -100,9 +135,10 @@ defined('ABSPATH') || exit;
 class ExampleField extends BaseField
 {
     // ═══════════════════════════════════════════════════════
-    //  MANDATORY — getLabel(), getIcon(), and render() must
-    //  always be implemented. render() has its own section
-    //  below with usage examples.
+    //  MANDATORY — getLabel() and getIcon() are trivial one-liners.
+    //  render() is the only method every field must meaningfully
+    //  implement because every field has unique HTML. Most complete
+    //  field implementations are under 100 lines total.
     // ═══════════════════════════════════════════════════════
 
     /**
@@ -112,7 +148,7 @@ class ExampleField extends BaseField
      */
     public function getLabel(): string
     {
-        return 'Beispielfeld';
+        return __('Example field', 'form-forge');
     }
 
     /**
@@ -154,10 +190,15 @@ class ExampleField extends BaseField
             ]
         );
 
-        // wrap() adds: outer .forge-field div, label, description, error div,
-        // required class/asterisk, and the data-validate attribute automatically.
+        // wrap() adds the outer .forge-field div, label, description, error placeholder,
+        // required class/asterisk, and data-validate attribute automatically.
+        // Almost every field should call wrap() — do not reproduce those pieces manually.
         return $this->wrap($field_id, $config, '<input' . $attrs . '>');
 
+
+        // ── STOP HERE for simple fields. ────────────────────────────────────
+        // Everything below is only needed for composite fields that have
+        // multiple independent sub-inputs (like Address, Name, or SEPA).
 
         // ── Composite field (multiple sub-inputs, each with its own required) ──
         // Use this pattern when each sub-part can independently be required
@@ -241,39 +282,43 @@ class ExampleField extends BaseField
     //  EXTRACT VALUE — assemble the raw value from $_POST / $_FILES
     // ═══════════════════════════════════════════════════════
     //
-    //  extractValue(string $field_id): mixed
-    //    Called by FormProcessor once per field before validate(). The returned
-    //    value is what both validate() and map() receive as $value, and it is
-    //    also stored in $context['raw_values'][$field_id] for mapNormalized().
+    //  These two methods solve the same problem in two different contexts:
     //
-    //    BaseField default: reads $_POST[$field_id] with sanitize_text_field().
-    //    This is correct for every plain text field — override only when your
-    //    field's value lives somewhere else or has a different shape:
+    //    extractValue(string $field_id): mixed
+    //      → called for normal top-level fields
+    //      → reads directly from $_POST / $_FILES by field_id
+    //      → called by FormProcessor once per field before validate()
+    //      → the returned value is what validate(), map(), and mapNormalized() receive
+    //
+    //    extractFromRaw(mixed $raw): mixed
+    //      → only called when this field lives inside a repeatable Group field
+    //      → Repeatable group children submit as $_POST[$group_id][$copy_idx][$child_id].
+    //        FormProcessor slices out the child's value and passes it here.
+    //      → Non-repeatable group children submit with their own flat names and are read
+    //        via extractValue($child_id) — extractFromRaw() is never called for them.
+    //      → Should sanitize $raw the same way extractValue() sanitizes $_POST.
+    //
+    //  BaseField default for extractValue(): reads $_POST[$field_id] with sanitize_text_field().
+    //  This is correct for every plain text field — override only when your field's value
+    //  lives somewhere else or has a different shape:
     //
     //      • $_FILES          → UploadField
     //      • composite array  → SepaField (iban/bic/holder + separate -sig key)
     //      • parallel arrays  → a gallery field: files[] + desc[] as separate keys
     //      • sanitize_textarea_field instead of sanitize_text_field → TextareaField
     //
-    //    Override example — parallel file + caption arrays:
+    //  Override example — parallel file + caption arrays:
     //
     //      public function extractValue(string $field_id): mixed
     //      {
     //          return [
-    //              'files' => $_FILES[$field_id]                  ?? [],
-    //              'desc'  => $_POST[$field_id . '_desc']         ?? [],
+    //              'files' => $_FILES[$field_id]          ?? [],
+    //              'desc'  => $_POST[$field_id . '_desc'] ?? [],
     //          ];
     //      }
     //
-    //  extractFromRaw(mixed $raw): mixed
-    //    Called by FormProcessor for children of a group field. Group fields submit
-    //    as $_POST[$group_id][$copy_idx][$child_id], so FormProcessor pulls the nested
-    //    slice first and then calls extractFromRaw() on the child handler to sanitize.
-    //    BaseField default handles scalar (sanitize_text_field) and flat arrays.
-    //    Override when your field needs a different sanitizer (TextareaField) or
-    //    always expects an array (CheckboxField). If you override extractValue(),
-    //    check whether your field can appear inside a group and override extractFromRaw()
-    //    as well.
+    //  If you override extractValue(), check whether your field can appear inside a
+    //  group and override extractFromRaw() as well so group copies sanitize correctly.
 
     // ═══════════════════════════════════════════════════════
     //  VALIDATE — server-side validation, runs after form submission
@@ -309,30 +354,54 @@ class ExampleField extends BaseField
         }
 
         if (!preg_match('/^\d{5}$/', (string)$value)) {
-            return 'Bitte geben Sie eine fünfstellige Zahl ein.';
+            return __('Please enter a five-digit number.', 'form-forge');
         }
         return true;
     }
 
 
     // ═══════════════════════════════════════════════════════
-    //  MAP — value → human-readable string for email / PDF
+    //  OUTPUT PIPELINE — map() → mapNormalized() → pdfData(), plus the
+    //  includeInEmailSummary() / includeValueInSeal() flags below, are all
+    //  facets of the same question: "how does this field's value leave the
+    //  system?" map() covers 99% of fields. Only reach for mapNormalized()
+    //  or pdfData() when map()'s plain string isn't enough (files, images,
+    //  multiple output rows) — see each section for exact triggers.
     // ═══════════════════════════════════════════════════════
     //
-    //  map() — Override for composite (array) values or custom formatting.
-    //  Default (BaseField): casts to string, returns '[Kein Eintrag]' when empty.
+    //  MAP — value → human-readable string for email / PDF
+    //  99% of fields → map() only. 1% → also mapNormalized(). 0.1% → also pdfData().
     //
-    //  mapNormalized() — Override when your field needs any of:
-    //    • Multiple normalized output entries (e.g. SEPA expands to IBAN + BIC + Kontoinhaber)
-    //    • File materialization (upload reads $_FILES, signature decodes base64)
-    //    • Custom output keys (default is [$field_id => entry])
+    //  map(mixed $value, array $config): string
+    //    Returns a plain human-readable string. The BaseField default casts the
+    //    value to string and returns __('[No entry]', 'form-forge') when empty.
+    //    Override for composite (array) values or custom formatting (e.g. IBAN
+    //    spacing, date format).
     //
-    //  Signature: mapNormalized(field_id, label, value, config, context) : array<key, entry>
-    //  $context: ['files' => $_FILES subset, 'raw_values' => raw POST]
+    //  WELL-KNOWN SENTINEL RETURNS — use these exact strings so the translation
+    //  system picks them up consistently across all fields:
+    //    __('[No entry]', 'form-forge')                 — field was left blank
+    //    __('[Other]', 'form-forge')                    — user chose the free-text "other" option
+    //    __('[Signature present – see attachment]', 'form-forge') — binary excluded from text output
+    //    __('Yes', 'form-forge') / __('No', 'form-forge')        — boolean consent
+    //    __('Privacy accepted', 'form-forge') / __('Privacy not accepted', 'form-forge')
+    //
+    //  Do NOT return raw German strings — always wrap in __('English source', 'form-forge').
+    //  JS strings inside heredocs cannot use __() directly; add them to Assets::enqueueFront()
+    //  under ForgeForms.i18n and read them as:
+    //    (window.ForgeForms && window.ForgeForms.i18n && window.ForgeForms.i18n.MY_KEY) || 'English fallback'
+    //
+    //  Override mapNormalized() only when your field needs any of:
+    //    • Multiple output entries  (SepaField expands to IBAN + BIC + Kontoinhaber + sig)
+    //    • File materialization     (UploadField reads $_FILES; SignatureField decodes base64)
+    //    • Custom output keys       (default key is $field_id)
+    //    • Return []                to emit nothing (PageBreakField, empty HtmlField)
+    //
+    //  BaseField default for mapNormalized() wraps map() in a single [$field_id => entry].
+    //
+    //  mapNormalized() signature: (field_id, label, value, config, context): array<key, entry>
+    //  $context: ['files' => $_FILES subset, 'raw_values' => all raw POST values]
     //  Entry shape: ['label' => ..., 'type' => ..., 'value' => ..., 'materialized_files' => []]
-    //  Return [] to emit no normalized output entries (PageBreakField, empty HtmlField).
-    //
-    //  BaseField default wraps map() in a single entry — override only when needed.
     //
     //  isEmpty() — The default checks array_filter($v, fn => $v !== '') for arrays.
     //  This works for flat scalar arrays (checkboxes, multi-select) but will misfire
@@ -362,7 +431,7 @@ class ExampleField extends BaseField
     public function map(mixed $value, array $config): string
     {
         if ($this->isEmpty($value)) {
-            return '[Kein Eintrag]';
+            return __('[No entry]', 'form-forge');
         }
         if (is_array($value)) {
             return implode(', ', array_filter(array_map('trim', $value)));
@@ -418,12 +487,18 @@ class ExampleField extends BaseField
     // ═══════════════════════════════════════════════════════
     //
     //  getClientEmptyCheck()  →  IS THE FIELD BLANK?
-    //    Used by the required check. Only override when "blank" is not "first visible input has no value" — e.g. a checkbox group is blank when no checkbox is checked, not when the input value is ''. Return [] to use the generic fallback.
+    //    Used by the required check. Only override when "blank" is not "first visible
+    //    input has no value" — e.g. a checkbox group is blank when no checkbox is
+    //    checked, not when the input value is ''. Return [] to use the generic fallback.
     //
     //  getClientValidation()  →  IS THE VALUE IN THE RIGHT FORMAT?
-    //    Only runs when the field already HAS content. Define format rules here (email regex, IBAN check, etc.). Return [] if no format check is needed (plain text, dropdowns, etc.).
+    //    Only runs when the field already HAS content. May return zero, one, or multiple
+    //    validation rules — each is an array with a 'rule' key (globally unique string)
+    //    and a 'fn' key (JS function string). Return [] if no format check is needed.
     //
-    // Both are collected by Assets::enqueueFront() and injected as window.ForgeEmptyChecks / window.ForgeValidators before front.js loads. front.js is a pure runner — zero field-specific logic lives there.
+    //  Both are collected by Assets::enqueueFront() and injected as
+    //  window.ForgeEmptyChecks / window.ForgeValidators before front.js loads.
+    //  front.js is a pure runner — zero field-specific logic lives there.
 
     /**
      * Returns the client-side empty-check function for this field type.
@@ -454,7 +529,7 @@ class ExampleField extends BaseField
                 var inp = fieldEl.querySelector('input');
                 if (!inp || !inp.value.trim()) return null;
                 return /^\d{5}$/.test(inp.value.trim())
-                    ? null : 'Bitte geben Sie eine fünfstellige Zahl ein.';
+                    ? null : 'Please enter a five-digit number.';
             }
             JS]];
         */
@@ -468,15 +543,11 @@ class ExampleField extends BaseField
     //  PDF DATA — pdfData() — how this field appears in the generated PDF
     // ═══════════════════════════════════════════════════════
     //
-    //  pdfData() tells the Generator what to put in the PDF for this field. You almost certainly do NOT need to implement this — BaseField's default handles every plain text field correctly out of the box:
-    //
-    //    • Shows the field label and escaped value as a standard row
-    //    • Puts it in the main body of the PDF
-    //    • Includes no images or file attachments
-    //
-    //  Only override when your field needs one of these two things:
+    //  BaseField already generates a standard PDF row (label + escaped value text)
+    //  automatically. Override pdfData() only when the field should appear differently
+    //  in the PDF than it does in the email — specifically:
     //    1. The value is raw HTML, not plain text  →  see HtmlField
-    //    2. The field embeds an image in the PDF  →  see SignatureField / UploadField
+    //    2. The field embeds an image in the PDF   →  see SignatureField / UploadField
     //       (non-image uploads appear as filename text only; only attachImage() exists — there is no attachPdf())
     //
     //  $this->pdf($field) returns a PdfDescriptor. Chain methods, then build():
@@ -567,9 +638,8 @@ class ExampleField extends BaseField
     //  STRUCTURAL FLAGS — form-level and renderer behavior
     // ═══════════════════════════════════════════════════════
     //
-    //  These three methods signal structural requirements to FormRenderer.
-    //  Almost no field needs them — only the three fields that override them today
-    //  (PageBreakField, GroupField, UploadField) are shown as reference.
+    //  These methods don't affect the field itself — they tell FormRenderer how to
+    //  treat the field before rendering begins. Almost no field needs them.
     //
     //  needsMultipartEncoding(): bool
     //    Return true when your field uses a file input. FormRenderer checks all
@@ -655,6 +725,9 @@ class ExampleField extends BaseField
     //    depends_on => ['key' => value]   → hide entry unless another key equals value
     //    depends_on => ['key' => 'x', 'not' => 'y']  → hide when key equals 'y'
     //
+    //  The builder iterates over these arrays and automatically generates the
+    //  settings panel — one control per entry, in order. You never write panel HTML.
+    //
     //  IMPORTANT: label / required / hide_label are rendered automatically by
     //  the builder JS and must NOT appear in any schema array.
 
@@ -671,29 +744,29 @@ class ExampleField extends BaseField
                 [
                     'key'         => 'my_toggle',
                     'type'        => 'bool_seg',
-                    'label'       => 'Modus',
-                    'false_label' => 'Einfach',
-                    'true_label'  => 'Erweitert',
+                    'label'       => __('Mode', 'form-forge'),
+                    'false_label' => __('Simple', 'form-forge'),
+                    'true_label'  => __('Extended', 'form-forge'),
                     'rebuild'     => true,
                 ],
                 [
                     'key'        => 'maxlength',
                     'type'       => 'number',
-                    'label'      => 'Zeichenlimit',
-                    'hint'       => 'Leer = kein Limit',
+                    'label'      => __('Character limit', 'form-forge'),
+                    'hint'       => __('Empty = no limit', 'form-forge'),
                     'depends_on' => ['my_toggle' => true],
                 ],
                 [
                     'key'    => 'my_select',
                     'type'   => 'pill3',
-                    'label'  => 'Filtertyp',
+                    'label'  => __('Filter type', 'form-forge'),
                     'values' => ['option-a', 'option-b', 'option-c'],
-                    'labels' => ['Aus', 'Erlaubt', 'Gesperrt'],
+                    'labels' => [__('Off', 'form-forge'), __('Allowed', 'form-forge'), __('Blocked', 'form-forge')],
                 ],
                 // Media upload example — stores a URL string:
-                // ['key' => 'icon_url', 'type' => 'media_upload', 'label' => 'Icon'],
+                // ['key' => 'icon_url', 'type' => 'media_upload', 'label' => __('Icon', 'form-forge')],
                 // Notice (no key — display only, no config value):
-                // ['type' => 'notice', 'level' => 'warning', 'text' => 'Hinweis…'],
+                // ['type' => 'notice', 'level' => 'warning', 'text' => __('Note…', 'form-forge')],
             ]
         );
     }
@@ -709,8 +782,8 @@ class ExampleField extends BaseField
             [
                 'key'        => 'maxlength',
                 'type'       => 'textarea',
-                'label'      => 'Muster',
-                'hint'       => 'Eines pro Zeile',
+                'label'      => __('Pattern', 'form-forge'),
+                'hint'       => __('One per line', 'form-forge'),
                 'depends_on' => ['key' => 'my_select', 'not' => 'option-a'], // visible unless my_select = 'option-a'
             ],
         ];

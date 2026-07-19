@@ -94,9 +94,9 @@ class FormModel
         $fields        = $data['fields']        ?? [];
         $notifications = $data['notifications'] ?? [];
         $settings      = $data['settings']      ?? [];
-        update_post_meta($id, 'forge_form_fields',        $fields);
+        update_post_meta($id, 'forge_form_fields', $fields);
         update_post_meta($id, 'forge_form_notifications', $notifications);
-        update_post_meta($id, 'forge_form_settings',      $settings);
+        update_post_meta($id, 'forge_form_settings', $settings);
 
         return $id;
     }
@@ -112,7 +112,7 @@ class FormModel
     {
         $source = self::get($form_id);
         if (!$source) {
-            return new \WP_Error('not_found', 'Formular nicht gefunden.');
+            return new \WP_Error('not_found', __('Form not found.', 'form-forge'));
         }
         return self::save(
             [
@@ -152,6 +152,10 @@ class FormModel
             'order'          => 'ASC',
             ]
         );
+
+        /* Prime the meta cache for all posts in one query so subsequent
+           get_post_meta() calls inside decodeMeta() hit the object cache only. */
+        update_meta_cache('post', wp_list_pluck($posts, 'ID'));
 
         $models = [];
         foreach ($posts as $post) {

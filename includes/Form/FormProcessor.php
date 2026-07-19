@@ -45,25 +45,31 @@ class FormProcessor
         $form_id = (int)($_POST['form_id'] ?? 0);
 
         if (!$form_id || !wp_verify_nonce($nonce, 'forge_forms_submit_' . $form_id)) {
-            wp_send_json_error(['message' => 'Sicherheitsprüfung fehlgeschlagen.'], 403);
+            wp_send_json_error(['message' => __('Security check failed.', 'form-forge')], 403);
         }
 
-        /* ---- Honeypot check (before any expensive work) ---- */
-        if (!empty($_POST['forge_hp_field'])) {
-            $form    = FormModel::get($form_id);
-            $hp_msg  = $form->settings['success_message'] ?? 'Vielen Dank für Ihre Einsendung!';
-            wp_send_json_success(['message' => $hp_msg]);
+        /* ---- Rate limit (per IP + form) to prevent replay/abuse ---- */
+        if (self::isRateLimited($form_id)) {
+            wp_send_json_error(
+                ['message' => __('Too many submissions, please try again later.', 'form-forge')],
+                429
+            );
         }
 
         /* ---- Load form ---- */
         $form = FormModel::get($form_id);
         if (!$form) {
-            wp_send_json_error(['message' => 'Formular nicht gefunden.'], 404);
+            wp_send_json_error(['message' => __('Form not found.', 'form-forge')], 404);
         }
 
-        /* ---- Validate all fields ---- */
-        $errors = [];
-        $raw    = [];
+        /* ---- Honeypot check (before any expensive work) ---- */
+        if (!empty($_POST['forge_hp_field'])) {
+            $hp_msg = $form->settings['success_message'] ?? __('Thank you for your submission!', 'form-forge');
+            wp_send_json_success(['message' => $hp_msg]);
+        }
+
+        /* ---- Pass 1: extract all values (no validation yet) ---- */
+        $raw = [];
 
         foreach ($form->fields as $field_cfg) {
             $field_id   = $field_cfg['id'] ?? '';
@@ -74,28 +80,38 @@ class FormProcessor
             }
 
             $handler = FieldRegistry::get($field_type);
-            if (!$handler) {
+            if (!$handler || $handler->skipValidation()) {
                 continue;
             }
 
-            /* Layout/presentation-only fields have no submission value */
-            if ($handler->skipValidation()) {
-                continue;
-            }
-
-            /* Group field: validate children across all submitted copies */
             if ($handler->isGroupContainer()) {
                 $children   = $field_cfg['children'] ?? [];
                 $group_post = isset($_POST[$field_id]) && is_array($_POST[$field_id])
                     ? $_POST[$field_id] : [];
+                $sanitized  = [];
 
-                $sanitized = [];
-                foreach ($group_post as $copy_idx => $copy_data) {
-                    $copy_idx = (int) $copy_idx;
-                    if ($copy_idx < 1 || !is_array($copy_data)) {
-                        continue;
+                if (!empty($group_post)) {
+                    foreach ($group_post as $copy_idx => $copy_data) {
+                        $copy_idx = (int) $copy_idx;
+                        if ($copy_idx < 1 || !is_array($copy_data)) {
+                            continue;
+                        }
+                        $sanitized[$copy_idx] = [];
+                        foreach ($children as $child_cfg) {
+                            $child_id   = $child_cfg['id']   ?? '';
+                            $child_type = $child_cfg['type'] ?? '';
+                            if (!$child_id || !$child_type) {
+                                continue;
+                            }
+                            $ch = FieldRegistry::get($child_type);
+                            if (!$ch) {
+                                continue;
+                            }
+                            $sanitized[$copy_idx][$child_id] = $ch->extractFromRaw($copy_data[$child_id] ?? '');
+                        }
                     }
-                    $sanitized[$copy_idx] = [];
+                } else {
+                    $flat_copy = [];
                     foreach ($children as $child_cfg) {
                         $child_id   = $child_cfg['id']   ?? '';
                         $child_type = $child_cfg['type'] ?? '';
@@ -103,17 +119,105 @@ class FormProcessor
                             continue;
                         }
                         $ch = FieldRegistry::get($child_type);
-                        if (!$ch) {
+                        if (!$ch || $ch->skipValidation()) {
                             continue;
                         }
-                        $raw_v = $copy_data[$child_id] ?? '';
-                        $val   = $ch->extractFromRaw($raw_v);
-                        $sanitized[$copy_idx][$child_id] = $val;
+                        $flat_copy[$child_id] = $ch->extractValue($child_id);
+                    }
+                    if (!empty($flat_copy)) {
+                        $sanitized[1] = $flat_copy;
+                    }
+                }
 
-                        $ekey = $field_id . '[' . $copy_idx . '][' . $child_id . ']';
+                $raw[$field_id] = $sanitized;
+                continue;
+            }
+
+            $raw[$field_id] = $handler->extractValue($field_id);
+        }
+
+        /* ---- Build flat value map for condition evaluation ---- */
+        /* Track which field IDs are group containers so the loop can tell
+           a group's [copy_idx => [child_id => val]] structure apart from a
+           top-level field that legitimately returns an array (checkbox, slider
+           ranged mode, expanded address/name, post-data, etc.). */
+        $group_ids = [];
+        foreach ($form->fields as $fc) {
+            $h = FieldRegistry::get($fc['type'] ?? '');
+            if ($h && $h->isGroupContainer()) {
+                $group_ids[$fc['id'] ?? ''] = true;
+            }
+        }
+
+        $flat = [];
+        foreach ($raw as $fid => $val) {
+            if (isset($group_ids[$fid]) && is_array($val)) {
+                foreach ($val as $copy) {
+                    if (is_array($copy)) {
+                        foreach ($copy as $cid => $cv) {
+                            $flat[$cid] = $cv;
+                        }
+                    }
+                }
+            } else {
+                $flat[$fid] = $val;
+            }
+        }
+
+        /* ---- Pass 2: validate visible fields only ---- */
+        $errors = [];
+
+        foreach ($form->fields as $field_cfg) {
+            $field_id   = $field_cfg['id'] ?? '';
+            $field_type = $field_cfg['type'] ?? '';
+
+            if (!$field_id || !$field_type) {
+                continue;
+            }
+
+            $handler = FieldRegistry::get($field_type);
+            if (!$handler || $handler->skipValidation()) {
+                continue;
+            }
+
+            /* Skip the entire group + all its children when the group is hidden. */
+            if (self::isHiddenByConditions($field_cfg, $flat)) {
+                continue;
+            }
+
+            if ($handler->isGroupContainer()) {
+                $children  = $field_cfg['children'] ?? [];
+                $group_raw = $raw[$field_id] ?? [];
+
+                foreach ($group_raw as $copy_idx => $copy_data) {
+                    if (!is_array($copy_data)) {
+                        continue;
+                    }
+                    foreach ($children as $child_cfg) {
+                        $child_id   = $child_cfg['id']   ?? '';
+                        $child_type = $child_cfg['type'] ?? '';
+                        if (!$child_id || !$child_type) {
+                            continue;
+                        }
+                        $ch = FieldRegistry::get($child_type);
+                        if (!$ch || $ch->skipValidation()) {
+                            continue;
+                        }
+
+                        /* Skip child if hidden by its own conditions. */
+                        if (self::isHiddenByConditions($child_cfg, $flat)) {
+                            continue;
+                        }
+
+                        $val  = $copy_data[$child_id] ?? '';
+                        $ekey = count($group_raw) > 1
+                            ? $field_id . '[' . $copy_idx . '][' . $child_id . ']'
+                            : $child_id;
+
                         if (!empty($child_cfg['required']) && $val === '') {
-                            $errors[$ekey] = ($child_cfg['label'] ?? $child_id) . ' ist ein Pflichtfeld.';
+                            $errors[$ekey] = sprintf(__('%s is a required field.', 'form-forge'), esc_html($child_cfg['label'] ?? $child_id));
                         } else {
+                            $child_cfg['field_id'] = $child_id;
                             $result = $ch->validate($val, $child_cfg);
                             if ($result !== true) {
                                 $errors[$ekey] = $result;
@@ -121,15 +225,10 @@ class FormProcessor
                         }
                     }
                 }
-                $raw[$field_id] = $sanitized;
                 continue;
             }
 
-            /* Collect raw value */
-            $value = $handler->extractValue($field_id);
-            $raw[$field_id] = $value;
-
-            /* Validate — pass field_id so UploadField can resolve $_FILES correctly */
+            $value             = $raw[$field_id] ?? '';
             $field_cfg['field_id'] = $field_id;
             $result = $handler->validate($value, $field_cfg);
             if ($result !== true) {
@@ -139,21 +238,178 @@ class FormProcessor
 
         /* ---- Honeypot check ---- */
         if (!empty($_POST['forge_hp_field'])) {
-            wp_send_json_success(['message' => $form->settings['success_message'] ?? 'Vielen Dank für Ihre Einsendung!']);
+            wp_send_json_success(['message' => $form->settings['success_message'] ?? __('Thank you for your submission!', 'form-forge')]);
         }
 
         if (!empty($errors)) {
-            wp_send_json_error(['message' => 'Bitte korrigieren Sie die markierten Felder.', 'errors' => $errors], 422);
+            wp_send_json_error(['message' => __('Please correct the highlighted fields.', 'form-forge'), 'errors' => $errors], 422);
         }
 
         /* ---- Map to human-readable for PDF/email ---- */
-        $mapped = FieldRegistry::mapSubmission($form->fields, $raw, $_FILES);
+        /* $flat is already built; use it to remove hidden field entries. */
+        $hidden_ids = self::collectHiddenIds($form->fields, $flat, $raw);
+        $mapped     = FieldRegistry::mapSubmission($form->fields, $raw, $_FILES);
+
+        foreach ($hidden_ids as $hid) {
+            unset($mapped[$hid]);
+        }
 
         /* ---- Fire submission hook (PDF generation + mail happens here) ---- */
         do_action('forge_forms_submission', $form_id, $mapped, $form);
 
         /* ---- Respond ---- */
-        $success_msg = esc_html($form->settings['success_message'] ?? 'Vielen Dank für Ihre Einsendung!');
+        $success_msg = esc_html($form->settings['success_message'] ?? __('Thank you for your submission!', 'form-forge'));
         wp_send_json_success(['message' => $success_msg]);
+    }
+
+    /**
+     * Checks and increments a per-IP, per-form submission counter using a
+     * short-lived transient, to slow down scripted replay/abuse of the
+     * public submission endpoint.
+     *
+     * @param int $form_id The form being submitted.
+     *
+     * @return bool True when the caller has exceeded the allowed rate.
+     */
+    private static function isRateLimited(int $form_id): bool
+    {
+        $ip  = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
+        $key = 'forge_rl_' . md5($ip . '_' . $form_id);
+        $count = (int) get_transient($key);
+        if ($count >= 10) {
+            return true;
+        }
+        set_transient($key, $count + 1, 5 * MINUTE_IN_SECONDS);
+        return false;
+    }
+
+    /**
+     * Returns all field IDs (top-level and group children) that should be hidden
+     * based on the submitted values and the form's condition rules.
+     *
+     * @param array $fields     Form field configs.
+     * @param array $flat       Flat map of field_id → submitted value.
+     *
+     * @return array<string>
+     */
+    private static function collectHiddenIds(array $fields, array $flat, array $raw): array
+    {
+        $hidden = [];
+
+        foreach ($fields as $field_cfg) {
+            $field_id = $field_cfg['id'] ?? '';
+            if (!$field_id) {
+                continue;
+            }
+
+            $group_hidden = self::isHiddenByConditions($field_cfg, $flat);
+
+            /* Determine copy count to replicate GroupField::mapNormalized key suffixing. */
+            $copies     = is_array($raw[$field_id] ?? null) ? ($raw[$field_id]) : [];
+            $copy_count = count($copies);
+
+            if ($group_hidden) {
+                $hidden[] = $field_id;
+                foreach ($field_cfg['children'] ?? [] as $child) {
+                    $cid = $child['id'] ?? '';
+                    if (!$cid) {
+                        continue;
+                    }
+                    if ($copy_count > 1) {
+                        foreach (array_keys($copies) as $idx) {
+                            $hidden[] = $cid . '_copy_' . $idx;
+                        }
+                    } else {
+                        $hidden[] = $cid;
+                    }
+                }
+                continue;
+            }
+
+            /* Group visible — still check each child's own conditions. */
+            foreach ($field_cfg['children'] ?? [] as $child) {
+                $cid = $child['id'] ?? '';
+                if (!$cid || !self::isHiddenByConditions($child, $flat)) {
+                    continue;
+                }
+                if ($copy_count > 1) {
+                    foreach (array_keys($copies) as $idx) {
+                        $hidden[] = $cid . '_copy_' . $idx;
+                    }
+                } else {
+                    $hidden[] = $cid;
+                }
+            }
+        }
+
+        return $hidden;
+    }
+
+    /**
+     * Evaluates a single field's condition config against the flat value map.
+     * Returns true when the field should be hidden.
+     *
+     * @param array $field_cfg Field or child config with optional 'conditions' key.
+     * @param array $flat      Flat field_id → value map.
+     *
+     * @return bool
+     */
+    private static function isHiddenByConditions(array $field_cfg, array $flat): bool
+    {
+        $rules = $field_cfg['conditions']['rules'] ?? [];
+        if (empty($rules)) {
+            return false;
+        }
+
+        $action = $field_cfg['conditions']['action'] ?? 'show';
+        $match  = $field_cfg['conditions']['match']  ?? 'all';
+
+        $results = [];
+        foreach ($rules as $r) {
+            if (is_array($r)) {
+                $results[] = self::evalConditionRule($r, $flat);
+            }
+        }
+
+        $pass = $match === 'any'
+            ? in_array(true, $results, strict: true)
+            : !in_array(false, $results, strict: true);
+
+        return $action === 'hide' ? $pass : !$pass;
+    }
+
+    /**
+     * Evaluates one condition rule against the flat value map.
+     *
+     * @param array $rule Rule: field_id, operator, value.
+     * @param array $flat Flat field_id → value map.
+     *
+     * @return bool
+     */
+    private static function evalConditionRule(array $rule, array $flat): bool
+    {
+        $fid   = $rule['field_id'] ?? '';
+        $op    = $rule['operator'] ?? 'equals';
+        $rv    = strtolower((string)($rule['value'] ?? ''));
+        $val   = $flat[$fid] ?? '';
+        $isArr = is_array($val);
+        $str   = $isArr ? strtolower(implode(',', $val)) : strtolower((string)$val);
+        $lower = $isArr ? array_map('strtolower', $val) : [];
+
+        return match ($op) {
+            'equals'       => $isArr ? in_array($rv, $lower, strict: true) : $str === $rv,
+            'not_equals'   => $isArr ? !in_array($rv, $lower, strict: true) : $str !== $rv,
+            'contains'     => $rv !== '' && ($isArr
+                ? (bool) array_filter($lower, static fn($v) => str_contains($v, $rv))
+                : str_contains($str, $rv)),
+            'not_contains' => $rv === '' || ($isArr
+                ? !array_filter($lower, static fn($v) => str_contains($v, $rv))
+                : !str_contains($str, $rv)),
+            'empty'        => $isArr ? empty($val) : $str === '',
+            'not_empty'    => $isArr ? !empty($val) : $str !== '',
+            'greater'      => is_numeric($str) && is_numeric($rv) && (float)$str > (float)$rv,
+            'less'         => is_numeric($str) && is_numeric($rv) && (float)$str < (float)$rv,
+            default        => true,
+        };
     }
 }

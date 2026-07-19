@@ -35,7 +35,7 @@ class WebsiteField extends BaseField
      */
     public function getLabel(): string
     {
-        return 'Website';
+        return __('Website', 'form-forge');
     }
 
     /**
@@ -60,7 +60,7 @@ class WebsiteField extends BaseField
                 var inp = fieldEl.querySelector('input[type="url"]');
                 if (!inp || !inp.value.trim() || inp.dataset.validateUrl !== '1') return null;
                 return /^https?:\/\/.+\..+/.test(inp.value.trim())
-                    ? null : 'Bitte geben Sie eine gültige URL ein (z.B. https://beispiel.de).';
+                    ? null : 'Please enter a valid URL (e.g. https://example.com).';
             }
             JS]];
     }
@@ -99,8 +99,8 @@ class WebsiteField extends BaseField
             return $base;
         }
         if (!empty($value) && !empty($config['validate_url'])) {
-            if (!filter_var((string)$value, FILTER_VALIDATE_URL)) {
-                return 'Bitte geben Sie eine gültige URL ein (z.B. https://beispiel.de).';
+            if (!filter_var((string)$value, FILTER_VALIDATE_URL) || !preg_match('#^https?://#i', (string)$value)) {
+                return __('Please enter a valid URL (e.g. https://example.com).', 'form-forge');
             }
         }
         return true;
@@ -124,11 +124,12 @@ class WebsiteField extends BaseField
     public function getGeneralSchema(): array
     {
         return array_merge(
-            $this->baseGeneralEntries(), [
+            $this->baseGeneralEntries(),
+            [
             [
                 'key'   => 'validate_url',
                 'type'  => 'checkbox',
-                'label' => 'URL-Format prüfen',
+                'label' => __('Validate URL format', 'form-forge'),
             ],
             ]
         );

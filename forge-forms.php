@@ -1,33 +1,17 @@
 <?php
 
 /**
- * Plugin entry point and WordPress plugin header.
- *
- * PHP Version 8.1
- *
- * @category  FormForge
- * @package   FormForge
- * @author    Alexander Jorek
- * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
- * @version   1.0.0
- * @link      https://github.com/AlexanderJorek/FormForge
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- */
-
-/**
- * Plugin Name: FormForge
- * Description: Lightweight form builder with tamper-evident PDF generation.
- * Version:     1.0.0
- * Author:      Alexander Jorek
- * License:     GPL v2 or later
- * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain: forge-forms
- * Requires PHP: 8.1
+ * Plugin Name:       FormForge
+ * Plugin URI:        https://github.com/AlexanderJorek/FormForge
+ * Description:       Custom drag-and-drop form builder with PDF generation and email delivery.
+ * Version:           1.0.0
+ * Requires at least: 6.4
+ * Requires PHP:      8.1
+ * Author:            Alexander Jorek
+ * Author URI:        https://github.com/AlexanderJorek
+ * License:           GPL-2.0-or-later
+ * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
+ * Text Domain:       form-forge
  */
 
 defined('ABSPATH') || exit;
@@ -42,10 +26,11 @@ if (file_exists($composer_autoload)) {
     include_once $composer_autoload;
 } else {
     add_action(
-        'admin_notices', static function (): void {
+        'admin_notices',
+        static function (): void {
             echo '<div class="notice notice-error"><p>'
-            . '<strong>FormForge:</strong> Composer autoloader not found. '
-            . 'Run <code>composer install</code> in the plugin directory.'
+            . '<strong>FormForge:</strong> '
+            . __('Composer autoloader not found. Run <code>composer install</code> in the plugin directory.', 'form-forge')
             . '</p></div>';
         }
     );
@@ -54,7 +39,8 @@ if (file_exists($composer_autoload)) {
 require_once FORGE_FORMS_PATH . 'includes/Plugin.php';
 
 add_action(
-    'plugins_loaded', static function (): void {
+    'plugins_loaded',
+    static function (): void {
         \ForgeForms\Plugin::init();
     }
 );

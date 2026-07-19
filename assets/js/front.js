@@ -55,15 +55,26 @@
             var type    = (fieldEl.className.match(/forge-field--(\S+)/) || [])[1] || '';
             var checker = (window.ForgeEmptyChecks || {})[type];
             if (checker) return checker(fieldEl);
-            /* Generic fallback: first visible input non-empty */
+            /* Generic fallback */
             var inp = fieldEl.querySelector('input:not([type="hidden"]):not([type="submit"]), textarea, select');
-            return !inp || !inp.value.trim();
+            if (!inp) return true;
+            if (inp.type === 'radio') return !fieldEl.querySelector('input[type="radio"]:checked');
+            return !inp.value.trim();
+        }
+
+        function isConditionallyHidden(el) {
+            while (el) {
+                if (el.dataset && 'conditions' in el.dataset && el.style.display === 'none') return true;
+                el = el.parentElement;
+            }
+            return false;
         }
 
         var skipTypes = window.ForgeSkipValidation || [];
         scope.querySelectorAll('.forge-field').forEach(function (fieldEl) {
             var type = (fieldEl.className.match(/forge-field--(\S+)/) || [])[1] || '';
             if (skipTypes.indexOf(type) !== -1) return;
+            if (isConditionallyHidden(fieldEl)) return;
 
             var isRequired = fieldEl.classList.contains('forge-required-field')
                 || fieldEl.dataset.required === 'true';
@@ -196,6 +207,8 @@
                 });
             }
 
+            form.addEventListener('forge:reset', function () { showPage(0, false); });
+
             form.addEventListener('click', function (e) {
                 if (e.target.classList.contains('forge-btn-next')) {
                     var idx    = currentIdx();
@@ -207,8 +220,8 @@
                     if (idx < pages.length - 1) showPage(idx + 1, true);
                 }
                 if (e.target.classList.contains('forge-btn-prev')) {
-                    var idx = currentIdx();
-                    if (idx > 0) showPage(idx - 1, true);
+                    var idx2 = currentIdx();
+                    if (idx2 > 0) showPage(idx2 - 1, true);
                 }
             });
 
@@ -216,12 +229,90 @@
         });
     }
 
+    /* ── Conditional logic ───────────────────────────────────────────────── */
+
+    function initConditions(root) {
+        root.querySelectorAll('.forge-form').forEach(function (form) {
+            if (!form.querySelector('[data-conditions]')) return;
+
+            function getFieldValue(fieldId) {
+                var name    = CSS.escape(fieldId);
+                var all     = Array.from(form.querySelectorAll('[name="' + name + '"]'));
+                if (!all.length) return '';
+                /* Treat inputs inside a hidden conditional ancestor as absent */
+                var inputs = all.filter(function (i) {
+                    var p = i.parentElement;
+                    while (p && p !== form) {
+                        if ('conditions' in (p.dataset || {}) && p.style.display === 'none') return false;
+                        p = p.parentElement;
+                    }
+                    return true;
+                });
+                if (!inputs.length) return all[0].type === 'checkbox' ? [] : '';
+                var first = inputs[0];
+                if (first.type === 'radio') {
+                    var chk = inputs.find(function (i) { return i.checked; });
+                    return chk ? chk.value : '';
+                }
+                if (first.type === 'checkbox') {
+                    return inputs.filter(function (i) { return i.checked; }).map(function (i) { return i.value; });
+                }
+                if (first.tagName === 'SELECT' && first.multiple) {
+                    return Array.from(first.selectedOptions).map(function (o) { return o.value; });
+                }
+                return first.value;
+            }
+
+            function testRule(rule) {
+                var val  = getFieldValue(rule.field_id || '');
+                var op   = rule.operator || 'equals';
+                var rv   = (rule.value || '').toString().toLowerCase();
+                var isArr = Array.isArray(val);
+                var str   = isArr ? '' : (val || '').toString().toLowerCase();
+                switch (op) {
+                    case 'equals':       return isArr ? val.some(function (v) { return v.toLowerCase() === rv; }) : str === rv;
+                    case 'not_equals':   return isArr ? val.every(function (v) { return v.toLowerCase() !== rv; }) : str !== rv;
+                    case 'contains':     return rv !== '' && (isArr
+                        ? val.some(function (v) { return v.toLowerCase().indexOf(rv) !== -1; })
+                        : str.indexOf(rv) !== -1);
+                    case 'not_contains': return rv === '' || (isArr
+                        ? val.every(function (v) { return v.toLowerCase().indexOf(rv) === -1; })
+                        : str.indexOf(rv) === -1);
+                    case 'empty':        return isArr ? val.length === 0 : str === '';
+                    case 'not_empty':    return isArr ? val.length > 0   : str !== '';
+                    case 'greater':      { var a = parseFloat(str), b = parseFloat(rv); return !isNaN(a) && !isNaN(b) && a > b; }
+                    case 'less':         { var a2 = parseFloat(str), b2 = parseFloat(rv); return !isNaN(a2) && !isNaN(b2) && a2 < b2; }
+                    default:             return true;
+                }
+            }
+
+            function applyAll() {
+                form.querySelectorAll('[data-conditions]').forEach(function (el) {
+                    var cond;
+                    try { cond = JSON.parse(el.dataset.conditions); } catch (_) { return; }
+                    var rules = cond.rules || [];
+                    if (!rules.length) return;
+                    var pass = cond.match === 'any'
+                        ? rules.some(testRule)
+                        : rules.every(testRule);
+                    el.style.display = (cond.action === 'hide' ? !pass : pass) ? '' : 'none';
+                });
+            }
+
+            form.addEventListener('change', applyAll);
+            form.addEventListener('input',  applyAll);
+            applyAll();
+        });
+    }
+
     /* ── AJAX form submission ─────────────────────────────────────────────── */
 
     function initForms(root) {
         root.querySelectorAll('.forge-form').forEach(function (form) {
+            var isSubmitting = false;
             form.addEventListener('submit', function (e) {
                 e.preventDefault();
+                if (isSubmitting) return;
 
                 var wrap    = form.closest('.forge-form-wrap');
                 var msgBox  = wrap && wrap.querySelector('.forge-form-messages');
@@ -283,6 +374,7 @@
                 if (spinner) spinner.style.display = '';
                 if (msgBox) { msgBox.style.display = 'none'; msgBox.className = 'forge-form-messages'; }
 
+                isSubmitting = true;
                 var data = new FormData(form);
 
                 fetch((window.ForgeForms && window.ForgeForms.ajaxUrl) || '', {
@@ -294,6 +386,7 @@
                 .then(function (res) {
                     if (spinner) spinner.style.display = 'none';
 
+                    isSubmitting = false;
                     if (res.success) {
                         if (label) label.textContent = origLabel;
                         if (btn) btn.disabled = false;
@@ -305,9 +398,15 @@
                             msgBox.style.display = '';
                         }
                         form.reset();
+                        form.dispatchEvent(new Event('change'));
+                        form.dispatchEvent(new Event('forge:reset'));
                         /* Re-init dynamic fields after reset */
                         var fi = window.ForgeFieldInits || {};
                         Object.keys(fi).forEach(function (t) { fi[t](form); });
+                        /* Scroll to form top so the success message is in view */
+                        var scrollTarget = wrap || form;
+                        var scrollTop = scrollTarget.getBoundingClientRect().top + window.pageYOffset - 20;
+                        window.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
                     } else {
                         if (label) label.textContent = origLabel;
                         if (btn) btn.disabled = false;
@@ -336,6 +435,7 @@
                     }
                 })
                 .catch(function () {
+                    isSubmitting = false;
                     if (label) label.textContent = origLabel;
                     if (btn) btn.disabled = false;
                     if (spinner) spinner.style.display = 'none';
@@ -356,6 +456,7 @@
         var fieldInits = window.ForgeFieldInits || {};
         Object.keys(fieldInits).forEach(function (type) { fieldInits[type](root); });
         initPageBreaks(root);
+        initConditions(root);
         initForms(root);
     }
 
@@ -363,5 +464,13 @@
         document.addEventListener('DOMContentLoaded', function () { init(document); });
     } else {
         init(document);
+    }
+
+    /* ── Test hook (WP_DEBUG only) ────────────────────────────────────────── */
+    if (window.__FORGE_TEST__) {
+        window.ForgeTestHooks = {
+            validatePage:   validatePage,
+            initConditions: initConditions,
+        };
     }
 }());

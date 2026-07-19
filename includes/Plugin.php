@@ -102,6 +102,8 @@ class Plugin
             'Form/FormProcessor.php',
             'Form/FormRenderer.php',
             'PDF/HashSeal.php',
+            'PDF/PdfUtils.php',
+            'PDF/PdfDescriptor.php',
             'PDF/Generator.php',
             'Form/MailSender.php',
             'Utils/Assets.php',
@@ -116,6 +118,9 @@ class Plugin
                 'Admin/FormList.php', 'Admin/FormEditor.php', 'Admin/FormSettings.php',
                 'Admin/PDFLayoutEditor.php', 'Admin/Verificationpage.php',
             ];
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                $adminFiles[] = 'Admin/FieldTestPage.php';
+            }
             foreach ($adminFiles as $file) {
                 include_once FORGE_FORMS_PATH . 'includes/' . $file;
             }
@@ -148,12 +153,16 @@ class Plugin
         add_action('wp_ajax_nopriv_forge_iban_bic', [self::class, 'ajaxIbanBic']);
 
         /* PDF mail hook */
+        Form\MailSender::init();
         add_action(
             'forge_forms_submission',
             [Form\MailSender::class, 'onSubmission'],
             10,
             3
         );
+
+        /* Remove deleted forms from all FormSelect lists */
+        add_action('before_delete_post', [Form\FormSelectModel::class, 'removeFormId'], 10, 1);
 
         /* Assets */
         add_action('wp_enqueue_scripts', [Utils\Assets::class, 'enqueueFront']);
@@ -165,6 +174,9 @@ class Plugin
             Admin\FormSettings::init();
             Admin\PDFLayoutEditor::init();
             Admin\Verificationpage::register();
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                Admin\FieldTestPage::register();
+            }
             add_action('admin_enqueue_scripts', [Utils\Assets::class, 'enqueueAdmin']);
             add_action('admin_init', [self::class, 'maybeSealSetupRedirect']);
             add_filter('plugin_action_links_' . FORGE_FORMS_BASENAME, [self::class, 'addDeleteWarningLink']);
@@ -178,6 +190,15 @@ class Plugin
      */
     public static function ajaxIbanBic(): void
     {
+        $ip  = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
+        $key = 'forge_rl_iban_' . md5($ip);
+        $count = (int) get_transient($key);
+        if ($count >= 20) {
+            wp_send_json_error();
+            return;
+        }
+        set_transient($key, $count + 1, MINUTE_IN_SECONDS);
+
         $iban = preg_replace('/[^A-Z0-9]/', '', strtoupper(sanitize_text_field(wp_unslash($_POST['iban'] ?? ''))));
         if (strlen($iban) < 15) {
             wp_send_json_error();
@@ -213,13 +234,14 @@ class Plugin
     public static function registerCpt(): void
     {
         register_post_type(
-            'forge_form', [
-            'label'               => 'Forms',
+            'forge_form',
+            [
+            'label'               => __('Forms', 'form-forge'),
             'labels'              => [
-                'name'          => 'FormForge',
-                'singular_name' => 'Form',
-                'add_new_item'  => 'Add New Form',
-                'edit_item'     => 'Edit Form',
+                'name'          => __('FormForge', 'form-forge'),
+                'singular_name' => __('Form', 'form-forge'),
+                'add_new_item'  => __('Add New Form', 'form-forge'),
+                'edit_item'     => __('Edit Form', 'form-forge'),
             ],
             'public'              => false,
             'show_ui'             => false,
@@ -245,12 +267,9 @@ class Plugin
         if (isset($links['delete'])) {
             $links['delete'] = preg_replace(
                 '/(<a\s)/i',
-                '$1onclick="return confirm('
-                    . "'"
-                    . 'ACHTUNG: Beim Löschen des Plugins werden alle PDF-Siegelschlüssel unwiderruflich gelöscht. '
-                    . 'Stellen Sie sicher, dass Sie Ihre Schlüssel gesichert haben. Fortfahren?'
-                    . "'"
-                    . ');" ',
+                '$1onclick="return confirm(\''
+                    . esc_js(__('WARNING: Deleting the plugin will permanently delete all PDF seal keys. Make sure you have backed up your keys. Continue?', 'form-forge'))
+                    . '\');" ',
                 (string) $links['delete']
             );
         }
@@ -277,7 +296,10 @@ class Plugin
         if (user_can($user_id, 'manage_options')) {
             return true;
         }
-        $access = get_option('forge_forms_access', []);
+        static $access = null;
+        if ($access === null) {
+            $access = get_option('forge_forms_access', []);
+        }
         $user_overrides = $access['users'] ?? [];
         if (isset($user_overrides[$user_id]) && is_array($user_overrides[$user_id])) {
             return !empty($user_overrides[$user_id][$cap]);

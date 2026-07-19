@@ -71,21 +71,36 @@ class FormList
     public static function menu(): void
     {
         if (\ForgeForms\Plugin::userCan('view_forms')) {
+            $menuIconSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
+                . '<path fill="#fff" transform="rotate(-45 10 10)" d="'
+                . 'M11.9.39l1.4 1.4c1.61.19 3.5-.74 4.61.37s.18 3 .37 4.61l1.4 1.4c'
+                . '.39.39.39 1.02 0 1.41l-9.19 9.2c-.4.39-1.03.39-1.42 0L1.29 11c'
+                . '-.39-.39-.39-1.02 0-1.42l9.2-9.19c.39-.39 1.02-.39 1.41 0z'
+                . 'm.58 2.25l-.58.58 4.95 4.95.58-.58c-.19-.6-.2-1.22-.15-1.82'
+                . '.02-.31.05-.62.09-.92.12-1 .18-1.63-.17-1.98s-.98-.29-1.98-.17'
+                . 'c-.3.04-.61.07-.92.09-.6.05-1.22.04-1.82-.15z'
+                . 'm4.02.93c.39.39.39 1.03 0 1.42s-1.03.39-1.42 0-.39-1.03 0-1.42 1.03-.39 1.42 0z'
+                . 'm-6.72.36l-.71.7L15.44 11l.7-.71z'
+                . 'M8.36 5.34l-.7.71 6.36 6.36.71-.7z'
+                . 'M6.95 6.76l-.71.7 6.37 6.37.7-.71z'
+                . 'M5.54 8.17l-.71.71 6.36 6.36.71-.71z'
+                . 'M4.12 9.58l-.71.71 6.37 6.37.71-.71z'
+                . '"/></svg>';
             add_menu_page(
-                'FormForge Formular Liste',
-                'FormForge',
+                __('FormForge Form List', 'form-forge'),
+                __('FormForge', 'form-forge'),
                 'read',
                 'forge-forms',
                 [self::class, 'render'],
-                'data:image/svg+xml;base64,' . base64_encode('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path fill="#fff" transform="rotate(-45 10 10)" d="M11.9.39l1.4 1.4c1.61.19 3.5-.74 4.61.37s.18 3 .37 4.61l1.4 1.4c.39.39.39 1.02 0 1.41l-9.19 9.2c-.4.39-1.03.39-1.42 0L1.29 11c-.39-.39-.39-1.02 0-1.42l9.2-9.19c.39-.39 1.02-.39 1.41 0zm.58 2.25l-.58.58 4.95 4.95.58-.58c-.19-.6-.2-1.22-.15-1.82.02-.31.05-.62.09-.92.12-1 .18-1.63-.17-1.98s-.98-.29-1.98-.17c-.3.04-.61.07-.92.09-.6.05-1.22.04-1.82-.15zm4.02.93c.39.39.39 1.03 0 1.42s-1.03.39-1.42 0-.39-1.03 0-1.42 1.03-.39 1.42 0zm-6.72.36l-.71.7L15.44 11l.7-.71zM8.36 5.34l-.7.71 6.36 6.36.71-.7zM6.95 6.76l-.71.7 6.37 6.37.7-.71zM5.54 8.17l-.71.71 6.36 6.36.71-.71zM4.12 9.58l-.71.71 6.37 6.37.71-.71z"/></svg>'),
+                'data:image/svg+xml;base64,' . base64_encode($menuIconSvg),
                 30
             );
 
             // Rename the auto-generated first submenu entry from "FormForge" to "Formular Liste"
             add_submenu_page(
                 'forge-forms',
-                'FormForge Formular Liste',
-                'Formular Liste',
+                __('FormForge Form List', 'form-forge'),
+                __('Form List', 'form-forge'),
                 'read',
                 'forge-forms',
                 [self::class, 'render']
@@ -101,7 +116,7 @@ class FormList
     public static function render(): void
     {
         if (!\ForgeForms\Plugin::userCan('view_forms')) {
-            wp_die('Keine Berechtigung.');
+            wp_die(__('Permission denied.', 'form-forge'));
         }
 
         $forms   = FormModel::getAll();
@@ -111,7 +126,7 @@ class FormList
 
         <div class="wrap forge-list-wrap">
 
-            <div class="forge-title-pill">Formulare</div>
+            <div class="forge-title-pill"><?php esc_html_e('Forms', 'form-forge'); ?></div>
             <hr class="wp-header-end" style="display:none">
 
             <div class="forge-list-toolbar" id="forge-list-toolbar">
@@ -119,53 +134,53 @@ class FormList
                     <?php $noForms = empty($forms) ? ' hidden' : ''; ?>
                     <div class="forge-toolbar-left" id="forge-toolbar-left"<?php echo $noForms; ?>>
                         <label class="forge-select-all-wrap">
-                            <input type="checkbox" id="forge-select-all" title="Alle auswählen">
+                            <input type="checkbox" id="forge-select-all" title="<?php echo esc_attr__('Select all', 'form-forge'); ?>">
                         </label>
                         <div class="forge-bulk-bar" id="forge-bulk-bar" hidden>
                             <span class="forge-bulk-count" id="forge-bulk-count"></span>
                             <div class="forge-bulk-action-wrap">
                                 <button class="button forge-list-btn" id="forge-bulk-action-btn">
-                                    <span id="forge-bulk-action-label">Aktion wählen</span> &#9660;
+                                    <span id="forge-bulk-action-label"><?php esc_html_e('Choose action', 'form-forge'); ?></span> &#9660;
                                 </button>
                                 <div class="forge-row-dropdown" id="forge-bulk-action-dd" hidden>
                                     <button class="forge-dd-item" data-action="duplicate">
-                                        <i class="fa-solid fa-copy"></i> Duplizieren
+                                        <i class="fa-solid fa-copy"></i> <?php esc_html_e('Duplicate', 'form-forge'); ?>
                                     </button>
                                     <div class="forge-dd-sep"></div>
                                     <button class="forge-dd-item forge-dd-item--danger" data-action="delete">
-                                        <i class="fa-solid fa-trash"></i> Löschen
+                                        <i class="fa-solid fa-trash"></i> <?php esc_html_e('Delete', 'form-forge'); ?>
                                     </button>
                                 </div>
                             </div>
-                            <button class="button forge-list-btn button-primary" id="forge-bulk-apply">Anwenden</button>
+                            <button class="button forge-list-btn button-primary" id="forge-bulk-apply"><?php esc_html_e('Apply', 'form-forge'); ?></button>
                         </div>
                     </div>
                     <!-- Center: search -->
                     <div class="forge-toolbar-center" id="forge-toolbar-center"<?php echo $noForms; ?>>
                         <input type="search" id="forge-form-search"
-                               placeholder="Formulare suchen…" autocomplete="off">
+                               placeholder="<?php echo esc_attr__('Search forms…', 'form-forge'); ?>" autocomplete="off">
                     </div>
                     <!-- Right: import input + new form -->
                     <div class="forge-toolbar-right">
                         <div class="forge-import-wrap">
                             <input type="text" id="forge-import-input"
-                                   placeholder="Export-String einfügen…" autocomplete="off">
+                                   placeholder="<?php echo esc_attr__('Paste export string…', 'form-forge'); ?>" autocomplete="off">
                             <button class="button forge-list-btn" id="forge-import-submit">
                                 <i class="fa-solid fa-file-import"></i>
                             </button>
                         </div>
                         <a href="<?php echo esc_url($new_url); ?>"
                            class="button button-primary forge-list-btn">
-                            + Neues Formular
+                            <?php esc_html_e('+ New Form', 'form-forge'); ?>
                         </a>
                     </div>
                 </div>
 
             <div class="forge-list-empty" id="forge-list-empty"<?php echo !empty($forms) ? ' hidden' : ''; ?>>
-                <h2>Noch keine Formulare</h2>
-                <p>Erstellen Sie Ihr erstes Formular und betten Sie es per Shortcode in jede Seite ein.</p>
+                <h2><?php esc_html_e('No forms yet', 'form-forge'); ?></h2>
+                <p><?php esc_html_e('Create your first form and embed it via shortcode on any page.', 'form-forge'); ?></p>
                 <a href="<?php echo esc_url($new_url); ?>" class="button button-primary">
-                    + Erstes Formular erstellen
+                    <?php esc_html_e('+ Create First Form', 'form-forge'); ?>
                 </a>
             </div>
 
@@ -196,7 +211,7 @@ class FormList
                                     <?php echo esc_html($form->title); ?>
                                 </a>
                                 <div class="forge-form-row-meta">
-                                    <span><?php echo $count; ?> Feld<?php echo $count !== 1 ? 'er' : ''; ?></span>
+                                    <span><?php echo esc_html(sprintf(_n('%d Field', '%d Fields', $count, 'form-forge'), $count)); ?></span>
                                     <span class="forge-meta-sep">&middot;</span>
                                     <code class="forge-form-row-code"><?php echo esc_html($shortcode); ?></code>
                                 </div>
@@ -204,31 +219,31 @@ class FormList
                             <div class="forge-form-row-actions">
                                 <a href="<?php echo esc_url($edit_url); ?>"
                                    class="button forge-btn-edit">
-                                    Bearbeiten
+                                    <?php esc_html_e('Bearbeiten', 'form-forge'); ?>
                                 </a>
                                 <div class="forge-row-menu-wrap">
-                                    <button class="button forge-row-menu-btn" title="Weitere Aktionen">&#8942;</button>
+                                    <button class="button forge-row-menu-btn" title="<?php echo esc_attr__('Weitere Aktionen', 'form-forge'); ?>">&#8942;</button>
                                     <div class="forge-row-dropdown" hidden>
                                         <button class="forge-dd-item forge-copy-shortcode"
                                                 data-code="<?php echo esc_attr($shortcode); ?>">
-                                            <i class="fa-solid fa-clipboard"></i> Shortcode kopieren
+                                            <i class="fa-solid fa-clipboard"></i> <?php esc_html_e('Copy shortcode', 'form-forge'); ?>
                                         </button>
                                         <button class="forge-dd-item forge-duplicate-form"
                                                 data-id="<?php echo $form->id; ?>"
                                                 data-nonce="<?php echo esc_attr($dup_nonce); ?>">
-                                            <i class="fa-solid fa-copy"></i> Duplizieren
+                                            <i class="fa-solid fa-copy"></i> <?php esc_html_e('Duplicate', 'form-forge'); ?>
                                         </button>
                                         <div class="forge-dd-sep"></div>
                                         <button class="forge-dd-item forge-export-form"
                                                 data-id="<?php echo $form->id; ?>"
                                                 data-nonce="<?php echo esc_attr($exp_nonce); ?>">
-                                            <i class="fa-solid fa-file-export"></i> Exportieren
+                                            <i class="fa-solid fa-file-export"></i> <?php esc_html_e('Export', 'form-forge'); ?>
                                         </button>
                                         <div class="forge-dd-sep"></div>
                                         <button class="forge-dd-item forge-dd-item--danger forge-delete-form"
                                                 data-id="<?php echo $form->id; ?>"
                                                 data-nonce="<?php echo esc_attr($del_nonce); ?>">
-                                            <i class="fa-solid fa-trash"></i> Löschen
+                                            <i class="fa-solid fa-trash"></i> <?php esc_html_e('Delete', 'form-forge'); ?>
                                         </button>
                                     </div>
                                 </div>
@@ -236,7 +251,7 @@ class FormList
                         </div>
                     <?php endforeach; ?>
                     <div class="forge-no-results" id="forge-no-results" hidden>
-                        Keine Formulare gefunden.
+                        <?php esc_html_e('No forms found.', 'form-forge'); ?>
                     </div>
                 </div>
             <?php endif; ?>
@@ -245,11 +260,11 @@ class FormList
         <!-- Export modal -->
         <div id="forge-export-modal" class="forge-modal-backdrop" hidden>
             <div class="forge-modal forge-modal--wide">
-                <h3 class="forge-modal-title">Formular exportieren</h3>
+                <h3 class="forge-modal-title"><?php esc_html_e('Export form', 'form-forge'); ?></h3>
 
                 <!-- Loading state -->
                 <div id="forge-export-loading">
-                    <p class="forge-export-loading-label">Exportiere…</p>
+                    <p class="forge-export-loading-label"><?php esc_html_e('Exporting…', 'form-forge'); ?></p>
                     <div class="forge-export-bar-track">
                         <div class="forge-export-bar-fill" id="forge-export-bar"></div>
                     </div>
@@ -263,9 +278,9 @@ class FormList
                     <textarea id="forge-export-string" class="forge-modal-textarea" readonly rows="6"></textarea>
                     <div class="forge-modal-actions">
                         <button class="button forge-list-btn" id="forge-export-copy">
-                            <i class="fa-solid fa-copy"></i> Kopieren
+                            <i class="fa-solid fa-copy"></i> <?php esc_html_e('Copy', 'form-forge'); ?>
                         </button>
-                        <button class="button forge-list-btn" id="forge-export-close">Schließen</button>
+                        <button class="button forge-list-btn" id="forge-export-close"><?php esc_html_e('Close', 'form-forge'); ?></button>
                     </div>
                 </div>
             </div>
@@ -274,10 +289,10 @@ class FormList
 <!-- Delete confirmation modal -->
         <div id="forge-delete-modal" class="forge-modal-backdrop" hidden>
             <div class="forge-modal">
-                <p class="forge-modal-msg" id="forge-modal-msg">Formular wirklich löschen?</p>
+                <p class="forge-modal-msg" id="forge-modal-msg"><?php esc_html_e('Really delete form?', 'form-forge'); ?></p>
                 <div class="forge-modal-actions">
-                    <button class="button forge-list-btn" id="forge-modal-cancel">Abbrechen</button>
-                    <button class="button forge-list-btn forge-btn-danger" id="forge-modal-confirm">Löschen</button>
+                    <button class="button forge-list-btn" id="forge-modal-cancel"><?php esc_html_e('Cancel', 'form-forge'); ?></button>
+                    <button class="button forge-list-btn forge-btn-danger" id="forge-modal-confirm"><?php esc_html_e('Delete', 'form-forge'); ?></button>
                 </div>
             </div>
         </div>
@@ -747,74 +762,69 @@ class FormList
 
             var ctx  = canvas.getContext('2d');
             var mouse = { x: -9999, y: -9999 };
-            var DOTS  = 80, LINK = 150, SPEED = 0.4, COLOR = '99, 132, 180';
-            var particles = [];
+            var _ah = getComputedStyle(document.documentElement).getPropertyValue('--forge-admin-accent').trim()||'#2271b1';
+            var _rgb = function(h){return parseInt(h.slice(1,3),16)+','+parseInt(h.slice(3,5),16)+','+parseInt(h.slice(5,7),16);};
+            var DOTS  = Math.min(120, Math.max(40, Math.round(window.innerWidth * window.innerHeight / 26000)));
+            var LINK = 150, SPEED = 1.0, COLOR = _rgb(_ah);
+            var particles = [], paused = false, FRAME_MS = 1000 / 30;
 
-            function resize() {
-                canvas.width  = window.innerWidth;
-                canvas.height = window.innerHeight;
-            }
-
+            function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
             function rand(min, max) { return min + Math.random() * (max - min); }
 
             function initParticles() {
                 particles = [];
                 for (var i = 0; i < DOTS; i++) {
-                    particles.push({
-                        x: rand(0, canvas.width), y: rand(0, canvas.height),
-                        vx: rand(-SPEED, SPEED),  vy: rand(-SPEED, SPEED),
-                        r: rand(2, 3.5)
-                    });
+                    particles.push({ x: rand(0, canvas.width), y: rand(0, canvas.height),
+                        vx: rand(-SPEED, SPEED), vy: rand(-SPEED, SPEED), r: rand(2, 3.5) });
                 }
             }
 
             function draw() {
+                if (paused) return;
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                particles.forEach(function(p) {
+                for (var i = 0; i < particles.length; i++) {
+                    var p = particles[i];
                     p.x += p.vx; p.y += p.vy;
                     if (p.x < 0 || p.x > canvas.width)  p.vx *= -1;
                     if (p.y < 0 || p.y > canvas.height)  p.vy *= -1;
-                });
+                }
+                ctx.lineWidth = 1;
                 for (var i = 0; i < particles.length; i++) {
                     for (var j = i + 1; j < particles.length; j++) {
-                        var dx = particles[i].x - particles[j].x;
-                        var dy = particles[i].y - particles[j].y;
+                        var dx = particles[i].x - particles[j].x, dy = particles[i].y - particles[j].y;
                         var d  = Math.sqrt(dx * dx + dy * dy);
                         if (d < LINK) {
                             ctx.beginPath();
                             ctx.moveTo(particles[i].x, particles[i].y);
                             ctx.lineTo(particles[j].x, particles[j].y);
                             ctx.strokeStyle = 'rgba(' + COLOR + ',' + (1 - d / LINK) * 0.3 + ')';
-                            ctx.lineWidth = 1;
                             ctx.stroke();
                         }
                     }
-                    var mdx = particles[i].x - mouse.x;
-                    var mdy = particles[i].y - mouse.y;
+                    var mdx = particles[i].x - mouse.x, mdy = particles[i].y - mouse.y;
                     var md  = Math.sqrt(mdx * mdx + mdy * mdy);
                     if (md < LINK) {
                         ctx.beginPath();
                         ctx.moveTo(particles[i].x, particles[i].y);
                         ctx.lineTo(mouse.x, mouse.y);
                         ctx.strokeStyle = 'rgba(' + COLOR + ',' + (1 - md / LINK) * 0.55 + ')';
-                        ctx.lineWidth = 1;
                         ctx.stroke();
                     }
                 }
-                particles.forEach(function(p) {
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-                    ctx.fillStyle = 'rgba(' + COLOR + ', 0.5)';
-                    ctx.fill();
-                });
-                requestAnimationFrame(draw);
+                ctx.fillStyle = 'rgba(' + COLOR + ', 0.5)';
+                for (var i = 0; i < particles.length; i++) {
+                    ctx.beginPath(); ctx.arc(particles[i].x, particles[i].y, particles[i].r, 0, Math.PI * 2); ctx.fill();
+                }
+                setTimeout(function() { requestAnimationFrame(draw); }, FRAME_MS - 2);
             }
 
             document.addEventListener('mousemove', function(e) { mouse.x = e.clientX; mouse.y = e.clientY; });
+            document.addEventListener('visibilitychange', function() {
+                paused = document.hidden;
+                if (!paused) requestAnimationFrame(draw);
+            });
             window.addEventListener('resize', function() { resize(); initParticles(); });
-            resize();
-            initParticles();
-            draw();
+            resize(); initParticles(); requestAnimationFrame(draw);
 
         }());
         </script>
@@ -836,7 +846,7 @@ class FormList
             wp_send_json_error(['message' => 'Nonce verification failed.'], 403);
         }
         FormModel::delete($form_id);
-        wp_send_json_success(['message' => 'Formular gelöscht.']);
+        wp_send_json_success(['message' => __('Form deleted.', 'form-forge')]);
     }
 
     /**
@@ -846,7 +856,7 @@ class FormList
      *
      * @return string Row HTML.
      */
-    private static function _renderRow(\ForgeForms\Form\FormModel $form): string
+    private static function renderRow(\ForgeForms\Form\FormModel $form): string
     {
         $edit_url  = admin_url('admin.php?page=forge-forms-editor&form_id=' . $form->id);
         $shortcode = '[forge_form id="' . $form->id . '"]';
@@ -871,38 +881,38 @@ class FormList
                     <?php echo esc_html($form->title); ?>
                 </a>
                 <div class="forge-form-row-meta">
-                    <span><?php echo $count; ?> Feld<?php echo $count !== 1 ? 'er' : ''; ?></span>
+                    <span><?php echo esc_html(sprintf(_n('%d Field', '%d Fields', $count, 'form-forge'), $count)); ?></span>
                     <span class="forge-meta-sep">&middot;</span>
                     <code class="forge-form-row-code"><?php echo esc_html($shortcode); ?></code>
                 </div>
             </div>
             <div class="forge-form-row-actions">
                 <a href="<?php echo esc_url($edit_url); ?>" class="button forge-btn-edit">
-                    Bearbeiten
+                    <?php esc_html_e('Edit', 'form-forge'); ?>
                 </a>
                 <div class="forge-row-menu-wrap">
-                    <button class="button forge-row-menu-btn" title="Weitere Aktionen">&#8942;</button>
+                    <button class="button forge-row-menu-btn" title="<?php echo esc_attr__('More actions', 'form-forge'); ?>">&#8942;</button>
                     <div class="forge-row-dropdown" hidden>
                         <button class="forge-dd-item forge-copy-shortcode"
                                 data-code="<?php echo esc_attr($shortcode); ?>">
-                            <i class="fa-solid fa-clipboard"></i> Shortcode kopieren
+                            <i class="fa-solid fa-clipboard"></i> <?php esc_html_e('Copy shortcode', 'form-forge'); ?>
                         </button>
                         <button class="forge-dd-item forge-duplicate-form"
                                 data-id="<?php echo $form->id; ?>"
                                 data-nonce="<?php echo esc_attr($dup_nonce); ?>">
-                            <i class="fa-solid fa-copy"></i> Duplizieren
+                            <i class="fa-solid fa-copy"></i> <?php esc_html_e('Duplicate', 'form-forge'); ?>
                         </button>
                         <div class="forge-dd-sep"></div>
                         <button class="forge-dd-item forge-export-form"
                                 data-id="<?php echo $form->id; ?>"
                                 data-nonce="<?php echo esc_attr($exp_nonce); ?>">
-                            <i class="fa-solid fa-file-export"></i> Exportieren
+                            <i class="fa-solid fa-file-export"></i> <?php esc_html_e('Export', 'form-forge'); ?>
                         </button>
                         <div class="forge-dd-sep"></div>
                         <button class="forge-dd-item forge-dd-item--danger forge-delete-form"
                                 data-id="<?php echo $form->id; ?>"
                                 data-nonce="<?php echo esc_attr($del_nonce); ?>">
-                            <i class="fa-solid fa-trash"></i> Löschen
+                            <i class="fa-solid fa-trash"></i> <?php esc_html_e('Delete', 'form-forge'); ?>
                         </button>
                     </div>
                 </div>
@@ -928,7 +938,7 @@ class FormList
         if (!$form) {
             wp_send_json_error(['message' => 'Form not found.'], 404);
         }
-        wp_send_json_success(['html' => self::_renderRow($form)]);
+        wp_send_json_success(['html' => self::renderRow($form)]);
     }
 
     /**
@@ -950,9 +960,9 @@ class FormList
             wp_send_json_error(['message' => $result->get_error_message()], 500);
         }
         $new_form = FormModel::get((int) $result);
-        $row_html = $new_form ? self::_renderRow($new_form) : '';
+        $row_html = $new_form ? self::renderRow($new_form) : '';
         wp_send_json_success(
-            ['message' => 'Formular dupliziert.', 'new_id' => $result, 'html' => $row_html]
+            ['message' => __('Form duplicated.', 'form-forge'), 'new_id' => $result, 'html' => $row_html]
         );
     }
 
@@ -1031,7 +1041,7 @@ class FormList
         }
         $form = FormModel::get($form_id);
         if (!$form) {
-            wp_send_json_error(['message' => 'Formular nicht gefunden.'], 404);
+            wp_send_json_error(['message' => __('Form not found.', 'form-forge')], 404);
         }
         $payload = ['v' => 2, 't' => $form->title];
         $payload['f'] = self::stripFieldDefaults($form->fields);
@@ -1063,12 +1073,12 @@ class FormList
         }
         $raw = sanitize_text_field(wp_unslash($_POST['string'] ?? ''));
         if ($raw === '') {
-            wp_send_json_error(['message' => 'Kein Import-String übergeben.'], 400);
+            wp_send_json_error(['message' => __('No import string provided.', 'form-forge')], 400);
         }
         $padded  = $raw . str_repeat('=', (4 - strlen($raw) % 4) % 4);
         $decoded = base64_decode(strtr($padded, '-_', '+/'), true);
         if ($decoded === false) {
-            wp_send_json_error(['message' => 'Ungültiger Import-String.'], 400);
+            wp_send_json_error(['message' => __('Invalid import string.', 'form-forge')], 400);
         }
         // Support both v2 (gzdeflate) and v1 (gzencode) strings.
         $json = @gzinflate($decoded);
@@ -1076,14 +1086,14 @@ class FormList
             $json = @gzdecode($decoded);
         }
         if ($json === false) {
-            wp_send_json_error(['message' => 'Dekomprimierung fehlgeschlagen.'], 400);
+            wp_send_json_error(['message' => __('Decompression failed.', 'form-forge')], 400);
         }
         $payload = json_decode($json, true);
         if (!is_array($payload)
             || !isset($payload['v'], $payload['t'], $payload['f'])
             || !in_array((int)$payload['v'], [1, 2], true)
         ) {
-            wp_send_json_error(['message' => 'Unbekanntes Format.'], 400);
+            wp_send_json_error(['message' => __('Unknown format.', 'form-forge')], 400);
         }
         $fields = is_array($payload['f']) ? $payload['f'] : [];
         if ((int)$payload['v'] === 2) {
@@ -1101,7 +1111,7 @@ class FormList
             wp_send_json_error(['message' => $result->get_error_message()], 500);
         }
         $new_form = FormModel::get((int) $result);
-        $row_html = $new_form ? self::_renderRow($new_form) : '';
+        $row_html = $new_form ? self::renderRow($new_form) : '';
         wp_send_json_success(['new_id' => $result, 'html' => $row_html]);
     }
 

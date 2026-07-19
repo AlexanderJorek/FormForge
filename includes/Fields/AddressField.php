@@ -35,7 +35,7 @@ class AddressField extends BaseField
      */
     public function getLabel(): string
     {
-        return 'Adresse';
+        return __('Address', 'form-forge');
     }
 
     /**
@@ -68,12 +68,12 @@ CSS;
     }
 
     private const SUBFIELDS = [
-        ['key' => 'street',  'optional' => true, 'label' => 'Straße und Hausnummer'],
-        ['key' => 'street2', 'optional' => true, 'label' => 'Adresszusatz'],
-        ['key' => 'city',    'optional' => true, 'label' => 'Ort'],
-        ['key' => 'state',   'optional' => true, 'label' => 'Bundesland / Kanton'],
-        ['key' => 'zip',     'optional' => true, 'label' => 'Postleitzahl'],
-        ['key' => 'country', 'optional' => true, 'label' => 'Land'],
+        ['key' => 'street',  'optional' => true, 'label' => 'Street and house number'],
+        ['key' => 'street2', 'optional' => true, 'label' => 'Address supplement'],
+        ['key' => 'city',    'optional' => true, 'label' => 'City'],
+        ['key' => 'state',   'optional' => true, 'label' => 'State / Canton'],
+        ['key' => 'zip',     'optional' => true, 'label' => 'Postal code'],
+        ['key' => 'country', 'optional' => true, 'label' => 'Country'],
     ];
 
     /**
@@ -154,11 +154,11 @@ CSS;
      */
     public function extractValue(string $field_id): mixed
     {
-        $raw = $_POST[$field_id] ?? [];
-        if (!is_array($raw)) {
-            return null;
+        $raw = $_POST[$field_id] ?? '';
+        if (is_array($raw)) {
+            return array_map(static fn($v) => sanitize_text_field(wp_unslash($v)), $raw);
         }
-        return array_map(static fn($v) => sanitize_text_field(wp_unslash($v)), $raw);
+        return sanitize_text_field(wp_unslash((string) $raw));
     }
 
     /**
@@ -171,6 +171,13 @@ CSS;
      */
     public function validate(mixed $value, array $config): bool|string
     {
+        if (empty($config['expanded'])) {
+            if (!empty($config['required']) && trim((string)($value ?? '')) === '') {
+                $label = $config['label'] ?? __('Address', 'form-forge');
+                return sprintf(__('%s: Required field.', 'form-forge'), esc_html($label));
+            }
+            return true;
+        }
         $errors = [];
         foreach (self::SUBFIELDS as $sf) {
             $k = $sf['key'];
@@ -179,11 +186,13 @@ CSS;
             }
             if (!empty($config[$k . '_required'])) {
                 if (trim((string)($value[$k] ?? '')) === '') {
-                    $errors[] = $config[$k . '_label'] ?? $sf['label'];
+                    $errors[] = $config[$k . '_label'] ?? __($sf['label'], 'form-forge');
                 }
             }
         }
-        return $errors ? implode(', ', $errors) . ': Pflichtfeld.' : true;
+        return $errors
+            ? sprintf(__('%s: Required field.', 'form-forge'), implode(', ', $errors))
+            : true;
     }
 
     /**
@@ -197,7 +206,7 @@ CSS;
     public function map(mixed $value, array $config): string
     {
         if (!is_array($value)) {
-            return '[Kein Eintrag]';
+            return __('[No entry]', 'form-forge');
         }
         $sfMap = [];
         foreach (self::SUBFIELDS as $sf) {
@@ -219,7 +228,7 @@ CSS;
                 $lines[] = implode(' ', $parts);
             }
         }
-        return $lines ? implode(', ', $lines) : '[Kein Eintrag]';
+        return $lines ? implode(', ', $lines) : __('[No entry]', 'form-forge');
     }
 
     /**
@@ -230,30 +239,31 @@ CSS;
     public function getDefaultConfig(): array
     {
         return array_merge(
-            parent::getDefaultConfig(), [
+            parent::getDefaultConfig(),
+            [
             'expanded'            => false,
             'street_enabled'      => true,
-            'street_label'        => 'Straße und Hausnummer',
+            'street_label'        => __('Street and house number', 'form-forge'),
             'street_placeholder'  => '',
             'street_required'     => true,
             'street2_enabled'     => true,
-            'street2_label'       => 'Adresszusatz',
-            'street2_placeholder' => 'Apartment, Etage, c/o ...',
+            'street2_label'       => __('Address supplement', 'form-forge'),
+            'street2_placeholder' => __('Apartment, floor, c/o ...', 'form-forge'),
             'street2_required'    => false,
             'city_enabled'        => true,
-            'city_label'          => 'Ort',
+            'city_label'          => __('City', 'form-forge'),
             'city_placeholder'    => '',
             'city_required'       => true,
             'state_enabled'       => false,
-            'state_label'         => 'Bundesland / Kanton',
+            'state_label'         => __('State / Canton', 'form-forge'),
             'state_placeholder'   => '',
             'state_required'      => false,
             'zip_enabled'         => true,
-            'zip_label'           => 'Postleitzahl',
+            'zip_label'           => __('Postal code', 'form-forge'),
             'zip_placeholder'     => '',
             'zip_required'        => true,
             'country_enabled'     => false,
-            'country_label'       => 'Land',
+            'country_label'       => __('Country', 'form-forge'),
             'country_placeholder' => '',
             'country_required'    => false,
             ]
@@ -271,27 +281,27 @@ CSS;
             [
                 'key'         => 'expanded',
                 'type'        => 'bool_seg',
-                'label'       => 'Modus',
-                'false_label' => 'Einzeln',
-                'true_label'  => 'Erweitert',
+                'label'       => __('Mode', 'form-forge'),
+                'false_label' => __('Simple', 'form-forge'),
+                'true_label'  => __('Extended', 'form-forge'),
                 'rebuild'     => true,
             ],
             [
                 'key'        => 'placeholder',
                 'type'       => 'text',
-                'label'      => 'Platzhalter',
+                'label'      => __('Placeholder', 'form-forge'),
                 'depends_on' => ['expanded' => false],
             ],
             [
                 'key'        => 'description',
                 'type'       => 'text',
-                'label'      => 'Hinweistext',
+                'label'      => __('Hint text', 'form-forge'),
                 'depends_on' => ['expanded' => false],
             ],
             [
                 'key'        => 'subfields',
                 'type'       => 'subfields',
-                'label'      => 'Teilfelder',
+                'label'      => __('Sub-fields', 'form-forge'),
                 'depends_on' => ['expanded' => true],
                 'items'      => self::SUBFIELDS,
             ],

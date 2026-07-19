@@ -69,8 +69,8 @@ class FormEditor
         if (\ForgeForms\Plugin::userCan('edit_forms')) {
             \add_submenu_page(
                 'forge-forms',
-                'FormForge Bearbeitung',
-                'Neues Formular',
+                __('FormForge Editor', 'form-forge'),
+                __('New Form', 'form-forge'),
                 'read',
                 'forge-forms-editor',
                 [self::class, 'render']
@@ -86,8 +86,11 @@ class FormEditor
     public static function render(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
-            \wp_die('Keine Berechtigung.');
+            \wp_die(__('Permission denied.', 'form-forge'));
         }
+
+        $perf_mode   = defined('WP_DEBUG') && WP_DEBUG && current_user_can('manage_options');
+        $perf_start  = $perf_mode ? microtime(true) : 0.0;
 
         $form_id = (int)($_GET['form_id'] ?? 0);
         $form    = $form_id ? FormModel::get($form_id) : null;
@@ -104,12 +107,12 @@ class FormEditor
         } else {
             $form_data = [
                 'id'            => 0,
-                'title'         => 'Neues Formular',
+                'title'         => __('New Form', 'form-forge'),
                 'fields'        => [],
                 'notifications' => [self::defaultNotification()],
                 'settings'      => [
-                    'submit_label'    => 'Absenden',
-                    'success_message' => 'Vielen Dank für Ihren Eintrag!',
+                    'submit_label'    => __('Submit', 'form-forge'),
+                    'success_message' => __('Thank you for your submission!', 'form-forge'),
                 ],
             ];
         }
@@ -118,6 +121,22 @@ class FormEditor
         $data_form    = \wp_json_encode($form_data, JSON_HEX_APOS | JSON_HEX_QUOT);
         $data_palette = \wp_json_encode($palette, JSON_HEX_APOS | JSON_HEX_QUOT);
         $ajax_url     = \esc_attr(\admin_url('admin-ajax.php'));
+
+        if ($perf_mode) {
+            $php_ms = round((microtime(true) - $perf_start) * 1000, 2);
+            \wp_enqueue_script(
+                'forge-perf-debug',
+                FORGE_FORMS_URL . 'assets/js/forge-perf-debug.js',
+                [],
+                FORGE_FORMS_VERSION,
+                false  /* in <head> so it registers its DOMContentLoaded listener BEFORE admin-builder.js */
+            );
+            \wp_localize_script('forge-perf-debug', 'ForgePerfData', [
+                'phpRenderMs' => $php_ms,
+                'formId'      => $form_id,
+                'fieldCount'  => count($form_data['fields']),
+            ]);
+        }
         ?>
         <canvas id="forge-particle-canvas"></canvas>
         <div class="wrap forge-editor-wrap" style="padding:0;margin:0;">
@@ -136,17 +155,22 @@ class FormEditor
                     <div id="forge-header-divider"></div>
                     <input id="forge-form-name" type="text" value="" />
                     <span id="forge-save-status"></span>
-                    <?php if ($form_id) : ?>
-                    <button id="forge-preview-btn" type="button" title="Vorschau">
-                        <i class="fa-solid fa-eye"></i> Vorschau
+                    <?php if ($perf_mode) : ?>
+                    <button id="forge-perf-btn" type="button" title="<?php echo esc_attr__('Performance Overlay', 'form-forge'); ?>">
+                        <i class="fa-solid fa-gauge-high"></i>
                     </button>
                     <?php endif; ?>
-                    <button id="forge-save-btn" type="button">Speichern</button>
+                    <?php if ($form_id) : ?>
+                    <button id="forge-preview-btn" type="button" title="<?php echo esc_attr__('Preview', 'form-forge'); ?>">
+                        <i class="fa-solid fa-eye"></i> <?php echo esc_html__('Preview', 'form-forge'); ?>
+                    </button>
+                    <?php endif; ?>
+                    <button id="forge-save-btn" type="button"><?php esc_html_e('Save', 'form-forge'); ?></button>
                 </div>
 
                 <div id="forge-canvas-tabs">
-                    <button class="forge-tab-btn forge-tab-active" data-tab="forge-fields-panel">Felder</button>
-                    <button class="forge-tab-btn" data-tab="forge-notifications-panel">Benachrichtigungen</button>
+                    <button class="forge-tab-btn forge-tab-active" data-tab="forge-fields-panel"><?php esc_html_e('Fields', 'form-forge'); ?></button>
+                    <button class="forge-tab-btn" data-tab="forge-notifications-panel"><?php esc_html_e('Notifications', 'form-forge'); ?></button>
                 </div>
 
                 <div id="forge-fields-panel" class="forge-tab-panel forge-panel-active">
@@ -154,7 +178,7 @@ class FormEditor
                     <div id="forge-submit-preview-bar"></div>
                     <div id="forge-add-field-bar">
                         <button id="forge-add-field-btn" type="button">
-                            <i class="fa-solid fa-plus"></i> Feld hinzuf&uuml;gen
+                            <i class="fa-solid fa-plus"></i> <?php esc_html_e('Add Field', 'form-forge'); ?>
                         </button>
                     </div>
                 </div>
@@ -170,8 +194,11 @@ class FormEditor
             if (!canvas) return;
             var ctx = canvas.getContext('2d');
             var mouse = { x: -9999, y: -9999 };
-            var DOTS = 80, LINK = 150, SPEED = 0.4, COLOR = '99, 132, 180';
-            var particles = [];
+            var _ah = getComputedStyle(document.documentElement).getPropertyValue('--forge-admin-accent').trim()||'#2271b1';
+            var _rgb = function(h){return parseInt(h.slice(1,3),16)+','+parseInt(h.slice(3,5),16)+','+parseInt(h.slice(5,7),16);};
+            var DOTS = Math.min(120, Math.max(40, Math.round(window.innerWidth * window.innerHeight / 26000)));
+            var LINK = 150, SPEED = 1.0, COLOR = _rgb(_ah);
+            var particles = [], paused = false, FRAME_MS = 1000 / 30;
             function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
             function rand(a, b) { return a + Math.random() * (b - a); }
             function init() {
@@ -182,12 +209,15 @@ class FormEditor
                 }
             }
             function draw() {
+                if (paused) return;
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                particles.forEach(function(p) {
+                for (var i = 0; i < particles.length; i++) {
+                    var p = particles[i];
                     p.x += p.vx; p.y += p.vy;
                     if (p.x < 0 || p.x > canvas.width)  p.vx *= -1;
                     if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
-                });
+                }
+                ctx.lineWidth = 1;
                 for (var i = 0; i < particles.length; i++) {
                     for (var j = i + 1; j < particles.length; j++) {
                         var dx = particles[i].x - particles[j].x, dy = particles[i].y - particles[j].y;
@@ -196,7 +226,7 @@ class FormEditor
                             ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y);
                             ctx.lineTo(particles[j].x, particles[j].y);
                             ctx.strokeStyle = 'rgba(' + COLOR + ',' + (1 - d/LINK) * 0.3 + ')';
-                            ctx.lineWidth = 1; ctx.stroke();
+                            ctx.stroke();
                         }
                     }
                     var mdx = particles[i].x - mouse.x, mdy = particles[i].y - mouse.y;
@@ -205,18 +235,22 @@ class FormEditor
                         ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y);
                         ctx.lineTo(mouse.x, mouse.y);
                         ctx.strokeStyle = 'rgba(' + COLOR + ',' + (1 - md/LINK) * 0.55 + ')';
-                        ctx.lineWidth = 1; ctx.stroke();
+                        ctx.stroke();
                     }
                 }
-                particles.forEach(function(p) {
-                    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
-                    ctx.fillStyle = 'rgba(' + COLOR + ', 0.5)'; ctx.fill();
-                });
-                requestAnimationFrame(draw);
+                ctx.fillStyle = 'rgba(' + COLOR + ', 0.5)';
+                for (var i = 0; i < particles.length; i++) {
+                    ctx.beginPath(); ctx.arc(particles[i].x, particles[i].y, particles[i].r, 0, Math.PI*2); ctx.fill();
+                }
+                setTimeout(function() { requestAnimationFrame(draw); }, FRAME_MS - 2);
             }
             document.addEventListener('mousemove', function(e) { mouse.x = e.clientX; mouse.y = e.clientY; });
+            document.addEventListener('visibilitychange', function() {
+                paused = document.hidden;
+                if (!paused) requestAnimationFrame(draw);
+            });
             window.addEventListener('resize', function() { resize(); init(); });
-            resize(); init(); draw();
+            resize(); init(); requestAnimationFrame(draw);
         }());
         </script>
         <?php
@@ -239,7 +273,6 @@ class FormEditor
             \wp_send_json_error(['message' => 'No form ID'], 400);
         }
 
-        /* Merge any unsaved settings from the builder into the form before rendering. */
         $settings_override = [];
         if (!empty($_POST['settings'])) {
             $raw_s = json_decode(\wp_unslash($_POST['settings']), true);
@@ -248,9 +281,18 @@ class FormEditor
             }
         }
 
-        $html = \ForgeForms\Form\FormRenderer::render($form_id, $settings_override);
+        /* Use live editor fields when posted; fall back to saved DB state. */
+        $fields_override = null;
+        if (!empty($_POST['fields'])) {
+            $raw_f = json_decode(\wp_unslash($_POST['fields']), true);
+            if (is_array($raw_f)) {
+                $fields_override = self::sanitizeFields($raw_f);
+            }
+        }
+
+        $html = \ForgeForms\Form\FormRenderer::render($form_id, $settings_override, $fields_override);
         if (!$html) {
-            \wp_send_json_error(['message' => 'Formular nicht gefunden.'], 404);
+            \wp_send_json_error(['message' => __('Form not found.', 'form-forge')], 404);
         }
 
         /* Collect all field-specific CSS (mirrors Assets::enqueueFront). */
@@ -308,7 +350,7 @@ class FormEditor
 
         $globals = 'window.ForgeForms={'
             . 'ajaxUrl:"",ibanBicUrl:"",'
-            . 'i18n:{submitting:"Wird gesendet…",error_server:"Serverfehler."}'
+            . 'i18n:{submitting:' . \wp_json_encode(__('Sending…', 'form-forge')) . ',error_server:' . \wp_json_encode(__('Server error.', 'form-forge')) . '}'
             . '};';
         if (!empty($inits)) {
             $globals .= 'window.ForgeFieldInits={' . implode(',', $inits) . '};';
@@ -366,7 +408,7 @@ class FormEditor
             . '<span class="fpt-slider"></span>'
             . '</label>'
             . '<label class="fpt-label" for="fpt-skip-required">'
-            . '<strong>Pflichtfelder ignorieren</strong>'
+            . '<strong>' . esc_html__('Ignore required fields', 'form-forge') . '</strong>'
             . '</label>'
             . '</div>'
             . '</div>';
@@ -416,7 +458,9 @@ window.fetch = function (url, opts) {
         $page = '<!DOCTYPE html><html lang="de"><head>'
             . '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             . '<title>Vorschau</title>'
-            . '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">'
+            . '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"'
+            . ' integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="'
+            . ' crossorigin="anonymous" referrerpolicy="no-referrer">'
             . '<link rel="stylesheet" href="' . \esc_url($css_url) . '">'
             . '<style>' . implode("\n", $field_css) . '</style>'
             . '<style>'
@@ -468,7 +512,8 @@ window.fetch = function (url, opts) {
             'fields'        => self::sanitizeFields($raw['fields']             ?? []),
             'notifications' => self::sanitizeNotifications($raw['notifications'] ?? []),
             'settings'      => self::sanitizeSettings($raw['settings']         ?? []),
-            ], $form_id
+            ],
+            $form_id
         );
 
         if (\is_wp_error($result)) {
@@ -487,7 +532,7 @@ window.fetch = function (url, opts) {
 
         \wp_send_json_success(
             [
-            'message' => 'Formular gespeichert.',
+            'message' => __('Form saved.', 'form-forge'),
             'form_id' => $result,
             ]
         );
@@ -508,13 +553,14 @@ window.fetch = function (url, opts) {
                 continue;
             }
             $plaintext_keys = ['id', 'type', 'label', 'placeholder', 'description', 'hint', 'name'];
+            $handler = \ForgeForms\Fields\FieldRegistry::get((string)($field['type'] ?? ''));
             $f = [];
             foreach ($field as $k => $v) {
                 $sk = \sanitize_key($k);
                 if (is_string($v)) {
                     $f[$sk] = in_array($k, $plaintext_keys, true)
                         ? \sanitize_text_field($v)
-                        : \wp_kses_post($v);
+                        : ($handler ? $handler->sanitizeConfigValue($k, $v) : \wp_kses_post($v));
                 } elseif (is_bool($v) || is_int($v) || is_float($v)) {
                     $f[$sk] = $v;
                 } elseif (is_array($v)) {
@@ -582,7 +628,7 @@ window.fetch = function (url, opts) {
                 'reply_to'         => \sanitize_text_field($n['reply_to']   ?? ''),
                 'subject'          => \sanitize_text_field($n['subject']    ?? ''),
                 /* Body is always HTML, authored via the Visual or Code view. */
-                'body'             => self::_sanitizeEmailBody($n['body'] ?? ''),
+                'body'             => self::sanitizeEmailBody($n['body'] ?? ''),
                 'from_name'        => \sanitize_text_field($n['from_name']  ?? ''),
                 'from_email'       => \sanitize_email($n['from_email']      ?? ''),
                 'cc'               => \sanitize_text_field($n['cc']         ?? ''),
@@ -618,9 +664,9 @@ window.fetch = function (url, opts) {
         }
 
         return [
-            'submit_label'      => \sanitize_text_field($settings['submit_label']    ?? 'Absenden'),
-            'submit_working'    => \sanitize_text_field($settings['submit_working']   ?? 'Wird gesendet…'),
-            'success_message'   => \wp_kses_post($settings['success_message']         ?? 'Vielen Dank!'),
+            'submit_label'      => \sanitize_text_field($settings['submit_label']    ?? __('Submit', 'form-forge')),
+            'submit_working'    => \sanitize_text_field($settings['submit_working']   ?? __('Sending…', 'form-forge')),
+            'success_message'   => \wp_kses_post($settings['success_message']         ?? __('Thank you!', 'form-forge')),
             'submit_conditions' => [
                 'enabled' => !empty($settings['submit_conditions']['enabled']),
                 'match'   => in_array($settings['submit_conditions']['match'] ?? '', ['all', 'any'], true)
@@ -643,11 +689,13 @@ window.fetch = function (url, opts) {
      *
      * @return string Sanitized HTML.
      */
-    private static function _sanitizeEmailBody(string $html): string
+    private static function sanitizeEmailBody(string $html): string
     {
         $before = $html;
 
         $passes = [
+            'script-open'   => '/<script\b[^>]*>/i',
+            'script-close'  => '/<\/script\s*>/i',
             'script-tags'   => '/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/is',
             'event-handlers' =>
                 '/\s+on[a-z]+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i',
@@ -656,7 +704,12 @@ window.fetch = function (url, opts) {
                 . '(?:javascript|vbscript)\s*:[^"\']*\2/i',
         ];
 
-        $replacements = ['script-tags' => '', 'event-handlers' => ''];
+        $replacements = [
+            'script-open'    => '',
+            'script-close'   => '',
+            'script-tags'    => '',
+            'event-handlers' => '',
+        ];
         $replacements['js-uris'] = '$1=$2#$2';
 
         foreach ($passes as $label => $pattern) {
@@ -664,7 +717,7 @@ window.fetch = function (url, opts) {
             if ($after !== $html) {
                 preg_match_all($pattern, $html, $m);
                 \ForgeForms\forge_log(
-                    'ForgeForms _sanitizeEmailBody [' . $label . '] removed '
+                    'ForgeForms sanitizeEmailBody [' . $label . '] removed '
                     . count($m[0]) . ' match(es): '
                     . substr(implode(' | ', $m[0]), 0, 300)
                 );
@@ -687,7 +740,7 @@ window.fetch = function (url, opts) {
                         . "\n" . $orphan . "\n"
                         . substr($html, $body_close);
                     \ForgeForms\forge_log(
-                        'ForgeForms _sanitizeEmailBody: moved orphaned content'
+                        'ForgeForms sanitizeEmailBody: moved orphaned content'
                         . ' from after </html> to before </body>: '
                         . substr($orphan, 0, 100)
                     );
@@ -697,12 +750,12 @@ window.fetch = function (url, opts) {
 
         if ($html !== $before) {
             \ForgeForms\forge_log(
-                'ForgeForms _sanitizeEmailBody: input length '
+                'ForgeForms sanitizeEmailBody: input length '
                 . strlen($before) . ' → output length ' . strlen($html)
             );
         } else {
             \ForgeForms\forge_log(
-                'ForgeForms _sanitizeEmailBody: nothing stripped '
+                'ForgeForms sanitizeEmailBody: nothing stripped '
                 . '(input length ' . strlen($html) . ')'
             );
         }
@@ -719,14 +772,14 @@ window.fetch = function (url, opts) {
     {
         return [
             'slug'             => 'notification-1',
-            'name'             => 'Benachrichtigung 1',
+            'name'             => __('Notification 1', 'form-forge'),
             'recipient_mode'   => 'single',
             'to'               => \get_option('admin_email', ''),
             'routing_rules'    => [],
             'routing_fallback' => '',
-            'subject'          => 'Neuer Eintrag: {form_title}',
+            'subject'          => __('New Entry: {form_title}', 'form-forge'),
             'body'             =>
-                'Ein neuer Eintrag ist eingegangen.<br><br>{all_fields}',
+                __('A new entry has been received.<br><br>{all_fields}', 'form-forge'),
             'from_name'        => '{site_name}',
             'from_email'       => '{admin_email}',
             'reply_to'         => '{email}',

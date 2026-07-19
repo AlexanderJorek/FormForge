@@ -35,7 +35,7 @@ class PostDataField extends BaseField
      */
     public function getLabel(): string
     {
-        return 'Beitragsdaten';
+        return __('Post data', 'form-forge');
     }
 
     /**
@@ -93,7 +93,9 @@ class PostDataField extends BaseField
     }
 
     /**
-     * Returns the sanitized post-data array submitted as $field_id[key].
+     * Regenerates the post-data array from the current post, ignoring any
+     * client-submitted value — this is server-authoritative metadata and
+     * must never be trusted from $_POST.
      *
      * @param string $field_id The field element ID.
      *
@@ -101,11 +103,37 @@ class PostDataField extends BaseField
      */
     public function extractValue(string $field_id): mixed
     {
-        $raw = $_POST[$field_id] ?? [];
-        if (!is_array($raw)) {
-            return [];
+        global $post;
+        $out = [];
+        foreach (self::ALLOWED_FIELDS as $key) {
+            $out[$key] = match ($key) {
+                'post_title'  => get_the_title($post->ID ?? 0),
+                'post_url'    => get_permalink($post->ID ?? 0),
+                'post_id'     => (string)($post->ID ?? ''),
+                'post_author' => get_the_author(),
+                default       => '',
+            };
         }
-        return array_map(static fn($v) => sanitize_text_field(wp_unslash($v)), $raw);
+        return $out;
+    }
+
+    /**
+     * Maps the post-data array to a comma-separated string for email/PDF output,
+     * limited to the fields selected in the field configuration.
+     *
+     * @param mixed $value  Server-regenerated value (array of post field strings).
+     * @param array $config Field configuration.
+     *
+     * @return string
+     */
+    public function map(mixed $value, array $config): string
+    {
+        if (!is_array($value) || empty($value)) {
+            return __('[No entry]', 'form-forge');
+        }
+        $selected = (array)($config['post_field'] ?? ['post_title']);
+        $filtered = array_intersect_key($value, array_flip($selected));
+        return implode(', ', array_filter(array_map('strval', $filtered)));
     }
 
     /**
@@ -116,7 +144,7 @@ class PostDataField extends BaseField
     public function getDefaultConfig(): array
     {
         return [
-            'label'       => 'Beitragsdaten',
+            'label'       => __('Post data', 'form-forge'),
             'post_field'  => ['post_title'],
             'description' => '',
         ];
@@ -133,9 +161,9 @@ class PostDataField extends BaseField
             [
                 'key'    => 'post_field',
                 'type'   => 'pill_multi',
-                'label'  => 'Post-Feld',
+                'label'  => __('Post field', 'form-forge'),
                 'values' => ['post_title', 'post_url', 'post_id', 'post_author'],
-                'labels' => ['Titel', 'URL', 'ID', 'Autor'],
+                'labels' => [__('Title', 'form-forge'), __('URL', 'form-forge'), __('ID', 'form-forge'), __('Author', 'form-forge')],
             ],
         ];
     }

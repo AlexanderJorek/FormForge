@@ -62,7 +62,9 @@ class GdprField extends BaseField
 .forge-gdpr-label input[type="checkbox"]:checked {
     border-color: var(--forge-accent);
     background: var(--forge-accent);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpolyline points='1,5 4.5,8.5 11,1' stroke='%23ffffff' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' \
+viewBox='0 0 12 10'%3E%3Cpolyline points='1,5 4.5,8.5 11,1' stroke='%23ffffff' \
+stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: center;
     background-size: 11px 9px;
@@ -84,7 +86,7 @@ CSS;
      */
     public function getLabel(): string
     {
-        return 'DSGVO-Checkbox';
+        return __('GDPR Checkbox', 'form-forge');
     }
 
     /**
@@ -111,10 +113,10 @@ CSS;
         $req     = ' required aria-required="true"';
         $checked = !empty($value) ? ' checked' : '';
         $policy_url  = esc_url($config['privacy_policy_url'] ?? get_privacy_policy_url());
-        $policy_text = esc_html($config['privacy_policy_text'] ?? 'Datenschutzerklärung');
+        $policy_text = esc_html($config['privacy_policy_text'] ?? __('Privacy policy', 'form-forge'));
 
         $text = sprintf(
-            'Ich habe die <a href="%s" target="_blank" rel="noopener">%s</a> gelesen und akzeptiere diese.',
+            __('I have read the <a href="%1$s" target="_blank" rel="noopener">%2$s</a> and accept it.', 'form-forge'),
             $policy_url,
             $policy_text
         );
@@ -139,7 +141,7 @@ CSS;
     public function validate(mixed $value, array $config): bool|string
     {
         if (empty($value)) {
-            return 'Bitte akzeptieren Sie die Datenschutzerklärung.';
+            return __('Please accept the privacy policy.', 'form-forge');
         }
         return true;
     }
@@ -154,7 +156,7 @@ CSS;
      */
     public function map(mixed $value, array $config): string
     {
-        return !empty($value) ? 'Datenschutz akzeptiert' : 'Datenschutz nicht akzeptiert';
+        return !empty($value) ? __('Privacy accepted', 'form-forge') : __('Privacy not accepted', 'form-forge');
     }
 
     /**
@@ -165,9 +167,10 @@ CSS;
     public function getDefaultConfig(): array
     {
         return array_merge(
-            parent::getDefaultConfig(), [
+            parent::getDefaultConfig(),
+            [
             'privacy_policy_url'  => '',
-            'privacy_policy_text' => 'Datenschutzerklärung',
+            'privacy_policy_text' => __('Privacy policy', 'form-forge'),
             ]
         );
     }
@@ -183,12 +186,12 @@ CSS;
             [
                 'key'   => 'privacy_policy_url',
                 'type'  => 'text',
-                'label' => 'Datenschutz-URL',
+                'label' => __('Privacy URL', 'form-forge'),
             ],
             [
                 'key'   => 'privacy_policy_text',
                 'type'  => 'text',
-                'label' => 'Datenschutz-Linktext',
+                'label' => __('Privacy link text', 'form-forge'),
             ],
         ];
     }

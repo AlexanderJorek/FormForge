@@ -85,7 +85,7 @@ CSS;
      */
     public function getLabel(): string
     {
-        return 'Bewertung';
+        return __('Rating', 'form-forge');
     }
 
     /**
@@ -182,7 +182,7 @@ CSS;
         $custom_url = $custom ? esc_url($config['custom_icon_url']) : '';
 
         $inner = '<div class="forge-rating-group" role="group"'
-            . ' aria-label="' . esc_attr($config['label'] ?? 'Bewertung') . '"'
+            . ' aria-label="' . esc_attr($config['label'] ?? esc_attr__('Rating', 'form-forge')) . '"'
             . ' data-half="' . ($half ? '1' : '0') . '"'
             . $req . '>';
 
@@ -249,7 +249,7 @@ CSS;
     public function map(mixed $value, array $config): string
     {
         if (empty($value)) {
-            return '[Kein Eintrag]';
+            return __('[No entry]', 'form-forge');
         }
         return $value . ' / ' . (int)($config['max'] ?? 5);
     }
@@ -262,7 +262,8 @@ CSS;
     public function getDefaultConfig(): array
     {
         return array_merge(
-            parent::getDefaultConfig(), [
+            parent::getDefaultConfig(),
+            [
             'max'             => 5,
             'icon_type'       => 'star',
             'allow_half'      => false,
@@ -283,13 +284,13 @@ CSS;
             [
                 'key'     => 'max',
                 'type'    => 'number',
-                'label'   => 'Anzahl Symbole',
+                'label'   => __('Number of symbols', 'form-forge'),
                 'rebuild' => true,
             ],
             [
                 'key'      => 'icon_type',
                 'type'     => 'icon_row',
-                'label'    => 'Symbol & Halbe Werte',
+                'label'    => __('Symbol & half values', 'form-forge'),
                 'half_key' => 'allow_half',
                 'rebuild'  => true,
                 'options'  => [
@@ -302,17 +303,17 @@ CSS;
             [
                 'key'         => 'icon_source',
                 'type'        => 'bool_seg',
-                'label'       => 'Icon-Quelle',
-                'false_label' => 'Voreingestellt',
-                'true_label'  => 'Eigenes Bild',
+                'label'       => __('Icon source', 'form-forge'),
+                'false_label' => __('Preset', 'form-forge'),
+                'true_label'  => __('Custom image', 'form-forge'),
                 'rebuild'     => true,
             ],
             [
                 'key'        => 'custom_icon_url',
                 'type'       => 'media_upload',
-                'label'      => 'Bild',
+                'label'      => __('Image', 'form-forge'),
                 'rebuild'    => true,
-                'hint'       => 'Quadratisches Bild. Bei halben Werten wird die linke Hälfte verwendet.',
+                'hint'       => __('Square image. For half values the left half is used.', 'form-forge'),
                 'depends_on' => ['icon_source' => true],
             ],
             [

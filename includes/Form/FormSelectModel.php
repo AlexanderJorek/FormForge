@@ -110,6 +110,39 @@ class FormSelectModel
     }
 
     /**
+     * Removes all items referencing a given form ID from every select list.
+     * Hooked to before_delete_post so deleted forms disappear from selects.
+     *
+     * @param int $post_id The WordPress post ID being deleted.
+     *
+     * @return void
+     */
+    public static function removeFormId(int $post_id): void
+    {
+        if (get_post_type($post_id) !== 'forge_form') {
+            return;
+        }
+        $all     = self::getRaw();
+        $changed = false;
+        foreach ($all as &$record) {
+            $before = count($record['items'] ?? []);
+            $record['items'] = array_values(
+                array_filter(
+                    $record['items'] ?? [],
+                    static fn($item) => (int) ($item['form_id'] ?? 0) !== $post_id
+                )
+            );
+            if (count($record['items']) !== $before) {
+                $changed = true;
+            }
+        }
+        unset($record);
+        if ($changed) {
+            update_option(self::$option, $all, false);
+        }
+    }
+
+    /**
      * Deletes a form-select record by ID.
      *
      * @param int $id The record ID to delete.

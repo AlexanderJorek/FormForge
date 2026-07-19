@@ -28,208 +28,6 @@ use ForgeForms\Fields\FieldRegistry;
 
 defined('ABSPATH') || exit;
 
-/**
- * Static image and storage helpers used internally by Generator and PdfDescriptor.
- */
-class PdfUtils
-{
-    /**
-     * Computes a perceptual thumbnail hash of an image for stable cross-pass comparison.
-     *
-     * Downscales the image to an 8×8 pixel grid and hashes the quantised RGB
-     * values, producing a hash that is stable across PDF rendering passes.
-     * Returns null when the GD extension is unavailable or the image cannot
-     * be decoded.
-     *
-     * @param string $binary Raw binary image data.
-     *
-     * @return string|null SHA-256 hash of the thumbnail pixels, or null on failure.
-     */
-    public static function thumbnailHash(string $binary): ?string
-    {
-        if (!function_exists('imagecreatefromstring')) {
-            \ForgeForms\forge_log(
-                'ForgeForms: GD extension unavailable — '
-                . 'image verification uses raw hash (degraded mode).'
-            );
-            return null;
-        }
-        $gd = @imagecreatefromstring($binary);
-        if ($gd === false) {
-            return null;
-        }
-        $thumb = imagecreatetruecolor(8, 8);
-        imagealphablending($thumb, false);
-        imagecopyresampled(
-            $thumb, $gd, 0, 0, 0, 0, 8, 8, imagesx($gd), imagesy($gd)
-        );
-        $pixels = '';
-        for ($ty = 0; $ty < 8; $ty++) {
-            for ($tx = 0; $tx < 8; $tx++) {
-                $c       = imagecolorat($thumb, $tx, $ty);
-                $pixels .= chr((($c >> 16) & 0xFF) & ~7)
-                         . chr((($c >> 8)  & 0xFF) & ~7)
-                         . chr(($c         & 0xFF) & ~7);
-            }
-        }
-        return hash('sha256', $pixels);
-    }
-
-    /**
-     * Returns the absolute path to the embed storage directory, creating it if needed.
-     *
-     * @return string Absolute filesystem path.
-     */
-    public static function getEmbedStorageDir(): string
-    {
-        $dir = wp_upload_dir()['basedir'] . '/forge-secure-pdf/embed';
-        if (!is_dir($dir)) {
-            wp_mkdir_p($dir);
-            file_put_contents($dir . '/index.php', '<?php // Silence is golden ?>');
-        }
-        return $dir;
-    }
-}
-
-/**
- * Fluent builder that field classes use to describe their PDF output.
- *
- * Start from BaseField::pdf($field), chain methods for anything non-default,
- * then call build(). Generator consumes the resulting array.
- *
- * Usage:
- *   return $this->pdf($field)->attachImage($binary, 'sig.png')->build();
- */
-class PdfDescriptor
-{
-    /**
-     * Cell HTML content.
-     *
-     * @var string
-     */
-    private $_cellHtml;
-
-    /**
-     * Whether to render with a label row.
-     *
-     * @var bool
-     */
-    private $_labeled = true;
-
-    /**
-     * Keyed binary image data for mPDF imageVars.
-     *
-     * @var array
-     */
-    private $_imageVars = [];
-
-    /**
-     * File descriptors for the HMAC seal.
-     *
-     * @var array
-     */
-    private $_sealedUploads = [];
-
-    /**
-     * @param string $defaultCellHtml Escaped value text — the starting cell content.
-     */
-    public function __construct(string $defaultCellHtml)
-    {
-        $this->_cellHtml = $defaultCellHtml;
-    }
-
-    /**
-     * Replaces the cell text with an already-escaped string.
-     *
-     * @param string $escaped Pre-escaped HTML or empty string.
-     *
-     * @return static
-     */
-    public function text(string $escaped): static
-    {
-        $this->_cellHtml = $escaped;
-        return $this;
-    }
-
-    /**
-     * Sets the cell content to raw HTML (no escaping applied).
-     *
-     * @param string $html Raw HTML string.
-     *
-     * @return static
-     */
-    public function rawHtml(string $html): static
-    {
-        $this->_cellHtml = $html;
-        return $this;
-    }
-
-    /**
-     * Renders without a label row — just a plain block.
-     *
-     * @return static
-     */
-    public function unlabeled(): static
-    {
-        $this->_labeled = false;
-        return $this;
-    }
-
-    /**
-     * Embeds an image in the PDF and records its fingerprint in the seal.
-     * TIFF images are converted to PNG first — mPDF does not support TIFF natively.
-     *
-     * @param string $binary   Raw binary image data.
-     * @param string $filename Display name used in the seal.
-     * @param string $mime     MIME type (default 'image/png').
-     *
-     * @return static
-     */
-    public function attachImage(
-        string $binary,
-        string $filename,
-        string $mime = 'image/png'
-    ): static {
-        if ($mime === 'image/tiff') {
-            $gd = @imagecreatefromstring($binary);
-            if ($gd !== false) {
-                ob_start();
-                imagepng($gd);
-                $binary   = (string) ob_get_clean();
-                $mime     = 'image/png';
-                $filename = preg_replace('/\.tiff?$/i', '.png', $filename);
-            }
-        }
-
-        $key = 'img' . bin2hex(random_bytes(8));
-        $this->_imageVars[$key] = $binary;
-        $this->_sealedUploads[] = [
-            'name'   => $filename,
-            'mime'   => $mime,
-            'sha256' => PdfUtils::thumbnailHash($binary) ?? hash('sha256', $binary),
-        ];
-        return $this;
-    }
-
-    /**
-     * Returns the array that Generator::generate() consumes.
-     *
-     * @return array PDF render descriptor.
-     */
-    public function build(): array
-    {
-        return [
-            'cell_html'      => $this->_cellHtml,
-            'labeled'        => $this->_labeled,
-            'image_vars'     => $this->_imageVars,
-            'sealed_uploads' => $this->_sealedUploads,
-        ];
-    }
-}
-
-/**
- * Generates PDF documents from form submission data and embeds an HMAC seal.
- */
 class Generator
 {
     /**
@@ -253,7 +51,7 @@ class Generator
         $image_vars     = [];
         $sealed_uploads = [];
 
-        $title = $form_title !== '' ? $form_title : 'Formulareinsendung';
+        $title = $form_title !== '' ? $form_title : __('Form submission', 'form-forge');
 
         $metadata = [
             'generated' => current_time('mysql'),
@@ -263,8 +61,6 @@ class Generator
         ];
 
         $full_data      = ['metadata' => $metadata, 'fields' => $mapped];
-        $default_order  = ['header', 'fields', 'metadata', 'legal', 'footer'];
-        $section_order  = $layout['section_order']  ?? $default_order;
         $section_hidden = $layout['section_hidden'] ?? [];
 
         $fields_html = '';
@@ -288,7 +84,7 @@ class Generator
                 $cell_html .= $layout['image']($var);
             }
 
-            $image_vars     = array_merge($image_vars,     $pdf['image_vars']);
+            $image_vars     = array_merge($image_vars, $pdf['image_vars']);
             $sealed_uploads = array_merge($sealed_uploads, $pdf['sealed_uploads']);
 
             $start     = '<span style="font-size:0.1px;line-height:0.1px;color:#000;position:absolute;">'
@@ -302,33 +98,23 @@ class Generator
                 : '<div class="field-block">' . $cell_html . '</div>';
         }
 
-        /* ---- Assemble HTML in section order ---- */
-        $html        = '<base href="">';
-        $html       .= $layout['base_css']();
-        $header_html        = '';
-        $fields_html_output = false;
+        /* ---- Assemble HTML in fixed section order ---- */
+        $html = '<base href="">';
+        $html .= $layout['base_css']();
 
-        foreach ($section_order as $slug) {
-            if (in_array($slug, $section_hidden, true)) {
-                continue;
-            }
-            if ($slug === 'header') {
-                $header_html = $layout['header']($title);
-                $html       .= $header_html;
-            } elseif ($slug === 'fields' || $slug === 'signatures') {
-                /* 'signatures' is a legacy slug — both map to $fields_html.
-                   Guard against it appearing twice in saved section_order. */
-                if (!$fields_html_output) {
-                    $html              .= $fields_html;
-                    $fields_html_output = true;
-                }
-            } elseif ($slug === 'metadata') {
-                $html .= $layout['document_metadata']($full_data);
-            } elseif ($slug === 'legal' && isset($layout['legal_notice'])) {
-                $html .= $layout['legal_notice']();
-            }
-            /* footer moved to SetHTMLFooter — rendered per-page, not inline */
+        if (!in_array('header', $section_hidden, true)) {
+            $html .= $layout['header']($title);
         }
+        if (!in_array('fields', $section_hidden, true) && !in_array('signatures', $section_hidden, true)) {
+            $html .= $fields_html;
+        }
+        if (!in_array('metadata', $section_hidden, true)) {
+            $html .= $layout['document_metadata']($full_data);
+        }
+        if (!in_array('legal', $section_hidden, true) && isset($layout['legal_notice'])) {
+            $html .= $layout['legal_notice']();
+        }
+        /* footer rendered per-page via SetHTMLFooter — not inline */
 
         /* ---- Template image fingerprints ---- */
         $template = self::buildTemplateFingerprints();
@@ -341,20 +127,22 @@ class Generator
             $upload_dir = wp_upload_dir();
             $safe_dir   = $upload_dir['basedir'] . '/forge-secure-pdf';
 
-            foreach (['', '/pdf', '/embed', '/mpdf'] as $sub) {
-                $dir = $safe_dir . $sub;
-                if (!is_dir($dir)) {
-                    wp_mkdir_p($dir);
-                    chmod($dir, 0750);
-                    file_put_contents($dir . '/index.php', '<?php // Silence is golden ?>');
-                    chmod($dir . '/index.php', 0640);
+            if (!get_transient('forge_pdf_dirs_ready')) {
+                foreach (['', '/pdf', '/embed', '/mpdf'] as $sub) {
+                    $dir = $safe_dir . $sub;
+                    if (!is_dir($dir)) {
+                        wp_mkdir_p($dir);
+                        chmod($dir, 0750);
+                        file_put_contents($dir . '/index.php', '<?php // Silence is golden ?>');
+                        chmod($dir . '/index.php', 0640);
+                    }
                 }
-            }
-
-            $htaccess = $safe_dir . '/.htaccess';
-            if (!file_exists($htaccess)) {
-                file_put_contents($htaccess, "Options -Indexes\nDeny from all\n");
-                chmod($htaccess, 0640);
+                $htaccess = $safe_dir . '/.htaccess';
+                if (!file_exists($htaccess)) {
+                    file_put_contents($htaccess, "Options -Indexes\nDeny from all\n");
+                    chmod($htaccess, 0640);
+                }
+                set_transient('forge_pdf_dirs_ready', true, DAY_IN_SECONDS);
             }
 
             $pdf_dir   = $safe_dir . '/pdf';
@@ -372,13 +160,14 @@ class Generator
             /* Strip any HTML wrapper that older cached versions of layout.php
                may have returned (e.g. a <div style="border-top:...">). */
             $user_footer_text = isset($layout['footer'])
-                ? wp_strip_all_tags(trim((string) $layout['footer']()))
+                ? trim((string) $layout['footer']())
                 : '';
             $pdf_opts  = (array) get_option('forge_forms_pdf_layout', []);
             $sep_color = sanitize_hex_color($pdf_opts['separator_color'] ?? '')
                 ?: '#c9cdd4';
-            /* Widen the footer zone when user text is present. */
-            $footer_margin = $user_footer_text !== '' ? 10 : 5;
+            /* Reserve enough vertical space: ~5mm per line of user footer text. */
+            $footer_lines  = $user_footer_text !== '' ? max(1, substr_count($user_footer_text, "\n") + 1) : 0;
+            $footer_margin = $footer_lines > 0 ? 5 + ($footer_lines * 5) : 5;
 
             $mpdf_config = [
                 'tempDir'       => $mpdf_temp,
@@ -461,7 +250,7 @@ class Generator
             $hash = HashSeal::generate($seal_data);
             $seal_data['seal'] = $hash;
 
-            $seal_json = json_encode($seal_data, JSON_UNESCAPED_SLASHES);
+            $seal_json = wp_json_encode($seal_data);
             if ($seal_json === false) {
                 throw new \RuntimeException(
                     'ForgeForms Generator: JSON encode failed — ' . json_last_error_msg()
@@ -515,7 +304,7 @@ class Generator
     {
         $pageno = '<span style="font-size:0.1px;line-height:0.1px;color:#fff;">'
             . '[FORGE_PDF_PAGENO_START]</span>'
-            . 'Seite {PAGENO} von {nbpg}'
+            . sprintf(__('Page %1$s of %2$s', 'form-forge'), '{PAGENO}', '{nbpg}')
             . '<span style="font-size:0.1px;line-height:0.1px;color:#fff;">'
             . '[FORGE_PDF_PAGENO_END]</span>';
 
@@ -526,10 +315,20 @@ class Generator
                 . $pageno . '</div>';
         }
 
+        $safe_text = str_replace("\r\n", "\n", $user_text);
+        $safe_text = str_replace("\r", "\n", $safe_text);
+        $safe_text = implode(
+            '<br>',
+            array_map(
+                static fn(string $line) => str_replace(' ', '&nbsp;', esc_html($line)),
+                explode("\n", $safe_text)
+            )
+        );
         return '<table style="width:100%;border-collapse:collapse;' . $border . 'font-size:8pt;">'
             . '<tr>'
-            . '<td style="text-align:left;color:#888;">' . $user_text . '</td>'
-            . '<td style="text-align:right;white-space:nowrap;font-size:10pt;">' . $pageno . '</td>'
+            . '<td style="text-align:left;color:#888;vertical-align:bottom;">' . $safe_text . '</td>'
+            . '<td style="text-align:right;white-space:nowrap;font-size:10pt;'
+            . 'vertical-align:bottom;">' . $pageno . '</td>'
             . '</tr>'
             . '</table>';
     }
@@ -541,6 +340,11 @@ class Generator
      */
     private static function buildTemplateFingerprints(): array
     {
+        $cached = get_transient('forge_pdf_template_fingerprints');
+        if (is_array($cached)) {
+            return $cached;
+        }
+
         $finfo    = new \finfo(FILEINFO_MIME_TYPE);
         $seen     = [];
         $template = [];
@@ -586,6 +390,7 @@ class Generator
             }
         }
 
+        set_transient('forge_pdf_template_fingerprints', $template, HOUR_IN_SECONDS);
         return $template;
     }
 

@@ -34,6 +34,23 @@ defined('ABSPATH') || exit;
 class MailSender
 {
     /**
+     * Registers the wp_mail_failed logger once at class load time.
+     *
+     * @return void
+     */
+    public static function init(): void
+    {
+        add_action(
+            'wp_mail_failed',
+            static function (\WP_Error $error): void {
+                \ForgeForms\forge_log(
+                    'ForgeForms MailSender: wp_mail_failed — ' . $error->get_error_message()
+                );
+            }
+        );
+    }
+
+    /**
      * Hooked into forge_forms_submission; generates and emails the submission PDF.
      *
      * Generates the PDF once and sends one email per enabled notification,
@@ -59,20 +76,11 @@ class MailSender
             return;
         }
 
-        add_action(
-            'wp_mail_failed',
-            static function (\WP_Error $error): void {
-                $msg = 'ForgeForms MailSender: wp_mail_failed — '
-                    . $error->get_error_message();
-                \ForgeForms\forge_log($msg);
-            }
-        );
-
         /* ---- Generate PDF once ---- */
         $pdf_path = Generator::generate($mapped, $form_id, $form->title);
 
         /* ---- Materialize uploads for mail attachment (split by type) ---- */
-        $uploads = self::_materializeUploadAttachments($mapped);
+        $uploads = self::materializeUploadAttachments($mapped);
 
         if ($pdf_path === false) {
             \ForgeForms\forge_log(
@@ -95,7 +103,7 @@ class MailSender
             }
 
             $to = ($notif['recipient_mode'] ?? 'single') === 'routing'
-                ? self::_resolveRoutedRecipient($notif, $mapped, $form)
+                ? self::resolveRoutedRecipient($notif, $mapped, $form)
                 : self::resolveRecipient($notif['to'] ?? '', $mapped, $form);
             if (empty($to)) {
                 \ForgeForms\forge_log(
@@ -111,7 +119,7 @@ class MailSender
             $should_attach_uploads = !empty($notif['attach_uploads']);
 
             $subject = self::replacePlaceholders(
-                $notif['subject'] ?? 'Neue Einsendung',
+                $notif['subject'] ?? __('New Submission', 'form-forge'),
                 $mapped,
                 $form
             );
@@ -136,6 +144,12 @@ class MailSender
                 : $global_from_email;
             $from_name  = '' !== $notif_name ? $notif_name : $global_from_name;
 
+            /* from_name/subject may contain user-submitted placeholder values;
+               strip CR/LF so a submitter can't inject extra mail headers. */
+            $from_name = str_replace(["\r", "\n"], '', $from_name);
+            $from_email = str_replace(["\r", "\n"], '', sanitize_email($from_email));
+            $subject = str_replace(["\r", "\n"], '', $subject);
+
             $headers = [
                 'Content-Type: text/html; charset=UTF-8',
                 'From: ' . $from_name . ' <' . $from_email . '>',
@@ -147,7 +161,7 @@ class MailSender
                 $form
             );
             if ($reply_to) {
-                $headers[] = 'Reply-To: ' . $reply_to;
+                $headers[] = 'Reply-To: ' . str_replace(["\r", "\n"], '', $reply_to);
             }
 
             $attachments = [];
@@ -201,15 +215,19 @@ class MailSender
         /* ---- Clean up PDF and upload temp dir after all emails sent ---- */
         register_shutdown_function(
             static function () use ($pdf_path, $uploads): void {
-                if ($pdf_path && file_exists($pdf_path)) {
-                    @unlink($pdf_path);
+                if ($pdf_path && file_exists($pdf_path) && !@unlink($pdf_path)) {
+                    \ForgeForms\forge_log("ForgeForms MailSender: failed to remove temp PDF {$pdf_path}");
                 }
                 $tmp_dir = $uploads['tmp_dir'] ?? '';
                 if ($tmp_dir !== '' && is_dir($tmp_dir)) {
                     foreach (glob($tmp_dir . '*') ?: [] as $f) {
-                        @unlink($f);
+                        if (!@unlink($f)) {
+                            \ForgeForms\forge_log("ForgeForms MailSender: failed to remove temp file {$f}");
+                        }
                     }
-                    @rmdir($tmp_dir);
+                    if (!@rmdir($tmp_dir)) {
+                        \ForgeForms\forge_log("ForgeForms MailSender: failed to remove temp dir {$tmp_dir}");
+                    }
                 }
             }
         );
@@ -224,7 +242,7 @@ class MailSender
      *
      * @return array Absolute paths to materialized temp files.
      */
-    private static function _materializeUploadAttachments(array $mapped): array
+    private static function materializeUploadAttachments(array $mapped): array
     {
         $result  = ['images' => [], 'others' => [], 'tmp_dir' => ''];
 
@@ -247,7 +265,7 @@ class MailSender
                 }
                 $mime = $file['mime'] ?? '';
                 $name = sanitize_file_name($file['name'] ?? 'upload');
-                $dest = $tmp_dir . $name;
+                $dest = $tmp_dir . uniqid('', true) . '_' . $name;
                 if (file_put_contents($dest, $binary) === false) {
                     \ForgeForms\forge_log(
                         "ForgeForms: failed to write temp file {$dest}"
@@ -296,7 +314,7 @@ class MailSender
      *
      * @return string Resolved email, or empty string when none apply.
      */
-    private static function _resolveRoutedRecipient(
+    private static function resolveRoutedRecipient(
         array $notif,
         array $mapped,
         FormModel $form
@@ -317,12 +335,12 @@ class MailSender
             /* The rule stores the raw option value (e.g. "yes"), but $mapped
                holds the field handler's human-readable label (e.g. "Ja") —
                translate before comparing so choice-field rules can match. */
-            $expected = self::_resolveOptionLabel(
+            $expected = self::resolveOptionLabel(
                 $form,
                 $field_id,
                 (string) ($rule['value'] ?? '')
             );
-            if (self::_ruleMatches($actual, $operator, $expected)) {
+            if (self::ruleMatches($actual, $operator, $expected)) {
                 return $email;
             }
         }
@@ -348,7 +366,7 @@ class MailSender
      *
      * @return string The option's label, or $raw unchanged.
      */
-    private static function _resolveOptionLabel(
+    private static function resolveOptionLabel(
         FormModel $form,
         string $field_id,
         string $raw
@@ -379,31 +397,31 @@ class MailSender
      *
      * @return bool Whether the rule matches.
      */
-    private static function _ruleMatches(
+    private static function ruleMatches(
         string $actual,
         string $operator,
         string $expected
     ): bool {
         switch ($operator) {
-        case 'not_equals':
-            return mb_strtolower($actual) !== mb_strtolower($expected);
-        case 'contains':
-            return $expected !== '' && mb_stripos($actual, $expected) !== false;
-        case 'not_contains':
-            return $expected === '' || mb_stripos($actual, $expected) === false;
-        case 'empty':
-            return trim($actual) === '';
-        case 'not_empty':
-            return trim($actual) !== '';
-        case 'greater':
-            return is_numeric($actual) && is_numeric($expected)
+            case 'not_equals':
+                return mb_strtolower($actual) !== mb_strtolower($expected);
+            case 'contains':
+                return $expected !== '' && mb_stripos($actual, $expected) !== false;
+            case 'not_contains':
+                return $expected === '' || mb_stripos($actual, $expected) === false;
+            case 'empty':
+                return trim($actual) === '';
+            case 'not_empty':
+                return trim($actual) !== '';
+            case 'greater':
+                return is_numeric($actual) && is_numeric($expected)
                 && (float) $actual > (float) $expected;
-        case 'less':
-            return is_numeric($actual) && is_numeric($expected)
+            case 'less':
+                return is_numeric($actual) && is_numeric($expected)
                 && (float) $actual < (float) $expected;
-        case 'equals':
-        default:
-            return mb_strtolower($actual) === mb_strtolower($expected);
+            case 'equals':
+            default:
+                return mb_strtolower($actual) === mb_strtolower($expected);
         }
     }
 
@@ -425,30 +443,43 @@ class MailSender
         $text = str_replace('{form_title}', $form->title, $text);
         $text = str_replace('{site_name}', get_bloginfo('name'), $text);
 
-        if (str_contains($text, '{all_fields}')) {
-            $all    = '';
-            $inline = get_option('forge_forms_field_layout', 'block') === 'inline';
-            foreach ($mapped as $entry) {
-                $label = $entry['label'] ?? '';
-                $value = $entry['value'] ?? '';
-                $entry_handler = FieldRegistry::get($entry['type'] ?? '');
-                if ($entry_handler && !$entry_handler->includeInEmailSummary()) {
+        $needs_all_fields = str_contains($text, '{all_fields}');
+        $inline           = get_option('forge_forms_field_layout', 'block') === 'inline';
+        $all = '';
+
+        foreach ($mapped as $key => $entry) {
+            /* Per-field placeholder substitution — always done in one pass. */
+            $raw_val  = $entry['value'] ?? '';
+            $safe_val = nl2br(esc_html(is_array($raw_val) ? implode(', ', $raw_val) : (string)$raw_val));
+            $safe_lbl = esc_html((string)($entry['label'] ?? ''));
+            if ($safe_lbl !== '') {
+                $token = $inline
+                    ? '<strong>' . $safe_lbl . ':</strong> ' . $safe_val . '<br>'
+                    : '<strong>' . $safe_lbl . '</strong><br>' . $safe_val . '<br><br>';
+            } else {
+                $token = $safe_val;
+            }
+            $text = str_replace('{' . $key . '}', $token, $text);
+
+            /* {all_fields} accumulation — reuse the same handler lookup. */
+            if ($needs_all_fields) {
+                $handler = FieldRegistry::get($entry['type'] ?? '');
+                if ($handler && !$handler->includeInEmailSummary()) {
                     continue;
                 }
+                $label = $entry['label'] ?? '';
                 if ($label !== '') {
-                    $sl = esc_html((string) $label);
-                    $sv = nl2br(esc_html((string) $value));
+                    $sl   = esc_html((string) $label);
+                    $sv   = nl2br(esc_html(is_array($raw_val) ? implode(', ', $raw_val) : (string)$raw_val));
                     $all .= $inline
                         ? '<strong>' . $sl . ':</strong> ' . $sv . '<br>'
                         : '<strong>' . $sl . '</strong><br>' . $sv . '<br><br>';
                 }
             }
-            $text = str_replace('{all_fields}', $all, $text);
         }
 
-        foreach ($mapped as $key => $entry) {
-            $safe = esc_html((string)($entry['value'] ?? ''));
-            $text = str_replace('{' . $key . '}', $safe, $text);
+        if ($needs_all_fields) {
+            $text = str_replace('{all_fields}', $all, $text);
         }
 
         return $text;

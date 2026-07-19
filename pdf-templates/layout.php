@@ -56,12 +56,12 @@ return [
     'section_order'  => $_section_order,
     'section_hidden' => $_section_hidden,
 
-    'base_css' => function () use ($_accent, $_sep, $_fs, $_font): string {
+    'base_css' => function () use ($_accent, $_sep, $_fs, $_title_fs, $_font): string {
         return '
         <style>
             body        { font-family:' . $_font . '; font-size:' . $_fs . 'pt; }
             .field-block { margin-bottom:14px; }
-            .field-label { font-weight:bold; font-size:' . $_fs . 'pt; margin-bottom:4px; color:#222; }
+            .field-label { font-weight:bold; font-size:' . $_title_fs . 'pt; margin-bottom:4px; color:#222; }
             .field-separator-thin  { border-bottom:1px solid ' . $_sep . '; margin-bottom:4px; }
             .field-value           { font-size:' . $_fs . 'pt; margin-bottom:5px; color:#333; }
             .field-separator-thick { border-bottom:3px solid ' . $_accent . '; margin-top:2px; }
@@ -184,19 +184,22 @@ return [
         </table>';
     },
 
-    'field' => function (string $label, string $value) use ($_field_layout): string {
+    'field' => function (string $label, string $value) use ($_field_layout, $_title_fs, $_fs): string {
+        $lbl_style = 'font-weight:bold;font-size:' . $_title_fs . 'pt;color:#222;';
+        $val_style = 'font-size:' . $_fs . 'pt;color:#333;';
         if ($_field_layout === 'inline') {
             return '
         <div class="field-block">
-            <span class="field-value"><strong class="field-label">' . esc_html($label) . ':</strong> ' . $value . '</span>
-            <div class="field-separator-thick"></div>
+            <span style="' . $lbl_style . '">' . esc_html($label) . ':</span>'
+            . ' <span style="' . $val_style . '">' . $value . '</span>'
+            . '<div class="field-separator-thick"></div>
         </div>';
         }
         return '
         <div class="field-block">
-            <div class="field-label">' . esc_html($label) . '</div>
+            <div style="' . $lbl_style . 'margin-bottom:4px;">' . esc_html($label) . '</div>
             <div class="field-separator-thin"></div>
-            <div class="field-value">' . $value . '</div>
+            <div style="' . $val_style . 'margin-bottom:5px;">' . $value . '</div>
             <div class="field-separator-thick"></div>
         </div>';
     },
@@ -240,6 +243,6 @@ return [
             [get_bloginfo('name'), get_bloginfo('url'), current_time('d.m.Y')],
             $text
         );
-        return esc_html($text);
+        return $text;
     },
 ];

@@ -52,7 +52,7 @@ CSS;
      */
     public function getLabel(): string
     {
-        return 'Nummer';
+        return __('Number', 'form-forge');
     }
 
     /**
@@ -77,13 +77,13 @@ CSS;
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         $extra = ['value' => esc_attr((string)($value ?? ''))];
-        if ($config['min'] ?? '' !== '') {
+        if (($config['min'] ?? '') !== '') {
             $extra['min'] = $config['min'];
         }
-        if ($config['max'] ?? '' !== '') {
+        if (($config['max'] ?? '') !== '') {
             $extra['max'] = $config['max'];
         }
-        if ($config['step'] ?? '' !== '') {
+        if (($config['step'] ?? '') !== '') {
             $extra['step'] = $config['step'];
         }
         $attrs = $this->inputAttrs($config, $field_id, 'number', $extra);
@@ -105,14 +105,14 @@ CSS;
             return $base;
         }
         if ($value !== '' && $value !== null && !is_numeric($value)) {
-            return 'Bitte geben Sie eine gültige Zahl ein.';
+            return __('Please enter a valid number.', 'form-forge');
         }
         $num = (float)$value;
         if (($config['min'] ?? '') !== '' && $num < (float)$config['min']) {
-            return 'Mindestwert: ' . $config['min'];
+            return sprintf(__('Minimum value: %s', 'form-forge'), $config['min']);
         }
         if (($config['max'] ?? '') !== '' && $num > (float)$config['max']) {
-            return 'Maximalwert: ' . $config['max'];
+            return sprintf(__('Maximum value: %s', 'form-forge'), $config['max']);
         }
         return true;
     }
@@ -129,13 +129,13 @@ CSS;
                 var inp = fieldEl.querySelector('input[type="number"]');
                 if (!inp || inp.value.trim() === '') return null;
                 var val = parseFloat(inp.value);
-                if (isNaN(val)) return 'Bitte geben Sie eine gültige Zahl ein.';
+                if (isNaN(val)) return 'Please enter a valid number.';
                 var min = inp.getAttribute('min');
                 var max = inp.getAttribute('max');
                 if (min !== null && min !== '' && val < parseFloat(min))
-                    return 'Mindestwert: ' + min;
+                    return 'Minimum value: ' + min;
                 if (max !== null && max !== '' && val > parseFloat(max))
-                    return 'Maximalwert: ' + max;
+                    return 'Maximum value: ' + max;
                 return null;
             }
             JS]];
@@ -149,7 +149,8 @@ CSS;
     public function getDefaultConfig(): array
     {
         return array_merge(
-            parent::getDefaultConfig(), [
+            parent::getDefaultConfig(),
+            [
             'min'  => '',
             'max'  => '',
             'step' => 1,
@@ -165,21 +166,22 @@ CSS;
     public function getGeneralSchema(): array
     {
         return array_merge(
-            $this->baseGeneralEntries(), [
+            $this->baseGeneralEntries(),
+            [
             [
                 'key'   => 'min',
                 'type'  => 'number',
-                'label' => 'Mindestwert',
+                'label' => __('Minimum value', 'form-forge'),
             ],
             [
                 'key'   => 'max',
                 'type'  => 'number',
-                'label' => 'Maximalwert',
+                'label' => __('Maximum value', 'form-forge'),
             ],
             [
                 'key'   => 'step',
                 'type'  => 'number',
-                'label' => 'Schrittweite',
+                'label' => __('Step size', 'form-forge'),
             ],
             ]
         );

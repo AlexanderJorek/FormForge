@@ -66,6 +66,20 @@ abstract class BaseField
     }
 
     /**
+     * Page-navigation markup for a page-break field. Only called when
+     * isPageBreak() returns true; PageBreakField overrides this.
+     *
+     * @param array $config Field configuration.
+     * @param int   $page   The page number being closed/opened.
+     *
+     * @return string
+     */
+    public function renderBreak(array $config, int $page): string
+    {
+        return '';
+    }
+
+    /**
      * Whether this field is a group container whose children are rendered inline.
      *
      * FormRenderer uses this to call openTag()/closeTag() and recurse into children
@@ -76,6 +90,31 @@ abstract class BaseField
     public function isGroupContainer(): bool
     {
         return false;
+    }
+
+    /**
+     * Opening wrapper markup for a group container field. Only called when
+     * isGroupContainer() returns true; group field classes override this.
+     *
+     * @param array  $config   Field configuration.
+     * @param string $field_id Resolved field identifier.
+     *
+     * @return string
+     */
+    public function openTag(array $config, string $field_id): string
+    {
+        return '';
+    }
+
+    /**
+     * Closing wrapper markup for a group container field. Only called when
+     * isGroupContainer() returns true; group field classes override this.
+     *
+     * @return string
+     */
+    public function closeTag(): string
+    {
+        return '';
     }
 
     /**
@@ -218,8 +257,8 @@ abstract class BaseField
     public function validate(mixed $value, array $config): bool|string
     {
         if (!empty($config['required']) && $this->isEmpty($value)) {
-            $label = $config['label'] ?? 'Field';
-            return esc_html($label) . ' ist ein Pflichtfeld.';
+            $label = $config['label'] ?? __('Field', 'form-forge');
+            return sprintf(__('%s is a required field.', 'form-forge'), esc_html($label));
         }
         return true;
     }
@@ -237,7 +276,7 @@ abstract class BaseField
     public function map(mixed $value, array $config): string
     {
         if ($this->isEmpty($value)) {
-            return '[Kein Eintrag]';
+            return __('[No entry]', 'form-forge');
         }
         return (string) $value;
     }
@@ -335,12 +374,12 @@ abstract class BaseField
             [
                 'key'   => 'placeholder',
                 'type'  => 'text',
-                'label' => 'Platzhalter',
+                'label' => __('Placeholder', 'form-forge'),
             ],
             [
                 'key'   => 'description',
                 'type'  => 'text',
-                'label' => 'Beschreibung',
+                'label' => __('Description', 'form-forge'),
             ],
         ];
     }
@@ -353,6 +392,20 @@ abstract class BaseField
     public function getGeneralSchema(): array
     {
         return $this->baseGeneralEntries();
+    }
+
+    /**
+     * Sanitizes a single string config value for this field type.
+     * Override in subclasses that need a different allowlist (e.g. HtmlField).
+     *
+     * @param string $key   Config key.
+     * @param string $value Raw value.
+     *
+     * @return string
+     */
+    public function sanitizeConfigValue(string $key, string $value): string
+    {
+        return \wp_kses_post($value);
     }
 
     /**

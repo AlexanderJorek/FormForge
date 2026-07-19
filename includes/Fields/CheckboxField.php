@@ -72,7 +72,9 @@ class CheckboxField extends BaseField
 .forge-checkbox-label input[type="checkbox"]:checked {
     border-color: var(--forge-accent);
     background-color: var(--forge-accent);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpolyline points='1,5 4.5,8.5 11,1' stroke='%23ffffff' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' \
+viewBox='0 0 12 10'%3E%3Cpolyline points='1,5 4.5,8.5 11,1' stroke='%23ffffff' \
+stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: center;
     background-size: 11px 9px;
@@ -95,7 +97,7 @@ CSS;
      */
     public function getLabel(): string
     {
-        return 'Checkboxen';
+        return __('Checkboxes', 'form-forge');
     }
 
     /**
@@ -123,8 +125,9 @@ CSS;
                 var max = parseInt(group.dataset.maxSelections || '0', 10);
                 if (!min && !max) return null;
                 var cnt = fieldEl.querySelectorAll('input[type="checkbox"]:checked').length;
-                if (min > 0 && cnt < min) return 'Bitte mindestens ' + min + ' Option(en) wählen.';
-                if (max > 0 && cnt > max) return 'Bitte höchstens ' + max + ' Option(en) wählen.';
+                var _i18n = window.ForgeForms && window.ForgeForms.i18n;
+                if (min > 0 && cnt < min) return (_i18n && _i18n.checkbox_min ? _i18n.checkbox_min.replace('%d', min) : 'Please select at least ' + min + ' option(s).');
+                if (max > 0 && cnt > max) return (_i18n && _i18n.checkbox_max ? _i18n.checkbox_max.replace('%d', max) : 'Please select at most ' + max + ' option(s).');
                 return null;
             }
             JS]];
@@ -194,10 +197,10 @@ CSS;
             $other_chk = in_array('__other__', array_map('strval', $selected), true) ? ' checked' : '';
             $inner .= '<label class="forge-checkbox-label">'
                 . '<input type="checkbox" id="' . esc_attr($other_id) . '" name="' . esc_attr($field_id) . '[]"'
-                . ' value="__other__"' . $other_chk . '> Sonstiges…</label>';
+                . ' value="__other__"' . $other_chk . '> Other…</label>';
             $show  = $other_chk ? '' : ' style="display:none"';
             $inner .= '<input type="text" name="' . esc_attr($field_id) . '_other"'
-                . ' class="forge-input forge-other-input" placeholder="Bitte angeben"' . $show . '>';
+                . ' class="forge-input forge-other-input" placeholder="' . esc_attr__('Please specify', 'form-forge') . '"' . $show . '>';
         }
         $inner .= '</div>';
 
@@ -248,7 +251,8 @@ CSS;
         if (!empty($config['required'])) {
             $vals = is_array($value) ? array_filter($value) : [];
             if (empty($vals)) {
-                return ($config['label'] ?? 'Feld') . ': Bitte mindestens eine Option wählen.';
+                $label = $config['label'] ?? __('Field', 'form-forge');
+                return sprintf(__('%s: Please select at least one option.', 'form-forge'), esc_html($label));
             }
         }
         $selected = is_array($value) ? array_filter($value) : [];
@@ -256,10 +260,10 @@ CSS;
         $min      = (int)($config['min_selections'] ?? 0);
         $max      = (int)($config['max_selections'] ?? 0);
         if ($min > 0 && $cnt < $min) {
-            return 'Bitte mindestens ' . $min . ' Option(en) wählen.';
+            return sprintf(__('Please select at least %d option(s).', 'form-forge'), $min);
         }
         if ($max > 0 && $cnt > $max) {
-            return 'Bitte höchstens ' . $max . ' Option(en) wählen.';
+            return sprintf(__('Please select at most %d option(s).', 'form-forge'), $max);
         }
         return true;
     }
@@ -276,12 +280,12 @@ CSS;
     {
         $selected = is_array($value) ? array_filter($value) : [];
         if (empty($selected)) {
-            return '[Kein Eintrag]';
+            return __('[No entry]', 'form-forge');
         }
         $labels = [];
         foreach ($selected as $v) {
             if ((string)$v === '__other__') {
-                $labels[] = '[Sonstiges]';
+                $labels[] = __('[Other]', 'form-forge');
                 continue;
             }
             $found = false;
@@ -333,37 +337,37 @@ CSS;
             [
                 'key'         => 'layout',
                 'type'        => 'bool_seg',
-                'label'       => 'Anordnung',
-                'false_label' => 'Vertikal',
-                'true_label'  => 'Horizontal',
+                'label'       => __('Layout', 'form-forge'),
+                'false_label' => __('Vertical', 'form-forge'),
+                'true_label'  => __('Horizontal', 'form-forge'),
                 'swap'        => true,
             ],
             [
                 'key'   => 'description',
                 'type'  => 'text',
-                'label' => 'Beschreibung',
+                'label' => __('Description', 'form-forge'),
             ],
             [
                 'key'   => 'other_option',
                 'type'  => 'checkbox',
-                'label' => '"Sonstiges"-Option anzeigen',
+                'label' => __('Show "Other" option', 'form-forge'),
             ],
             [
                 'key'   => 'options',
                 'type'  => 'options_list',
-                'label' => 'Optionen',
+                'label' => __('Options', 'form-forge'),
             ],
             [
                 'key'   => 'min_selections',
                 'type'  => 'number',
-                'label' => 'Min. Auswahl',
-                'hint'  => 'Leer = keine Pflicht',
+                'label' => __('Min. selection', 'form-forge'),
+                'hint'  => __('Empty = not required', 'form-forge'),
             ],
             [
                 'key'   => 'max_selections',
                 'type'  => 'number',
-                'label' => 'Max. Auswahl',
-                'hint'  => 'Leer = unbegrenzt',
+                'label' => __('Max. selection', 'form-forge'),
+                'hint'  => __('Empty = unlimited', 'form-forge'),
             ],
         ];
     }

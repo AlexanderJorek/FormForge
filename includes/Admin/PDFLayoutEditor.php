@@ -30,14 +30,27 @@ defined('ABSPATH') || exit;
  */
 class PDFLayoutEditor
 {
-    private static array $section_labels = [
-        'header'     => 'Kopfzeile (Logo & Titel)',
-        'fields'     => 'Formularfelder',
-        'signatures' => 'Unterschriften & Uploads',
-        'metadata'   => 'Metadaten & Zeitstempel',
-        'legal'      => 'Rechtlicher Hinweis',
-        'footer'     => 'Fußzeile',
-    ];
+    private static array $section_labels = [];
+
+    /**
+     * Returns localised section labels, initialised lazily so __() is available.
+     *
+     * @return array<string,string>
+     */
+    private static function sectionLabels(): array
+    {
+        if (self::$section_labels === []) {
+            self::$section_labels = [
+                'header'     => __('Header (Logo & Title)', 'form-forge'),
+                'fields'     => __('Form fields', 'form-forge'),
+                'signatures' => __('Signatures & Uploads', 'form-forge'),
+                'metadata'   => __('Metadata & Timestamp', 'form-forge'),
+                'legal'      => __('Legal notice', 'form-forge'),
+                'footer'     => __('Footer', 'form-forge'),
+            ];
+        }
+        return self::$section_labels;
+    }
 
     /**
      * Returns the default PDF layout options array.
@@ -59,7 +72,6 @@ class PDFLayoutEditor
             'margin_bottom'   => 15,
             'margin_left'     => 15,
             'margin_right'    => 15,
-            'section_order'   => ['header', 'fields', 'signatures', 'metadata', 'legal', 'footer'],
             'section_hidden'  => [],
             'header_layout'   => ['rows' => 8, 'elements' => []],
         ];
@@ -113,24 +125,20 @@ class PDFLayoutEditor
                     'margin_bottom'   => min(50, max(0, (int) ($raw['margin_bottom'] ?? 15))),
                     'margin_left'     => min(50, max(0, (int) ($raw['margin_left']   ?? 15))),
                     'margin_right'    => min(50, max(0, (int) ($raw['margin_right']  ?? 15))),
-                    'section_order'   => array_values(
-                        array_filter(
-                            array_map('sanitize_key', (array) ($raw['section_order'] ?? [])),
-                            fn($s) => isset(self::$section_labels[$s])
-                        )
-                    ),
                     'section_hidden'  => array_values(
                         array_filter(
                             array_map('sanitize_key', (array) ($raw['section_hidden'] ?? [])),
-                            fn($s) => isset(self::$section_labels[$s])
+                            fn($s) => isset(self::sectionLabels()[$s])
                         )
                     ),
                     'header_layout'   => $sanitized_hl,
                 ];
                 add_filter(
-                    'pre_option_forge_forms_pdf_layout', static function () use ($preview_opts): array {
+                    'pre_option_forge_forms_pdf_layout',
+                    static function () use ($preview_opts): array {
                         return $preview_opts;
-                    }, PHP_INT_MAX
+                    },
+                    PHP_INT_MAX
                 );
             }
         }
@@ -140,14 +148,14 @@ class PDFLayoutEditor
         $path = \ForgeForms\PDF\Generator::generate($dummy, 0, 'Layout-Vorschau');
 
         if (!$path || !file_exists($path)) {
-            wp_send_json_error(['message' => 'PDF-Generierung fehlgeschlagen.'], 500);
+            wp_send_json_error(['message' => __('PDF generation failed.', 'form-forge')], 500);
         }
 
         $data = file_get_contents($path);
         @unlink($path);
 
         if ($data === false) {
-            wp_send_json_error(['message' => 'PDF konnte nicht gelesen werden.'], 500);
+            wp_send_json_error(['message' => __('PDF could not be read.', 'form-forge')], 500);
         }
 
         wp_send_json_success(['pdf_b64' => base64_encode($data)]);
@@ -180,14 +188,15 @@ class PDFLayoutEditor
         }
         $hook = add_submenu_page(
             'forge-forms',
-            'FormForge PDF-Layout',
-            'PDF-Layout',
+            __('FormForge PDF Layout', 'form-forge'),
+            __('PDF Layout', 'form-forge'),
             'read',
             'forge-forms-pdf-layout',
             [self::class, 'render']
         );
         add_action(
-            'load-' . $hook, static function (): void {
+            'load-' . $hook,
+            static function (): void {
                 remove_all_actions('admin_notices');
                 remove_all_actions('all_admin_notices');
                 remove_all_actions('user_admin_notices');
@@ -204,13 +213,13 @@ class PDFLayoutEditor
     public static function render(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_pdf_layout')) {
-            wp_die('Keine Berechtigung.');
+            wp_die(__('Permission denied.', 'form-forge'));
         }
 
         wp_enqueue_media();
 
         $saved = false;
-        if (isset($_POST['forge_pdf_layout_nonce']) 
+        if (isset($_POST['forge_pdf_layout_nonce'])
             && wp_verify_nonce(sanitize_key($_POST['forge_pdf_layout_nonce']), 'forge_pdf_layout')
         ) {
             self::save();
@@ -220,42 +229,17 @@ class PDFLayoutEditor
         $defs = self::defaults();
         $opts = array_merge($defs, (array) get_option('forge_forms_pdf_layout', []));
 
-        if (!is_array($opts['section_order'])) {
-            $opts['section_order']  = $defs['section_order'];
-        }
         if (!is_array($opts['section_hidden'])) {
             $opts['section_hidden'] = $defs['section_hidden'];
         }
 
-        foreach (array_keys(self::$section_labels) as $slug) {
-            if (!in_array($slug, $opts['section_order'], true)) {
-                $opts['section_order'][] = $slug;
-            }
-        }
-
         $fonts = [
-            'dejavusans'     => 'DejaVu Sans (Standard, serifenlos)',
-            'dejavuserif'    => 'DejaVu Serif (mit Serifen)',
-            'dejavusansmono' => 'DejaVu Sans Mono (Festbreit)',
-            'freemono'       => 'FreeMono (Schreibmaschine)',
+            'dejavusans'     => __('DejaVu Sans (Default, sans-serif)', 'form-forge'),
+            'dejavuserif'    => __('DejaVu Serif (with serifs)', 'form-forge'),
+            'dejavusansmono' => __('DejaVu Sans Mono (Fixed-width)', 'form-forge'),
+            'freemono'       => __('FreeMono (Typewriter)', 'form-forge'),
         ];
 
-        $js_opts = wp_json_encode(
-            [
-            'accent_color'    => $opts['accent_color'],
-            'separator_color' => $opts['separator_color'],
-            'font_family'     => $opts['font_family'],
-            'font_size_body'  => (int) $opts['font_size_body'],
-            'title_size'      => (int) $opts['title_size'],
-            'footer_text'     => $opts['footer_text'],
-            'margin_top'      => (int) $opts['margin_top'],
-            'margin_bottom'   => (int) $opts['margin_bottom'],
-            'margin_left'     => (int) $opts['margin_left'],
-            'margin_right'    => (int) $opts['margin_right'],
-            'section_order'   => $opts['section_order'],
-            'section_hidden'  => $opts['section_hidden'],
-            ]
-        );
 
         $site_name         = esc_js(get_bloginfo('name'));
         $site_url          = esc_js(get_bloginfo('url'));
@@ -275,19 +259,17 @@ class PDFLayoutEditor
         ?>
 <canvas id="forge-particle-canvas"></canvas>
 <div class="wrap forge-list-wrap">
-    <div class="forge-title-pill"><i class="fa-solid fa-file-pdf"></i> PDF-Layout</div>
+    <div class="forge-title-pill"><i class="fa-solid fa-file-pdf"></i> <?php echo esc_html__('PDF Layout', 'form-forge'); ?></div>
     <hr class="wp-header-end" style="display:none">
 
         <?php if ($saved) : ?>
         <div class="forge-settings-notice forge-settings-notice--success">
-            <i class="fa-solid fa-circle-check"></i> Layout gespeichert.
+            <i class="fa-solid fa-circle-check"></i> <?php echo esc_html__('Layout saved.', 'form-forge'); ?>
         </div>
         <?php endif; ?>
 
     <form method="post" id="forge-pdf-layout-form">
         <?php wp_nonce_field('forge_pdf_layout', 'forge_pdf_layout_nonce'); ?>
-        <input type="hidden" name="section_order" id="forge-section-order-input"
-            value="<?php echo esc_attr(implode(',', $opts['section_order'])); ?>">
         <input type="hidden" name="section_hidden" id="forge-section-hidden-input"
             value="<?php echo esc_attr(implode(',', $opts['section_hidden'])); ?>">
         <input type="hidden" name="header_layout_json" id="forge-header-layout-input"
@@ -299,25 +281,25 @@ class PDFLayoutEditor
             <div class="forge-pdf-settings-panel">
 
                 <div class="forge-settings-card">
-                    <h2 class="forge-settings-card-title"><i class="fa-solid fa-table-columns"></i> Kopfzeile</h2>
+                    <h2 class="forge-settings-card-title"><i class="fa-solid fa-table-columns"></i> <?php echo esc_html__('Header', 'form-forge'); ?></h2>
                     <div class="forge-settings-field">
                         <p class="forge-card-hint">
-                            Titel, Logos und weitere Inhalte per Drag&nbsp;&amp;&nbsp;Drop positionieren.
+                            <?php echo esc_html__('Arrange titles, logos and other content via drag & drop.', 'form-forge'); ?>
                         </p>
                         <button type="button" class="button button-primary forge-hb-open-btn"
                             id="forge-open-header-builder-card">
-                            <i class="fa-solid fa-pen-to-square"></i> Kopfzeile bearbeiten
+                            <i class="fa-solid fa-pen-to-square"></i> <?php echo esc_html__('Edit header', 'form-forge'); ?>
                         </button>
                     </div>
                 </div>
 
                 <div class="forge-settings-card">
-                    <h2 class="forge-settings-card-title"><i class="fa-solid fa-palette"></i> Farben</h2>
+                    <h2 class="forge-settings-card-title"><i class="fa-solid fa-palette"></i> <?php echo esc_html__('Colors', 'form-forge'); ?></h2>
 
                     <?php
                     $color_fields = [
-                        ['accent_color',    'Akzentfarbe (dicke Trennlinien)', '#f59e0b'],
-                        ['separator_color', 'Trennlinienfarbe (dünne Linien)', '#c9cdd4'],
+                        ['accent_color',    __('Accent color (thick dividers)', 'form-forge'), '#f59e0b'],
+                        ['separator_color', __('Divider color (thin lines)', 'form-forge'), '#c9cdd4'],
                     ];
                     foreach ($color_fields as [$id, $lbl, $default]) :
                         $eid = esc_attr($id);
@@ -336,10 +318,10 @@ class PDFLayoutEditor
                 </div>
 
                 <div class="forge-settings-card">
-                    <h2 class="forge-settings-card-title"><i class="fa-solid fa-font"></i> Typografie</h2>
+                    <h2 class="forge-settings-card-title"><i class="fa-solid fa-font"></i> <?php echo esc_html__('Typography', 'form-forge'); ?></h2>
 
                     <div class="forge-settings-field">
-                        <label for="font_family">Schriftart</label>
+                        <label for="font_family"><?php echo esc_html__('Font', 'form-forge'); ?></label>
                         <select id="font_family" name="font_family">
                             <?php foreach ($fonts as $val => $lbl) : ?>
                                 <option value="<?php echo esc_attr($val); ?>"
@@ -350,16 +332,16 @@ class PDFLayoutEditor
                     </div>
 
                     <div class="forge-settings-field">
-                        <label for="font_size_body">Grundschriftgröße:
-                            <span id="font-size-body-val"><?php echo (int) $opts['font_size_body']; ?></span> pt
+                        <label for="font_size_body"><?php echo esc_html__('Base font size:', 'form-forge'); ?>
+                            <span id="font-size-body-val"><?php echo (int) $opts['font_size_body']; ?></span> <?php echo esc_html__('pt', 'form-forge'); ?>
                         </label>
                         <input type="range" id="font_size_body" name="font_size_body"
                             min="8" max="14" step="1" value="<?php echo (int) $opts['font_size_body']; ?>">
                     </div>
 
                     <div class="forge-settings-field">
-                        <label for="title_size">Titelgröße:
-                            <span id="title-size-val"><?php echo (int) $opts['title_size']; ?></span> pt
+                        <label for="title_size"><?php echo esc_html__('Title size:', 'form-forge'); ?>
+                            <span id="title-size-val"><?php echo (int) $opts['title_size']; ?></span> <?php echo esc_html__('pt', 'form-forge'); ?>
                         </label>
                         <input type="range" id="title_size" name="title_size"
                             min="12" max="28" step="1" value="<?php echo (int) $opts['title_size']; ?>">
@@ -368,20 +350,20 @@ class PDFLayoutEditor
 
                 <div class="forge-settings-card">
                     <h2 class="forge-settings-card-title">
-                        <i class="fa-solid fa-arrows-left-right-to-line"></i> Seitenränder (mm)
+                        <i class="fa-solid fa-arrows-left-right-to-line"></i> <?php echo esc_html__('Page margins (mm)', 'form-forge'); ?>
                     </h2>
                     <div class="forge-margins-grid">
                         <?php
                         $margin_sides = [
-                            'top'    => 'Oben',
-                            'right'  => 'Rechts',
-                            'bottom' => 'Unten',
-                            'left'   => 'Links',
+                            'top'    => __('Top', 'form-forge'),
+                            'right'  => __('Right', 'form-forge'),
+                            'bottom' => __('Bottom', 'form-forge'),
+                            'left'   => __('Left', 'form-forge'),
                         ];
                         foreach ($margin_sides as $side => $lbl) :
                             ?>
                         <div class="forge-settings-field">
-                            <label for="margin_<?php echo $side; ?>"><?php echo $lbl; ?>:
+                            <label for="margin_<?php echo $side; ?>"><?php echo esc_html($lbl); ?>:
                                 <span id="margin-<?php echo $side; ?>-val">
                                     <?php echo (int) $opts['margin_' . $side]; ?>
                                 </span> mm
@@ -396,29 +378,25 @@ class PDFLayoutEditor
 
                 <div class="forge-settings-card">
                     <h2 class="forge-settings-card-title">
-                        <i class="fa-solid fa-table-list"></i> Abschnitte &amp; Reihenfolge
+                        <i class="fa-solid fa-table-list"></i> <?php echo esc_html__('Sections', 'form-forge'); ?>
                     </h2>
                     <p class="forge-settings-hint" style="margin-top:0">
-                        Drag &amp; Drop zum Sortieren. Augensymbol zum Ein-/Ausblenden.
+                        <?php echo esc_html__('Eye icon to show/hide.', 'form-forge'); ?>
                     </p>
                     <ul id="forge-sections-sortable" class="forge-sections-list">
-                        <?php foreach ($opts['section_order'] as $slug) :
-                            if (!isset(self::$section_labels[$slug])) {
-                                continue;
-                            }
+                        <?php foreach (array_keys(self::sectionLabels()) as $slug) :
                             $is_hidden = in_array($slug, $opts['section_hidden'], true);
                             ?>
                         <li class="forge-section-item<?php echo $is_hidden ? ' forge-section-hidden' : ''; ?>"
-                            data-slug="<?php echo esc_attr($slug); ?>" draggable="true">
-                            <i class="fa-solid fa-grip-vertical forge-drag-handle"></i>
-                            <span><?php echo esc_html(self::$section_labels[$slug]); ?></span>
+                            data-slug="<?php echo esc_attr($slug); ?>">
+                            <span><?php echo esc_html(self::sectionLabels()[$slug]); ?></span>
                             <?php if ($slug === 'header') : ?>
                             <button type="button" class="forge-section-edit-btn"
-                                id="forge-open-header-builder" title="Kopfzeile bearbeiten">
+                                id="forge-open-header-builder" title="<?php echo esc_attr__('Edit header', 'form-forge'); ?>">
                                 <i class="fa-solid fa-pen-to-square"></i>
                             </button>
                             <?php endif; ?>
-                            <button type="button" class="forge-section-toggle" title="Ein-/Ausblenden">
+                            <button type="button" class="forge-section-toggle" title="<?php echo esc_attr__('Show/Hide', 'form-forge'); ?>">
                                 <i class="fa-solid <?php echo $is_hidden ? 'fa-eye-slash' : 'fa-eye'; ?>"></i>
                             </button>
                         </li>
@@ -427,14 +405,14 @@ class PDFLayoutEditor
                 </div>
 
                 <div class="forge-settings-card">
-                    <h2 class="forge-settings-card-title"><i class="fa-solid fa-shoe-prints"></i> Fußzeile</h2>
+                    <h2 class="forge-settings-card-title"><i class="fa-solid fa-shoe-prints"></i> <?php echo esc_html__('Footer', 'form-forge'); ?></h2>
                     <div class="forge-settings-field">
-                        <label for="footer_text">Fußzeilentext</label>
+                        <label for="footer_text"><?php echo esc_html__('Footer text', 'form-forge'); ?></label>
                         <textarea id="footer_text" name="footer_text" rows="3"
-                            placeholder="z. B. Firmenname · Adresse · Telefon"
+                            placeholder="<?php echo esc_attr__('e.g. Company name · Address · Phone', 'form-forge'); ?>"
                         ><?php echo esc_textarea($opts['footer_text']); ?></textarea>
                         <div class="forge-placeholder-chips">
-                            <?php foreach (['{site_name}','{site_url}','{date}'] as $token): ?>
+                            <?php foreach (['{site_name}','{site_url}','{date}'] as $token) : ?>
                             <button type="button" class="forge-placeholder-chip"
                                 data-insert="<?php echo esc_attr($token); ?>"><?php echo esc_html($token); ?></button>
                             <?php endforeach; ?>
@@ -448,18 +426,20 @@ class PDFLayoutEditor
             <!-- ── Preview Panel ── -->
             <div class="forge-pdf-preview-panel">
                 <div class="forge-preview-toolbar">
-                    <span><i class="fa-solid fa-eye"></i> Vorschau (A4)</span>
+                    <span><i class="fa-solid fa-eye"></i> <?php echo esc_html__('Preview (A4)', 'form-forge'); ?></span>
                     <div style="display:flex;gap:8px;">
                         <button type="submit" class="button button-primary" form="forge-pdf-layout-form">
-                            <i class="fa-solid fa-floppy-disk"></i> Speichern
+                            <i class="fa-solid fa-floppy-disk"></i> <?php echo esc_html__('Save', 'form-forge'); ?>
                         </button>
                         <button type="button" class="button" id="forge-pdf-preview-btn">
-                            <i class="fa-solid fa-file-pdf"></i> PDF öffnen
+                            <i class="fa-solid fa-file-pdf"></i> <?php echo esc_html__('Open PDF', 'form-forge'); ?>
                         </button>
                     </div>
                 </div>
                 <div class="forge-preview-stage">
-                    <div class="forge-a4-paper" id="forge-a4-paper"></div>
+                    <div class="forge-preview-stage-inner" id="forge-preview-stage-inner">
+                        <div class="forge-a4-paper" id="forge-a4-paper"></div>
+                    </div>
                 </div>
             </div>
 
@@ -473,22 +453,22 @@ class PDFLayoutEditor
     <div class="forge-hb-dialog">
 
         <div class="forge-hb-dialog-head">
-            <span><i class="fa-solid fa-table-cells-large"></i> Kopfzeile bearbeiten</span>
+            <span><i class="fa-solid fa-table-cells-large"></i> <?php echo esc_html__('Edit header', 'form-forge'); ?></span>
             <button type="button" class="forge-hb-dialog-head-close"
-                id="forge-hb-close" title="Schließen">&#x2715;</button>
+                id="forge-hb-close" title="<?php echo esc_attr__('Close', 'form-forge'); ?>">&#x2715;</button>
         </div>
 
         <div class="forge-hb-toolbar">
             <button type="button" class="button" id="forge-hb-add-title">
-                <i class="fa-solid fa-heading"></i> Titel
+                <i class="fa-solid fa-heading"></i> <?php echo esc_html__('Title', 'form-forge'); ?>
             </button>
-            <button type="button" class="button" id="forge-hb-add-image"><i class="fa-solid fa-image"></i> Bild</button>
+            <button type="button" class="button" id="forge-hb-add-image"><i class="fa-solid fa-image"></i> <?php echo esc_html__('Image', 'form-forge'); ?></button>
             <div style="width:1px;height:24px;background:#c3c4c7;margin:0 4px;"></div>
-            <label>Höhe (Zeilen à 5&thinsp;mm):
+            <label><?php echo esc_html__('Height (rows of 5 mm):', 'form-forge'); ?>
                 <input type="number" id="forge-hb-rows" min="2" max="30" value="8" style="width:52px">
             </label>
             <span style="font-size:11px;color:#888;margin-left:4px;">
-                ← Ziehen zum Positionieren · Ecken zum Skalieren · Entf zum Löschen
+                <?php echo esc_html__('← Drag to position · Corners to resize · Del to delete', 'form-forge'); ?>
             </span>
         </div>
 
@@ -497,14 +477,14 @@ class PDFLayoutEditor
                 <div id="forge-hb-canvas" class="forge-hb-canvas"></div>
             </div>
             <div class="forge-hb-props" id="forge-hb-props">
-                <p class="forge-hb-empty">Element auswählen<br>zum Bearbeiten</p>
+                <p class="forge-hb-empty"><?php echo esc_html__('Select element', 'form-forge'); ?><br><?php echo esc_html__('to edit', 'form-forge'); ?></p>
             </div>
         </div>
 
         <div class="forge-hb-dialog-footer">
-            <button type="button" class="button" id="forge-hb-cancel">Abbrechen</button>
+            <button type="button" class="button" id="forge-hb-cancel"><?php echo esc_html__('Cancel', 'form-forge'); ?></button>
             <button type="button" class="button button-primary" id="forge-hb-apply">
-                <i class="fa-solid fa-check"></i> Übernehmen
+                <i class="fa-solid fa-check"></i> <?php echo esc_html__('Apply', 'form-forge'); ?>
             </button>
         </div>
 
@@ -539,7 +519,10 @@ class PDFLayoutEditor
     var canvas = document.getElementById('forge-particle-canvas');
     if (canvas) {
         var ctx = canvas.getContext('2d'), mouse = {x:-9999,y:-9999};
-        var DOTS=80,LINK=150,SPEED=0.4,COLOR='99,132,180',particles=[];
+        var _ah=getComputedStyle(document.documentElement).getPropertyValue('--forge-admin-accent').trim()||'#2271b1';
+        var _rgb=function(h){return parseInt(h.slice(1,3),16)+','+parseInt(h.slice(3,5),16)+','+parseInt(h.slice(5,7),16);};
+        var DOTS=Math.min(120,Math.max(40,Math.round(innerWidth*innerHeight/26000)));
+        var LINK=150,SPEED=1.0,COLOR=_rgb(_ah),particles=[],paused=false,FRAME_MS=1000/30;
         function resize(){ canvas.width=innerWidth; canvas.height=innerHeight; }
         function rand(a,b){ return a+Math.random()*(b-a); }
         function initP(){
@@ -547,22 +530,26 @@ class PDFLayoutEditor
             for(var i=0;i<DOTS;i++) particles.push({x:rand(0,canvas.width),y:rand(0,canvas.height),vx:rand(-SPEED,SPEED),vy:rand(-SPEED,SPEED),r:rand(2,3.5)});
         }
         function draw(){
+            if(paused) return;
             ctx.clearRect(0,0,canvas.width,canvas.height);
-            particles.forEach(function(p){p.x+=p.vx;p.y+=p.vy;if(p.x<0||p.x>canvas.width)p.vx*=-1;if(p.y<0||p.y>canvas.height)p.vy*=-1;});
+            for(var i=0;i<particles.length;i++){var p=particles[i];p.x+=p.vx;p.y+=p.vy;if(p.x<0||p.x>canvas.width)p.vx*=-1;if(p.y<0||p.y>canvas.height)p.vy*=-1;}
+            ctx.lineWidth=1;
             for(var i=0;i<particles.length;i++){
                 for(var j=i+1;j<particles.length;j++){
                     var dx=particles[i].x-particles[j].x,dy=particles[i].y-particles[j].y,d=Math.sqrt(dx*dx+dy*dy);
-                    if(d<LINK){ctx.beginPath();ctx.moveTo(particles[i].x,particles[i].y);ctx.lineTo(particles[j].x,particles[j].y);ctx.strokeStyle='rgba('+COLOR+','+(1-d/LINK)*0.3+')';ctx.lineWidth=1;ctx.stroke();}
+                    if(d<LINK){ctx.beginPath();ctx.moveTo(particles[i].x,particles[i].y);ctx.lineTo(particles[j].x,particles[j].y);ctx.strokeStyle='rgba('+COLOR+','+(1-d/LINK)*0.3+')';ctx.stroke();}
                 }
                 var mdx=particles[i].x-mouse.x,mdy=particles[i].y-mouse.y,md=Math.sqrt(mdx*mdx+mdy*mdy);
-                if(md<LINK){ctx.beginPath();ctx.moveTo(particles[i].x,particles[i].y);ctx.lineTo(mouse.x,mouse.y);ctx.strokeStyle='rgba('+COLOR+','+(1-md/LINK)*0.55+')';ctx.lineWidth=1;ctx.stroke();}
+                if(md<LINK){ctx.beginPath();ctx.moveTo(particles[i].x,particles[i].y);ctx.lineTo(mouse.x,mouse.y);ctx.strokeStyle='rgba('+COLOR+','+(1-md/LINK)*0.55+')';ctx.stroke();}
             }
-            particles.forEach(function(p){ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle='rgba('+COLOR+',0.5)';ctx.fill();});
-            requestAnimationFrame(draw);
+            ctx.fillStyle='rgba('+COLOR+',0.5)';
+            for(var i=0;i<particles.length;i++){ctx.beginPath();ctx.arc(particles[i].x,particles[i].y,particles[i].r,0,Math.PI*2);ctx.fill();}
+            setTimeout(function(){requestAnimationFrame(draw);},FRAME_MS-2);
         }
         document.addEventListener('mousemove',function(e){mouse.x=e.clientX;mouse.y=e.clientY;});
+        document.addEventListener('visibilitychange',function(){paused=document.hidden;if(!paused)requestAnimationFrame(draw);});
         window.addEventListener('resize',function(){resize();initP();});
-        resize();initP();draw();
+        resize();initP();requestAnimationFrame(draw);
     }
 
     /* helpers */
@@ -589,9 +576,8 @@ class PDFLayoutEditor
     function pt(n){ return (n*120/72).toFixed(1)+'px'; }
 
     function collectSettings(){
-        var order=[], hidden=[];
+        var hidden=[];
         document.querySelectorAll('#forge-sections-sortable .forge-section-item').forEach(function(li){
-            order.push(li.dataset.slug);
             if(li.classList.contains('forge-section-hidden')) hidden.push(li.dataset.slug);
         });
         return {
@@ -605,12 +591,54 @@ class PDFLayoutEditor
             margin_bottom:   parseInt(val('margin_bottom'))||15,
             margin_left:     parseInt(val('margin_left'))||15,
             margin_right:    parseInt(val('margin_right'))||15,
-            section_order:   order,
             section_hidden:  hidden
         };
     }
 
     var paper = $('forge-a4-paper');
+    var stageInner = $('forge-preview-stage-inner');
+
+    function scaleA4() {
+        if (!stageInner) return;
+        var papers = stageInner.querySelectorAll('.forge-a4-paper');
+        var paperW = 992;
+        var vw     = document.documentElement.clientWidth;
+
+        if (vw > 1440) {
+            papers.forEach(function(p) {
+                p.style.width  = '';
+                p.style.zoom   = '';
+                p.style.transform = '';
+                p.style.transformOrigin = '';
+            });
+            stageInner.style.width  = '';
+            stageInner.style.height = '';
+            return;
+        }
+
+        /* Grid container is a stable width reference — sizes to its outer context,
+           not to its children, so it stays correct even when papers overflow. */
+        var editorWrap  = document.querySelector('.forge-pdf-editor-wrap');
+        var refW        = editorWrap ? editorWrap.clientWidth : Math.max(vw - 20, 100);
+        var stageStyles = stageInner.parentElement ? window.getComputedStyle(stageInner.parentElement) : null;
+        var padL        = stageStyles ? parseFloat(stageStyles.paddingLeft)  : 10;
+        var padR        = stageStyles ? parseFloat(stageStyles.paddingRight) : 10;
+        var available   = Math.max(refW - padL - padR, 100);
+        var scale       = available / paperW;
+
+        stageInner.style.width  = available + 'px';
+        stageInner.style.height = '';   /* let flex column size naturally to zoomed papers */
+
+        /* zoom (unlike transform:scale) affects layout flow: the paper's rendered
+           size becomes 992*scale × 1402*scale, so flex gap and page stacking work
+           without manual height calculation or overflow clipping hacks. */
+        papers.forEach(function(p) {
+            p.style.width = paperW + 'px';
+            p.style.zoom  = String(scale);
+        });
+    }
+    scaleA4();
+    window.addEventListener('resize', scaleA4);
 
     function buildPreview(s){
         var ff  = fontMap[s.font_family]||'Arial,sans-serif';
@@ -620,7 +648,8 @@ class PDFLayoutEditor
            which makes all block heights ~22px shorter than the real PDF. */
         var out = '<div style="font-family:'+ff+';font-size:'+fs+';line-height:1.6;color:#222;padding:'+pad+';box-sizing:border-box;">';
 
-        s.section_order.forEach(function(slug){
+        var FIXED_ORDER = ['header','fields','signatures','metadata','legal'];
+        FIXED_ORDER.forEach(function(slug){
             if(s.section_hidden.indexOf(slug)!==-1) return;
 
             if(slug==='header'){
@@ -636,13 +665,13 @@ class PDFLayoutEditor
                        / .field-value / .field-separator-thick CSS exactly */
                     if(fieldLayoutMode==='inline'){
                         out+='<div style="margin-bottom:14px;">';
-                        out+='<span style="font-weight:700;font-size:'+pt(s.font_size_body)+';color:#222;">'+f.label+':</span> ';
+                        out+='<span style="font-weight:700;font-size:'+pt(s.title_size)+';color:#222;">'+f.label+':</span> ';
                         out+='<span style="font-size:'+pt(s.font_size_body)+';color:#333;margin-bottom:5px;">'+f.value+'</span>';
                         out+='<div style="border-bottom:3px solid '+s.accent_color+';margin-top:2px;"></div>';
                         out+='</div>';
                     } else {
                         out+='<div style="margin-bottom:14px;">';
-                        out+='<div style="font-weight:700;font-size:'+pt(s.font_size_body)+';margin-bottom:4px;color:#222;">'+f.label+'</div>';
+                        out+='<div style="font-weight:700;font-size:'+pt(s.title_size)+';margin-bottom:4px;color:#222;">'+f.label+'</div>';
                         out+='<div style="border-bottom:1px solid '+s.separator_color+';margin-bottom:4px;"></div>';
                         out+='<div style="font-size:'+pt(s.font_size_body)+';margin-bottom:5px;color:#333;">'+f.value+'</div>';
                         out+='<div style="border-bottom:3px solid '+s.accent_color+';margin-top:2px;"></div>';
@@ -660,14 +689,14 @@ class PDFLayoutEditor
                 var imgStyle = 'max-width:100%;max-height:300px;border:1px solid #ccc;padding:4px;display:block;';
                 /* Signature */
                 out+='<div style="margin-bottom:14px;">';
-                out+='<div style="font-weight:700;font-size:'+pt(s.font_size_body)+';margin-bottom:4px;color:#222;">Unterschrift</div>';
+                out+='<div style="font-weight:700;font-size:'+pt(s.title_size)+';margin-bottom:4px;color:#222;">Unterschrift</div>';
                 out+='<div style="border-bottom:1px solid '+s.separator_color+';margin-bottom:4px;"></div>';
                 out+='<div style="margin:8px 0;"><img src="'+dummySignatureSrc+'" width="300" height="80" style="'+imgStyle+'" alt="Unterschrift"></div>';
                 out+='<div style="border-bottom:3px solid '+s.accent_color+';margin-top:2px;"></div>';
                 out+='</div>';
                 /* Upload / Anhang */
                 out+='<div style="margin-bottom:14px;">';
-                out+='<div style="font-weight:700;font-size:'+pt(s.font_size_body)+';margin-bottom:4px;color:#222;">Anhang</div>';
+                out+='<div style="font-weight:700;font-size:'+pt(s.title_size)+';margin-bottom:4px;color:#222;">Anhang</div>';
                 out+='<div style="border-bottom:1px solid '+s.separator_color+';margin-bottom:4px;"></div>';
                 out+='<div style="font-size:'+pt(s.font_size_body)+';margin-bottom:5px;color:#333;">beispiel-dokument.png</div>';
                 out+='<div style="margin:8px 0;"><img src="'+dummyUploadSrc+'" width="300" height="80" style="'+imgStyle+'" alt="Anhang"></div>';
@@ -744,12 +773,10 @@ class PDFLayoutEditor
 
     function updatePreview(){
         var s = collectSettings();
-        var oi = $('forge-section-order-input');
         var hi = $('forge-section-hidden-input');
-        if(oi) oi.value = s.section_order.join(',');
         if(hi) hi.value = s.section_hidden.join(',');
 
-        var stage = paper ? paper.parentElement : null;
+        var stage = stageInner;
         if(!stage) return;
 
         var result = paginate(s, buildPreview(s));
@@ -780,8 +807,9 @@ class PDFLayoutEditor
             var pageNumHtml = 'Seite ' + pageNum + ' von ' + total;
             var footerHtml;
             if(userFt){
+                var userFtHtml = userFt.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
                 footerHtml = '<table style="width:100%;border-collapse:collapse;font-size:'+pt(8)+';"><tr>'
-                    +'<td style="text-align:left;color:#888;">'+userFt+'</td>'
+                    +'<td style="text-align:left;color:#888;white-space:pre-wrap;">'+userFtHtml+'</td>'
                     +'<td style="text-align:right;white-space:nowrap;font-size:'+pt(10)+';">'
                     +pageNumHtml+'</td></tr></table>';
             } else {
@@ -799,6 +827,7 @@ class PDFLayoutEditor
             stage.appendChild(pageEl);
         });
         paper = document.getElementById('forge-a4-paper');
+        scaleA4();
     }
 
     /* range sliders */
@@ -837,37 +866,9 @@ class PDFLayoutEditor
 
 
 
-    /* drag-and-drop section sorting */
+    /* section hide/show toggles */
     var sortable = $('forge-sections-sortable');
-    var dragSrc  = null;
-
     if(sortable){
-        sortable.addEventListener('dragstart', function(e){
-            dragSrc = e.target.closest('.forge-section-item');
-            if(dragSrc){ dragSrc.classList.add('forge-dragging'); e.dataTransfer.effectAllowed='move'; }
-        });
-        sortable.addEventListener('dragend', function(){
-            document.querySelectorAll('.forge-section-item').forEach(function(li){
-                li.classList.remove('forge-dragging','forge-drag-over');
-            });
-            dragSrc=null;
-            updatePreview();
-        });
-        sortable.addEventListener('dragover', function(e){
-            e.preventDefault();
-            e.dataTransfer.dropEffect='move';
-            var target = e.target.closest('.forge-section-item');
-            if(!target||target===dragSrc) return;
-            document.querySelectorAll('.forge-section-item').forEach(function(li){ li.classList.remove('forge-drag-over'); });
-            target.classList.add('forge-drag-over');
-            var rect = target.getBoundingClientRect();
-            if(e.clientY < rect.top+rect.height/2){
-                sortable.insertBefore(dragSrc,target);
-            } else {
-                sortable.insertBefore(dragSrc,target.nextSibling);
-            }
-        });
-
         sortable.addEventListener('click', function(e){
             var btn = e.target.closest('.forge-section-toggle');
             if(!btn) return;
@@ -887,7 +888,7 @@ class PDFLayoutEditor
     if(pdfBtn){
         pdfBtn.addEventListener('click', function(){
             pdfBtn.disabled = true;
-            pdfBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generiere…';
+            pdfBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating…';
             var fd = new FormData();
             fd.append('action', 'forge_forms_pdf_preview');
             fd.append('nonce',  '<?php echo esc_js(wp_create_nonce("forge_forms_admin_nonce")); ?>');
@@ -904,13 +905,13 @@ class PDFLayoutEditor
                         window.open(url,'_blank');
                         setTimeout(function(){ URL.revokeObjectURL(url); }, 30000);
                     } else {
-                        alert((resp.data && resp.data.message) || 'Fehler beim Generieren.');
+                        alert((resp.data && resp.data.message) || 'Error generating.');
                     }
                 })
-                .catch(function(){ alert('Netzwerkfehler.'); })
+                .catch(function(){ alert('Network error.'); })
                 .finally(function(){
                     pdfBtn.disabled = false;
-                    pdfBtn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> PDF öffnen';
+                    pdfBtn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Open PDF';
                 });
         });
     }
@@ -1133,7 +1134,7 @@ class PDFLayoutEditor
             +'<input type="text" id="hb-pick-url" placeholder="https://…" style="margin-bottom:4px">'
             +'<button type="button" class="button" id="hb-pick-url-confirm" style="width:100%">Einfügen</button>'
             +'</div>'
-            +'<button type="button" class="button" id="hb-pick-cancel" style="width:100%;margin-top:8px;color:#646970">Abbrechen</button>'
+            +'<button type="button" class="button" id="hb-pick-cancel" style="width:100%;margin-top:8px">Abbrechen</button>'
             +'</div>';
 
         document.getElementById('hb-pick-media').addEventListener('click', function(){
@@ -1561,9 +1562,17 @@ class PDFLayoutEditor
             /* Temporarily wrap to intercept header slug */
             var patched = false;
             var result = '';
-            var order = s.section_order || [];
+            var order = ['header','fields','signatures','metadata','legal'];
             var hidden = s.section_hidden || [];
-            var ff = (function(){ var fm={'dejavusans':'Arial,Helvetica,sans-serif','dejavuserif':"'Times New Roman',Times,serif",'dejavusansmono':"'DejaVu Sans Mono','Courier New',monospace",'freemono':"'Courier New',Courier,monospace"}; return fm[s.font_family]||'Arial,sans-serif'; })();
+            var ff = (function(){
+                var fm = {
+                    'dejavusans': 'Arial,Helvetica,sans-serif',
+                    'dejavuserif': "'Times New Roman',Times,serif",
+                    'dejavusansmono': "'DejaVu Sans Mono','Courier New',monospace",
+                    'freemono': "'Courier New',Courier,monospace"
+                };
+                return fm[s.font_family] || 'Arial,sans-serif';
+            })();
             var fs = pt(s.font_size_body);
             var pad = mm(s.margin_top)+' '+mm(s.margin_right)+' '+mm(s.margin_bottom)+' '+mm(s.margin_left);
             result += '<div style="font-family:'+ff+';font-size:'+fs+';color:#222;padding:'+pad+';box-sizing:border-box;">';
@@ -1572,14 +1581,18 @@ class PDFLayoutEditor
                 if(slug==='header'){
                     /*
                      * Render header at builder canvas scale (HB_COLS*HB_CELL px wide) then
-                     * CSS-scale it to fit the preview paper width. This means image aspect
-                     * ratios match the builder exactly — no empty space from object-fit:contain
-                     * at a different viewport width.
+                     * CSS-scale it to fill the paper's content area (992px minus margins).
+                     * The paper is always at its 992px design width; the viewport scaling is
+                     * handled separately by scaleA4(), so image aspect ratios always match
+                     * the builder canvas exactly.
                      */
-                    var canvasW  = HB_COLS * HB_CELL;
-                    var marginPx = parseFloat(mm(s.margin_left)) + parseFloat(mm(s.margin_right));
-                    var paperW   = paper ? Math.max(1, paper.offsetWidth - marginPx) : canvasW;
-                    var scale    = paperW / canvasW; /* always fill content width; height scales proportionally */
+                    var canvasW   = HB_COLS * HB_CELL;
+                    var marginPx  = parseFloat(mm(s.margin_left)) + parseFloat(mm(s.margin_right));
+                    /* Paper is always at its 992px design width (JS forces this on mobile via
+                       p.style.width). Using paper.offsetWidth was fragile — it varied with
+                       stageInner width and broke header scale on mobile. */
+                    var contentW  = Math.max(1, 992 - marginPx);
+                    var scale     = contentW / canvasW; /* fills paper content area; height scales proportionally */
                     var hpx = 0;
                     hl.elements.forEach(function(el){ var b=(el.y+el.h)*HB_CELL; if(b>hpx) hpx=b; });
                     hpx = Math.max(HB_CELL, hpx);
@@ -1607,8 +1620,10 @@ class PDFLayoutEditor
                     return;
                 }
                 /* all other sections: delegate to original build */
-                var fakeS = Object.assign({}, s, { section_order:[slug], section_hidden:[] });
-                /* extract just this section's HTML by calling original with single-section order */
+                var allSlugs = ['header','fields','signatures','metadata','legal'];
+                var hideAll = allSlugs.filter(function(x){ return x !== slug; });
+                var fakeS = Object.assign({}, s, { section_hidden: hideAll });
+                /* extract just this section's HTML by calling original with all-but-one hidden */
                 var chunk = _origBuild(fakeS);
                 /* strip the outer wrapper div that _origBuild adds */
                 chunk = chunk.replace(/^<div[^>]*>/, '').replace(/<\/div>\s*$/, '');
@@ -1653,7 +1668,7 @@ class PDFLayoutEditor
         var btn = document.querySelector('[form="forge-pdf-layout-form"][type="submit"]')
             || form.querySelector('button[type="submit"]');
         var origHtml = btn ? btn.innerHTML : '';
-        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="forge-spinner"></span> Speichern…'; }
+        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="forge-spinner"></span> Saving…'; }
         var fd = new FormData(form);
         fd.set('action', 'forge_save_pdf_layout');
         requestAnimationFrame(function(){ requestAnimationFrame(function(){
@@ -1664,12 +1679,12 @@ class PDFLayoutEditor
                 if (data.success) {
                     showNotice(data.data.message, false);
                 } else {
-                    showNotice((data.data && data.data.message) || 'Fehler beim Speichern.', true);
+                    showNotice((data.data && data.data.message) || 'Error saving.', true);
                 }
             })
             .catch(function(){
                 if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
-                showNotice('Netzwerkfehler.', true);
+                showNotice('Network error.', true);
             });
         }); }); // requestAnimationFrame double-frame
     });
@@ -1690,7 +1705,7 @@ class PDFLayoutEditor
         }
         check_ajax_referer('forge_pdf_layout', 'forge_pdf_layout_nonce');
         self::save();
-        wp_send_json_success(['message' => 'Layout gespeichert.']);
+        wp_send_json_success(['message' => __('Layout saved.', 'form-forge')]);
     }
 
     /**
@@ -1701,14 +1716,8 @@ class PDFLayoutEditor
     private static function save(): void
     {
         $defs = self::defaults();
-        $labels = self::$section_labels;
+        $labels = self::sectionLabels();
 
-        $order = array_values(
-            array_filter(
-                array_map('sanitize_key', explode(',', wp_unslash($_POST['section_order'] ?? ''))),
-                fn($s) => isset($labels[$s])
-            )
-        );
         $hidden = array_values(
             array_filter(
                 array_map('sanitize_key', explode(',', wp_unslash($_POST['section_hidden'] ?? ''))),
@@ -1716,12 +1725,9 @@ class PDFLayoutEditor
             )
         );
 
-        if (empty($order)) {
-            $order = $defs['section_order'];
-        }
-
         update_option(
-            'forge_forms_pdf_layout', [
+            'forge_forms_pdf_layout',
+            [
             'logo_url'        => esc_url_raw(wp_unslash($_POST['logo_url'] ?? '')),
             'logo_width'      => min(400, max(40, (int) ($_POST['logo_width'] ?? 180))),
             'accent_color'    => sanitize_hex_color($_POST['accent_color']    ?? '') ?: $defs['accent_color'],
@@ -1734,13 +1740,14 @@ class PDFLayoutEditor
             'margin_bottom'   => min(50, max(0, (int) ($_POST['margin_bottom'] ?? 15))),
             'margin_left'     => min(50, max(0, (int) ($_POST['margin_left']   ?? 15))),
             'margin_right'    => min(50, max(0, (int) ($_POST['margin_right']  ?? 15))),
-            'section_order'   => $order,
             'section_hidden'  => $hidden,
             'header_layout'   => self::sanitizeHeaderLayout(
                 json_decode(wp_unslash($_POST['header_layout_json'] ?? '{}'), true) ?: []
             ),
             ]
         );
+
+        delete_transient('forge_pdf_template_fingerprints');
     }
 
     /**
@@ -1774,7 +1781,14 @@ class PDFLayoutEditor
                 $item['align'] = in_array($el['align'] ?? '', ['left', 'center', 'right'], true) ? $el['align'] : 'left';
                 $item['color'] = sanitize_hex_color($el['color'] ?? '') ?: '#1d2327';
             } elseif ($type === 'image') {
-                $item['src'] = esc_url_raw($el['src'] ?? '');
+                $src = esc_url_raw($el['src'] ?? '');
+                /* Only allow images that resolve to a local media-library
+                   attachment — an arbitrary external/file:// URL here would
+                   let mPDF fetch it at PDF-generation time (SSRF). */
+                if ($src === '' || !attachment_url_to_postid($src)) {
+                    continue;
+                }
+                $item['src'] = $src;
                 $item['fit'] = in_array($el['fit'] ?? '', ['contain', 'cover', 'fill'], true) ? $el['fit'] : 'contain';
             } elseif ($type === 'html') {
                 $item['html'] = wp_kses_post($el['html'] ?? '');
@@ -1880,7 +1894,7 @@ class PDFLayoutEditor
         ob_start();
         imagepng($img);
         $raw = ob_get_clean();
-        imagedestroy($img);
+        unset($img);
         return base64_encode((string) $raw);
     }
 
@@ -1912,11 +1926,11 @@ class PDFLayoutEditor
         imagefilledrectangle($img, 117, 38, 153, 40, $dark);
         imagefilledrectangle($img, 117, 46, 140, 48, $dark);
         /* Label */
-        imagestring($img, 2, 170, 32, 'Anhang', $dark);
+        imagestring($img, 2, 170, 32, 'Attachment', $dark);
         ob_start();
         imagepng($img);
         $raw = ob_get_clean();
-        imagedestroy($img);
+        unset($img);
         return base64_encode((string) $raw);
     }
 

@@ -96,7 +96,7 @@ CSS;
      */
     public function getLabel(): string
     {
-        return 'Schieberegler';
+        return __('Slider', 'form-forge');
     }
 
     /**
@@ -303,6 +303,28 @@ CSS;
     }
 
     /**
+     * Returns the sanitized slider value.
+     *
+     * Ranged mode submits `$field_id[from]` and `$field_id[to]` as an array;
+     * single mode submits a scalar.
+     *
+     * @param string $field_id The field element ID.
+     *
+     * @return mixed
+     */
+    public function extractValue(string $field_id): mixed
+    {
+        $raw = $_POST[$field_id] ?? null;
+        if (is_array($raw)) {
+            return [
+                'from' => sanitize_text_field(wp_unslash((string)($raw['from'] ?? ''))),
+                'to'   => sanitize_text_field(wp_unslash((string)($raw['to']   ?? ''))),
+            ];
+        }
+        return isset($_POST[$field_id]) ? sanitize_text_field(wp_unslash((string)$raw)) : '';
+    }
+
+    /**
      * Validates the submitted value.
      *
      * @param mixed $value  Submitted value.
@@ -324,26 +346,26 @@ CSS;
                     continue;
                 }
                 if (!is_numeric($v)) {
-                    return 'Bitte geben Sie einen gültigen Wert ein.';
+                    return __('Please enter a valid value.', 'form-forge');
                 }
                 $n = (float)$v;
                 if ($n < $min) {
-                    return 'Mindestwert: ' . $min;
+                    return sprintf(__('Minimum value: %s', 'form-forge'), $min);
                 }
                 if ($n > $max) {
-                    return 'Maximalwert: ' . $max;
+                    return sprintf(__('Maximum value: %s', 'form-forge'), $max);
                 }
             }
         } elseif ($value !== '' && $value !== null) {
             if (!is_numeric($value)) {
-                return 'Bitte geben Sie einen gültigen Wert ein.';
+                return __('Please enter a valid value.', 'form-forge');
             }
             $n = (float)$value;
             if ($n < $min) {
-                return 'Mindestwert: ' . $min;
+                return sprintf(__('Minimum value: %s', 'form-forge'), $min);
             }
             if ($n > $max) {
-                return 'Maximalwert: ' . $max;
+                return sprintf(__('Maximum value: %s', 'form-forge'), $max);
             }
         }
         return true;
@@ -368,16 +390,16 @@ CSS;
                     if (!fromInp || !toInp) return null;
                     var from = parseFloat(fromInp.value);
                     var to   = parseFloat(toInp.value);
-                    if (isNaN(from) || isNaN(to)) return 'Bitte geben Sie einen gültigen Wert ein.';
+                    if (isNaN(from) || isNaN(to)) return 'Please enter a valid value.';
                     if (from < min || to > max)
-                        return 'Wert außerhalb des erlaubten Bereichs (' + min + '–' + max + ').';
+                        return 'Value outside the allowed range (' + min + '–' + max + ').';
                 } else {
                     var inp = fieldEl.querySelector('input[type="hidden"]');
                     if (!inp) return null;
                     var val = parseFloat(inp.value);
-                    if (isNaN(val)) return 'Bitte geben Sie einen gültigen Wert ein.';
-                    if (val < min) return 'Mindestwert: ' + min;
-                    if (val > max) return 'Maximalwert: ' + max;
+                    if (isNaN(val)) return 'Please enter a valid value.';
+                    if (val < min) return 'Minimum value: ' + min;
+                    if (val > max) return 'Maximum value: ' + max;
                 }
                 return null;
             }
@@ -397,7 +419,7 @@ CSS;
         if (!empty($config['ranged']) && is_array($value)) {
             return ($value['from'] ?? '') . ' – ' . ($value['to'] ?? '');
         }
-        return $value !== null && $value !== '' ? (string)$value : '[Kein Eintrag]';
+        return $value !== null && $value !== '' ? (string)$value : __('[No entry]', 'form-forge');
     }
 
     /**
@@ -408,7 +430,8 @@ CSS;
     public function getDefaultConfig(): array
     {
         return array_merge(
-            parent::getDefaultConfig(), [
+            parent::getDefaultConfig(),
+            [
             'min'    => 0,
             'max'    => 100,
             'step'   => 1,
@@ -425,28 +448,29 @@ CSS;
     public function getGeneralSchema(): array
     {
         return array_merge(
-            $this->baseGeneralEntries(), [
+            $this->baseGeneralEntries(),
+            [
             [
                 'key'         => 'ranged',
                 'type'        => 'bool_seg',
-                'label'       => 'Modus',
-                'false_label' => 'Einzel',
-                'true_label'  => 'Bereich',
+                'label'       => __('Mode', 'form-forge'),
+                'false_label' => __('Single', 'form-forge'),
+                'true_label'  => __('Range', 'form-forge'),
             ],
             [
                 'key'   => 'min',
                 'type'  => 'number',
-                'label' => 'Mindestwert',
+                'label' => __('Minimum value', 'form-forge'),
             ],
             [
                 'key'   => 'max',
                 'type'  => 'number',
-                'label' => 'Maximalwert',
+                'label' => __('Maximum value', 'form-forge'),
             ],
             [
                 'key'   => 'step',
                 'type'  => 'number',
-                'label' => 'Schrittweite',
+                'label' => __('Step size', 'form-forge'),
             ],
             ]
         );

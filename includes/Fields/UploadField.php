@@ -31,7 +31,14 @@ class UploadField extends BaseField
     private const BLOCKED_TYPES = [
         'htm','html','shtml','phtml','jse','jar','xml','css','asp','aspx',
         'jsp','sql','hta','dll','bat','com','sh','bash','py','pl','js',
-        'php','svg','swf','dfxp','rar','exe',
+        'php','php3','php4','php5','php7','pht','phar','cgi',
+        'svg','swf','dfxp','rar','exe',
+    ];
+
+    private const BLOCKED_MIME_TYPES = [
+        'text/html', 'application/x-httpd-php', 'application/x-php',
+        'application/x-sh', 'application/x-msdownload', 'application/x-executable',
+        'text/x-shellscript', 'text/x-python', 'text/x-perl',
     ];
 
     private const TYPE_GROUPS = [
@@ -135,7 +142,7 @@ CSS;
      */
     public function getLabel(): string
     {
-        return 'Datei-Upload';
+        return __('File upload', 'form-forge');
     }
 
     /**
@@ -200,8 +207,9 @@ CSS;
                         var btn = document.createElement('button');
                         btn.type      = 'button';
                         btn.className = 'forge-upload-chip-remove';
+                        var _i18n = window.ForgeForms && window.ForgeForms.i18n;
                         btn.setAttribute(
-                            'aria-label', 'Entfernen: ' + file.name
+                            'aria-label', ((_i18n && _i18n.upload_remove_prefix) || 'Remove: ') + file.name
                         );
                         btn.textContent = '×';
                         btn.addEventListener('click', function () {
@@ -239,8 +247,11 @@ CSS;
                 }
                 function checkLimit(files) {
                     if (maxFiles > 0 && files.length > maxFiles) {
+                        var _i18nL = window.ForgeForms && window.ForgeForms.i18n;
                         showError(
-                            'Zu viele Dateien. Maximal ' + maxFiles + ' erlaubt.'
+                            (_i18nL && _i18nL.upload_too_many)
+                                ? _i18nL.upload_too_many.replace('%d', maxFiles)
+                                : 'Too many files. Maximum ' + maxFiles + ' allowed.'
                         );
                         return false;
                     }
@@ -253,7 +264,8 @@ CSS;
                         allowed = [allowed[0]];
                     }
                     if (!allowed.length) {
-                        showError('Keine erlaubten Dateitypen in der Auswahl.');
+                        var _i18nA = window.ForgeForms && window.ForgeForms.i18n;
+                        showError((_i18nA && _i18nA.upload_no_types) || 'No allowed file types in selection.');
                         return;
                     }
                     if (!checkLimit(allowed)) return;
@@ -264,11 +276,11 @@ CSS;
                         renderChips(input.files);
                         var skipped = all.length - allowed.length;
                         if (skipped > 0) {
-                            showNotice(
-                                skipped + ' Datei'
-                                + (skipped === 1 ? ' wurde' : 'en wurden')
-                                + ' aufgrund des Dateityps übersprungen.'
-                            );
+                            var _i18nS = window.ForgeForms && window.ForgeForms.i18n;
+                            var _skippedMsg = skipped === 1
+                                ? ((_i18nS && _i18nS.upload_skipped_one) || '1 file was skipped due to file type.')
+                                : ((_i18nS && _i18nS.upload_skipped_many) || '%d files were skipped due to file type.').replace('%d', skipped);
+                            showNotice(_skippedMsg);
                         }
                     } catch (e) { /* DataTransfer not supported */ }
                 }
@@ -296,9 +308,10 @@ CSS;
                                         if (!ze || !zi || !zi.files || !zi.files.length) {
                                             return;
                                         }
-                                        ze.textContent = 'Zu viele Dateien insgesamt ('
-                                            + ev.detail.total + '). Max. '
-                                            + ev.detail.max + ' pro Einsendung.';
+                                        var _i18nO = window.ForgeForms && window.ForgeForms.i18n;
+                                        ze.textContent = (_i18nO && _i18nO.upload_overflow)
+                                            ? _i18nO.upload_overflow.replace('%1$d', ev.detail.total).replace('%2$d', ev.detail.max)
+                                            : 'Too many files total (' + ev.detail.total + '). Max. ' + ev.detail.max + ' per submission.';
                                         if (!firstField) {
                                             firstField = z.closest('.forge-field') || z;
                                         }
@@ -360,8 +373,8 @@ CSS;
             . ' class="forge-upload-input"' . $acc_attr . $multiple . $req . '>';
         $inner .= '<div class="forge-upload-zone-body" aria-hidden="true">'
             . '<span class="forge-upload-icon">↑</span>'
-            . '<span class="forge-upload-prompt">Datei hier ablegen oder '
-            . '<span class="forge-upload-link">klicken zum Auswählen</span>'
+            . '<span class="forge-upload-prompt">' . esc_html__('Drop file here or', 'form-forge') . ' '
+            . '<span class="forge-upload-link">' . esc_html__('click to select', 'form-forge') . '</span>'
             . '</span>'
             . '</div>';
         $inner .= '</div>';
@@ -370,10 +383,10 @@ CSS;
 
         if ($accept !== '') {
             $inner .= '<p class="forge-field-hint">'
-                . 'Erlaubte Dateitypen: ' . esc_html($accept) . '</p>';
+                . sprintf(__('Allowed file types: %s', 'form-forge'), esc_html($accept)) . '</p>';
         }
         $inner .= '<p class="forge-field-hint">'
-            . 'Maximale Dateigröße: ' . $max . ' MB</p>';
+            . sprintf(__('Maximum file size: %s MB', 'form-forge'), $max) . '</p>';
 
         return $this->wrap($field_id, $config, $inner);
     }
@@ -448,22 +461,30 @@ CSS;
      */
     public function validate(mixed $value, array $config): bool|string
     {
-        $field_id = $config['field_id'] ?? '';
-        $file     = isset($_FILES[$field_id]) ? $_FILES[$field_id] : null;
+        $file = is_array($value) ? $value : null;
 
         if (!empty($config['required'])) {
             if (!$file || empty($file['name'])) {
-                return ($config['label'] ?? 'Datei') . ': Bitte laden Sie eine Datei hoch.';
+                $label = $config['label'] ?? __('File', 'form-forge');
+                return sprintf(__('%s: Please upload a file.', 'form-forge'), esc_html($label));
             }
         }
 
         if ($file && !empty($file['name'])) {
-            $names = is_array($file['name']) ? $file['name'] : [$file['name']];
-            foreach ($names as $name) {
+            $names     = is_array($file['name']) ? $file['name'] : [$file['name']];
+            $tmp_names = is_array($file['tmp_name'] ?? null) ? $file['tmp_name'] : [$file['tmp_name'] ?? ''];
+            foreach ($names as $i => $name) {
                 $ext = strtolower(pathinfo((string)$name, PATHINFO_EXTENSION));
                 if (in_array($ext, self::BLOCKED_TYPES, true)) {
-                    return 'Dateityp ".' . esc_html($ext)
-                        . '" ist aus Sicherheitsgründen nicht erlaubt.';
+                    return sprintf(__('File type ".%s" is not allowed for security reasons.', 'form-forge'), esc_html($ext));
+                }
+                $tmp = $tmp_names[$i] ?? '';
+                if ($tmp && is_readable($tmp) && is_uploaded_file($tmp)) {
+                    $finfo = new \finfo(FILEINFO_MIME_TYPE);
+                    $real_mime = $finfo->file($tmp) ?: '';
+                    if (in_array($real_mime, self::BLOCKED_MIME_TYPES, true)) {
+                        return sprintf(__('File type ".%s" is not allowed for security reasons.', 'form-forge'), esc_html($ext));
+                    }
                 }
             }
         }
@@ -484,7 +505,7 @@ CSS;
         if (is_string($value) && $value !== '') {
             return $value;
         }
-        return '[Kein Eintrag]';
+        return __('[No entry]', 'form-forge');
     }
 
     /**
@@ -511,7 +532,7 @@ CSS;
             return [$field_id => [
                 'label'              => $label,
                 'type'               => 'upload',
-                'value'              => '[Kein Eintrag]',
+                'value'              => __('[No entry]', 'form-forge'),
                 'materialized_files' => [],
             ]];
         }
@@ -529,8 +550,7 @@ CSS;
                     ];
                 }
             }
-        } elseif (
-            isset($file_data['tmp_name'])
+        } elseif (isset($file_data['tmp_name'])
             && $file_data['error'] === UPLOAD_ERR_OK
         ) {
             $files_list[] = $file_data;
@@ -584,7 +604,7 @@ CSS;
             'label'              => $label,
             'type'               => 'upload',
             'value'              => $info_parts
-                ? implode('; ', $info_parts) : '[Kein Eintrag]',
+                ? implode('; ', $info_parts) : __('[No entry]', 'form-forge'),
             'materialized_files' => $materialized,
         ]];
     }
@@ -646,12 +666,12 @@ CSS;
             [
                 'key'   => 'max_size_mb',
                 'type'  => 'number',
-                'label' => 'Max. Dateigröße (MB)',
+                'label' => __('Max. file size (MB)', 'form-forge'),
             ],
             [
                 'key'   => 'multiple',
                 'type'  => 'checkbox',
-                'label' => 'Mehrere Dateien erlauben',
+                'label' => __('Allow multiple files', 'form-forge'),
             ],
         ];
     }
@@ -664,10 +684,11 @@ CSS;
     public function getAdvancedSchema(): array
     {
         $blocked = implode(', .', self::BLOCKED_TYPES);
-        $notice  = 'Aus Sicherheitsgründen gesperrt: .' . $blocked
-            . '. Diese Typen können nicht freigegeben werden.';
-        $nd = 'Diese Dateien werden im PDF nur als Dateiname angezeigt '
-            . 'und können nicht kryptografisch verifiziert werden.';
+        $notice  = sprintf(
+            __('Blocked for security reasons: .%s. These types cannot be allowed.', 'form-forge'),
+            $blocked
+        );
+        $nd = __('These files are shown in the PDF as a filename only and cannot be cryptographically verified.', 'form-forge');
         return [
             [
                 'type'  => 'notice',
@@ -677,37 +698,37 @@ CSS;
             [
                 'key'   => 'allow_images',
                 'type'  => 'checkbox',
-                'label' => 'Bilder (jpg, png, gif, bmp, tiff, webp)',
+                'label' => __('Images (jpg, png, gif, bmp, tiff, webp)', 'form-forge'),
             ],
             [
                 'key'        => 'allow_documents',
                 'type'       => 'checkbox',
-                'label'      => 'Dokumente (pdf, doc, docx, xls, xlsx, odt, ppt, pptx, txt)',
+                'label'      => __('Documents (pdf, doc, docx, xls, xlsx, odt, ppt, pptx, txt)', 'form-forge'),
                 'disclaimer' => $nd,
             ],
             [
                 'key'        => 'allow_audio',
                 'type'       => 'checkbox',
-                'label'      => 'Audio (mp3, ogg, wav, m4a, flac)',
+                'label'      => __('Audio (mp3, ogg, wav, m4a, flac)', 'form-forge'),
                 'disclaimer' => $nd,
             ],
             [
                 'key'        => 'allow_video',
                 'type'       => 'checkbox',
-                'label'      => 'Video (mp4, mov, avi, wmv, mkv)',
+                'label'      => __('Video (mp4, mov, avi, wmv, mkv)', 'form-forge'),
                 'disclaimer' => $nd,
             ],
             [
                 'key'        => 'allow_archives',
                 'type'       => 'checkbox',
-                'label'      => 'Archive (zip, tar, gz, 7z)',
+                'label'      => __('Archives (zip, tar, gz, 7z)', 'form-forge'),
                 'disclaimer' => $nd,
             ],
             [
                 'key'   => 'allowed_types',
                 'type'  => 'text',
-                'label' => 'Zusätzliche Typen',
-                'hint'  => 'z.B. .pdf,.docx',
+                'label' => __('Additional types', 'form-forge'),
+                'hint'  => __('e.g. .pdf,.docx', 'form-forge'),
             ],
         ];
     }

@@ -1,0 +1,1541 @@
+# FormForge German (de_DE) translation
+# Copyright (C) 2026 Alexander Jorek
+# This file is distributed under the same license as the FormForge plugin.
+# Alexander Jorek <Alexander-Jorek@gmx.de>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: FormForge 1.0.0\n"
+"Report-Msgid-Bugs-To: https://github.com/AlexanderJorek/FormForge/issues\n"
+"POT-Creation-Date: 2026-07-17T00:00:00+00:00\n"
+"PO-Revision-Date: 2026-07-17T00:00:00+00:00\n"
+"Last-Translator: Alexander Jorek <Alexander-Jorek@gmx.de>\n"
+"Language-Team: German\n"
+"Language: de_DE\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: FormForge i18n tooling\n"
+
+# forge-forms.php
+msgid "Composer autoloader not found. Run <code>composer install</code> in the plugin directory."
+msgstr "Composer-Autoloader nicht gefunden. Führen Sie <code>composer install</code> im Plugin-Verzeichnis aus."
+
+# Plugin.php
+msgid "Forms"
+msgstr "Formulare"
+
+msgid "FormForge"
+msgstr "FormForge"
+
+msgid "Form"
+msgstr "Formular"
+
+msgid "Add New Form"
+msgstr "Neues Formular hinzufügen"
+
+msgid "Edit Form"
+msgstr "Formular bearbeiten"
+
+msgid "WARNING: Deleting the plugin will permanently delete all PDF seal keys. Make sure you have backed up your keys. Continue?"
+msgstr "ACHTUNG: Beim Löschen des Plugins werden alle PDF-Siegelschlüssel unwiderruflich gelöscht. Stellen Sie sicher, dass Sie Ihre Schlüssel gesichert haben. Fortfahren?"
+
+# FormProcessor.php
+msgid "Security check failed."
+msgstr "Sicherheitsprüfung fehlgeschlagen."
+
+msgid "Form not found."
+msgstr "Formular nicht gefunden."
+
+msgid "Thank you for your submission!"
+msgstr "Vielen Dank für Ihre Einsendung!"
+
+msgid "%s is a required field."
+msgstr "%s ist ein Pflichtfeld."
+
+msgid "Please correct the highlighted fields."
+msgstr "Bitte korrigieren Sie die markierten Felder."
+
+# FormRenderer.php
+msgid "Submit"
+msgstr "Absenden"
+
+msgid "Sending…"
+msgstr "Wird gesendet…"
+
+msgid "Thank you!"
+msgstr "Vielen Dank!"
+
+# MailSender.php
+msgid "New Submission"
+msgstr "Neue Einsendung"
+
+# Assets.php
+msgid "Server error. Please try again."
+msgstr "Serverfehler. Bitte versuchen Sie es erneut."
+
+msgid "Remove: "
+msgstr "Entfernen: "
+
+msgid "Too many files. Maximum %d allowed."
+msgstr "Zu viele Dateien. Maximal %d erlaubt."
+
+msgid "No allowed file types in selection."
+msgstr "Keine erlaubten Dateitypen in der Auswahl."
+
+msgid "1 file was skipped due to file type."
+msgstr "1 Datei wurde aufgrund des Dateityps übersprungen."
+
+msgid "%d files were skipped due to file type."
+msgstr "%d Dateien wurden aufgrund des Dateityps übersprungen."
+
+msgid "Too many files total (%1$d). Max. %2$d per submission."
+msgstr "Zu viele Dateien insgesamt (%1$d). Max. %2$d pro Einsendung."
+
+msgid "Please select at least %d option(s)."
+msgstr "Bitte mindestens %d Option(en) wählen."
+
+msgid "Please select at most %d option(s)."
+msgstr "Bitte höchstens %d Option(en) wählen."
+
+msgid "Invalid IBAN (check digit incorrect)."
+msgstr "Ungültige IBAN (Prüfziffer fehlerhaft)."
+
+msgid "Please enter a complete and valid IBAN."
+msgstr "Bitte geben Sie eine vollständige und gültige IBAN ein."
+
+msgid "Please enter a valid BIC."
+msgstr "Bitte geben Sie einen gültigen BIC ein."
+
+msgid "IBAN is required."
+msgstr "IBAN ist erforderlich."
+
+msgid "BIC is required."
+msgstr "BIC ist erforderlich."
+
+msgid "Account holder is required."
+msgstr "Kontoinhaber ist erforderlich."
+
+msgid "Please sign."
+msgstr "Bitte unterschreiben."
+
+msgid "Looking up"
+msgstr "Wird gesucht"
+
+msgid "Could not be validated."
+msgstr "Konnte nicht validiert werden."
+
+msgid "This country is not allowed."
+msgstr "Dieses Land ist nicht zugelassen."
+
+# FormEditor.php
+msgid "FormForge Editor"
+msgstr "FormForge Bearbeitung"
+
+msgid "New Form"
+msgstr "Neues Formular"
+
+msgid "Permission denied."
+msgstr "Keine Berechtigung."
+
+msgid "Thank you for your submission!"
+msgstr "Vielen Dank für Ihren Eintrag!"
+
+msgid "Performance Overlay"
+msgstr "Performance-Overlay"
+
+msgid "Preview"
+msgstr "Vorschau"
+
+msgid "Save"
+msgstr "Speichern"
+
+msgid "Fields"
+msgstr "Felder"
+
+msgid "Notifications"
+msgstr "Benachrichtigungen"
+
+msgid "Add Field"
+msgstr "Feld hinzufügen"
+
+msgid "Server error."
+msgstr "Serverfehler."
+
+msgid "Ignore required fields"
+msgstr "Pflichtfelder ignorieren"
+
+msgid "Form saved."
+msgstr "Formular gespeichert."
+
+msgid "Notification 1"
+msgstr "Benachrichtigung 1"
+
+msgid "New Entry: {form_title}"
+msgstr "Neuer Eintrag: {form_title}"
+
+msgid "A new entry has been received.<br><br>{all_fields}"
+msgstr "Ein neuer Eintrag ist eingegangen.<br><br>{all_fields}"
+
+# FormList.php
+msgid "FormForge Form List"
+msgstr "FormForge Formular Liste"
+
+msgid "Form List"
+msgstr "Formular Liste"
+
+msgid "Select all"
+msgstr "Alle auswählen"
+
+msgid "Choose action"
+msgstr "Aktion wählen"
+
+msgid "Duplicate"
+msgstr "Duplizieren"
+
+msgid "Delete"
+msgstr "Löschen"
+
+msgid "Apply"
+msgstr "Anwenden"
+
+msgid "Search forms…"
+msgstr "Formulare suchen…"
+
+msgid "Paste export string…"
+msgstr "Export-String einfügen…"
+
+msgid "+ New Form"
+msgstr "+ Neues Formular"
+
+msgid "No forms yet"
+msgstr "Noch keine Formulare"
+
+msgid "Create your first form..."
+msgstr "Erstellen Sie Ihr erstes Formular..."
+
+msgid "+ Create First Form"
+msgstr "+ Erstes Formular erstellen"
+
+msgid "%d Field"
+msgstr "%d Feld"
+
+msgid "%d Fields"
+msgstr "%d Felder"
+
+msgid "Edit"
+msgstr "Bearbeiten"
+
+msgid "More actions"
+msgstr "Weitere Aktionen"
+
+msgid "Copy shortcode"
+msgstr "Shortcode kopieren"
+
+msgid "Export"
+msgstr "Exportieren"
+
+msgid "No forms found."
+msgstr "Keine Formulare gefunden."
+
+msgid "Export form"
+msgstr "Formular exportieren"
+
+msgid "Exporting…"
+msgstr "Exportiere…"
+
+msgid "Copy"
+msgstr "Kopieren"
+
+msgid "Close"
+msgstr "Schließen"
+
+msgid "Really delete form?"
+msgstr "Formular wirklich löschen?"
+
+msgid "Cancel"
+msgstr "Abbrechen"
+
+msgid "Form deleted."
+msgstr "Formular gelöscht."
+
+msgid "Form duplicated."
+msgstr "Formular dupliziert."
+
+msgid "No import string provided."
+msgstr "Kein Import-String übergeben."
+
+msgid "Invalid import string."
+msgstr "Ungültiger Import-String."
+
+msgid "Decompression failed."
+msgstr "Dekomprimierung fehlgeschlagen."
+
+msgid "Unknown format."
+msgstr "Unbekanntes Format."
+
+# FormSelectList.php
+msgid "Form Selection"
+msgstr "Formular-Auswahl"
+
+msgid "Search selections…"
+msgstr "Auswahl suchen…"
+
+msgid "+ New Selection"
+msgstr "+ Neue Auswahl"
+
+msgid "No form selections yet"
+msgstr "Noch keine Formular-Auswahl"
+
+msgid "+ Create First Selection"
+msgstr "+ Erste Auswahl erstellen"
+
+msgid "Edit selection"
+msgstr "Auswahl bearbeiten"
+
+msgid "General"
+msgstr "Allgemein"
+
+msgid "Name of this selection"
+msgstr "Name dieser Auswahl"
+
+msgid "Forms in this selection"
+msgstr "Formulare in dieser Auswahl"
+
+msgid "Add form"
+msgstr "Formular hinzufügen"
+
+msgid "Search form…"
+msgstr "Formular suchen…"
+
+msgid "Really delete form selection?"
+msgstr "Formular-Auswahl wirklich löschen?"
+
+msgid "%d Form"
+msgstr "%d Formular"
+
+msgid "%d Forms"
+msgstr "%d Formulare"
+
+# FormSettings.php
+msgid "FormForge Settings"
+msgstr "FormForge Einstellungen"
+
+msgid "Settings"
+msgstr "Einstellungen"
+
+msgid "Settings saved."
+msgstr "Einstellungen gespeichert."
+
+msgid "Invalid password."
+msgstr "Ungültiges Passwort."
+
+msgid "Passwords do not match."
+msgstr "Passwörter stimmen nicht überein."
+
+msgid "Key rotated."
+msgstr "Schlüssel rotiert."
+
+msgid "No active key."
+msgstr "Kein aktiver Schlüssel."
+
+msgid "Settings reset."
+msgstr "Einstellungen zurückgesetzt."
+
+msgid "Form colors"
+msgstr "Formularfarben"
+
+msgid "Accent color"
+msgstr "Akzentfarbe"
+
+msgid "Input border"
+msgstr "Eingabe-Rahmen"
+
+msgid "Field output"
+msgstr "Feldausgabe"
+
+msgid "Layout in email & PDF"
+msgstr "Layout in E-Mail & PDF"
+
+msgid "Label above the value."
+msgstr "Bezeichnung über dem Wert."
+
+msgid "Label: value on one line."
+msgstr "Bezeichnung: Wert in einer Zeile."
+
+msgid "Email delivery"
+msgstr "E-Mail-Versand"
+
+msgid "Sender email"
+msgstr "Absender-E-Mail"
+
+msgid "Sender name"
+msgstr "Absender-Name"
+
+msgid "Editor"
+msgstr "Editor"
+
+msgid "Admin accent color"
+msgstr "Admin-Akzentfarbe"
+
+msgid "Hover color"
+msgstr "Hover-Farbe"
+
+msgid "Security"
+msgstr "Sicherheit"
+
+msgid "Encrypted"
+msgstr "Verschlüsselt"
+
+msgid "Standard — unencrypted"
+msgstr "Standard — unverschlüsselt"
+
+msgid "Click to switch to AES-256-GCM"
+msgstr "Klicken, um auf AES-256-GCM umzustellen"
+
+msgid "View PDF keys"
+msgstr "PDF-Schlüssel einsehen"
+
+msgid "Add legacy key"
+msgstr "Legacy-Schlüssel hinzufügen"
+
+msgid "Rotate PDF key"
+msgstr "PDF-Schlüssel rotieren"
+
+msgid "Miscellaneous"
+msgstr "Sonstige"
+
+msgid "User access"
+msgstr "Benutzerzugang"
+
+msgid "Reset to factory defaults"
+msgstr "Auf Werkseinstellungen zurücksetzen"
+
+msgid "New key password"
+msgstr "Neues Schlüssel-Passwort"
+
+msgid "Min. 12 characters…"
+msgstr "Min. 12 Zeichen…"
+
+msgid "Confirm password"
+msgstr "Passwort bestätigen"
+
+msgid "Rotate key"
+msgstr "Schlüssel rotieren"
+
+msgid "PDF keys"
+msgstr "PDF-Schlüssel"
+
+msgid "Fingerprint"
+msgstr "Fingerprint"
+
+msgid "Status"
+msgstr "Status"
+
+msgid "Date"
+msgstr "Datum"
+
+msgid "From"
+msgstr "Von"
+
+msgid "ROTATED"
+msgstr "ROTIERT"
+
+msgid "COMPROMISED"
+msgstr "KOMPROMITTIERT"
+
+msgid "LEGACY"
+msgstr "LEGACY"
+
+msgid "UUID:"
+msgstr "UUID:"
+
+msgid "No rotations yet..."
+msgstr "Noch keine Rotationen..."
+
+msgid "Confirm reset"
+msgstr "Zurücksetzen bestätigen"
+
+msgid "This action cannot be undone."
+msgstr "Diese Aktion kann nicht rückgängig gemacht werden."
+
+msgid "The following settings will be permanently deleted:"
+msgstr "Folgende Einstellungen werden unwiderruflich gelöscht:"
+
+msgid "PDF seal keys will not be deleted."
+msgstr "PDF-Siegelschlüssel werden nicht gelöscht."
+
+msgid "Reset"
+msgstr "Zurücksetzen"
+
+msgid "Back up key"
+msgstr "Schlüssel sichern"
+
+msgid "Set up master key"
+msgstr "Master-Schlüssel einrichten"
+
+msgid "Entered"
+msgstr "Eingetragen"
+
+msgid "Continue"
+msgstr "Weiter"
+
+msgid "Status of this key:"
+msgstr "Status dieses Schlüssels:"
+
+msgid "Import anyway"
+msgstr "Trotzdem importieren"
+
+msgid "Add"
+msgstr "Hinzufügen"
+
+msgid "Administrators always have full access. User settings override the role setting."
+msgstr "Administratoren haben immer vollen Zugang. Benutzereinstellungen überschreiben die Rolleneinstellung."
+
+msgid "Loading…"
+msgstr "Wird geladen…"
+
+msgid "Roles"
+msgstr "Rollen"
+
+msgid "User exceptions"
+msgstr "Benutzer-Ausnahmen"
+
+msgid "No user exceptions configured."
+msgstr "Keine Benutzerausnahmen konfiguriert."
+
+msgid "Add user…"
+msgstr "Benutzer hinzufügen…"
+
+msgid "No pending key download found."
+msgstr "Kein ausstehender Schlüssel-Download gefunden."
+
+msgid "FORGE_SEAL_MASTER_KEY not found. Please check wp-config.php and try again."
+msgstr "FORGE_SEAL_MASTER_KEY nicht gefunden. Bitte prüfen Sie die wp-config.php und versuchen Sie es erneut."
+
+msgid "The entered master key does not match the expected value. Please check wp-config.php."
+msgstr "Der eingetragene Master-Schlüssel stimmt nicht mit dem erwarteten überein. Bitte prüfen Sie die wp-config.php."
+
+msgid "Setup complete, but no download entry found. Please rotate the key to generate a download."
+msgstr "Setup abgeschlossen, aber kein Download-Eintrag gefunden. Bitte rotieren Sie den Schlüssel, um einen Download zu erzeugen."
+
+msgid "No content pasted."
+msgstr "Kein Inhalt eingefügt."
+
+msgid "Invalid JSON format."
+msgstr "Ungültiges JSON-Format."
+
+msgid "Missing required fields: uuid and key."
+msgstr "Fehlende Pflichtfelder: uuid und key."
+
+msgid "UUID has invalid format."
+msgstr "UUID hat ungültiges Format."
+
+msgid "Key value must be exactly 64 hex characters."
+msgstr "Schlüsselwert muss genau 64 Hex-Zeichen lang sein."
+
+msgid "This key already exists as the active key."
+msgstr "Dieser Schlüssel ist bereits als aktiver Schlüssel vorhanden."
+
+msgid "This key already exists in the history (identical entry)."
+msgstr "Dieser Schlüssel ist bereits im Verlauf vorhanden (identischer Eintrag)."
+
+msgid "Plugin name does not match."
+msgstr "Plugin-Bezeichnung stimmt nicht überein."
+
+msgid "The \"plugin\" field reads \"%s\" — this does not appear to be a key from this plugin."
+msgstr "Der Eintrag „plugin" lautet „%s" — das sieht nicht nach einem Schlüssel dieses Plugins aus."
+
+msgid "Are you sure you want to import this key?"
+msgstr "Sind Sie sicher, dass Sie diesen Schlüssel importieren möchten?"
+
+msgid "Legacy key added successfully."
+msgstr "Legacy-Schlüssel erfolgreich hinzugefügt."
+
+msgid "Key rotated successfully."
+msgstr "Schlüssel erfolgreich rotiert."
+
+# PDFLayoutEditor.php
+msgid "Header (Logo & Title)"
+msgstr "Kopfzeile (Logo & Titel)"
+
+msgid "Form fields"
+msgstr "Formularfelder"
+
+msgid "Signatures & Uploads"
+msgstr "Unterschriften & Uploads"
+
+msgid "Metadata & Timestamp"
+msgstr "Metadaten & Zeitstempel"
+
+msgid "Legal notice"
+msgstr "Rechtlicher Hinweis"
+
+msgid "Footer"
+msgstr "Fußzeile"
+
+msgid "PDF generation failed."
+msgstr "PDF-Generierung fehlgeschlagen."
+
+msgid "PDF could not be read."
+msgstr "PDF konnte nicht gelesen werden."
+
+msgid "FormForge PDF Layout"
+msgstr "FormForge PDF-Layout"
+
+msgid "PDF Layout"
+msgstr "PDF-Layout"
+
+msgid "DejaVu Sans (Default, sans-serif)"
+msgstr "DejaVu Sans (Standard, serifenlos)"
+
+msgid "DejaVu Serif (with serifs)"
+msgstr "DejaVu Serif (mit Serifen)"
+
+msgid "DejaVu Sans Mono (Fixed-width)"
+msgstr "DejaVu Sans Mono (Festbreit)"
+
+msgid "FreeMono (Typewriter)"
+msgstr "FreeMono (Schreibmaschine)"
+
+msgid "Layout saved."
+msgstr "Layout gespeichert."
+
+msgid "Header"
+msgstr "Kopfzeile"
+
+msgid "Arrange titles, logos and other content via drag & drop."
+msgstr "Titel, Logos und weitere Inhalte per Drag & Drop positionieren."
+
+msgid "Edit header"
+msgstr "Kopfzeile bearbeiten"
+
+msgid "Accent color (thick dividers)"
+msgstr "Akzentfarbe (dicke Trennlinien)"
+
+msgid "Divider color (thin lines)"
+msgstr "Trennlinienfarbe (dünne Linien)"
+
+msgid "Colors"
+msgstr "Farben"
+
+msgid "Font"
+msgstr "Schriftart"
+
+msgid "Typography"
+msgstr "Typografie"
+
+msgid "Base font size:"
+msgstr "Grundschriftgröße:"
+
+msgid "Title size:"
+msgstr "Titelgröße:"
+
+msgid "Page margins (mm)"
+msgstr "Seitenränder (mm)"
+
+msgid "Top"
+msgstr "Oben"
+
+msgid "Right"
+msgstr "Rechts"
+
+msgid "Bottom"
+msgstr "Unten"
+
+msgid "Left"
+msgstr "Links"
+
+msgid "Sections"
+msgstr "Abschnitte"
+
+msgid "Eye icon to show/hide."
+msgstr "Augensymbol zum Ein-/Ausblenden."
+
+msgid "Show/Hide"
+msgstr "Ein-/Ausblenden"
+
+msgid "Footer text"
+msgstr "Fußzeilentext"
+
+msgid "e.g. Company name · Address · Phone"
+msgstr "z. B. Firmenname · Adresse · Telefon"
+
+msgid "Preview (A4)"
+msgstr "Vorschau (A4)"
+
+msgid "Open PDF"
+msgstr "PDF öffnen"
+
+msgid "Title"
+msgstr "Titel"
+
+msgid "Image"
+msgstr "Bild"
+
+msgid "← Drag to position · Corners to resize · Del to delete"
+msgstr "← Ziehen zum Positionieren · Ecken zum Skalieren · Entf zum Löschen"
+
+msgid "Select element"
+msgstr "Element auswählen"
+
+msgid "to edit"
+msgstr "zum Bearbeiten"
+
+msgid "Apply"
+msgstr "Übernehmen"
+
+msgid "Generating…"
+msgstr "Generiere…"
+
+msgid "Error generating."
+msgstr "Fehler beim Generieren."
+
+msgid "Saving…"
+msgstr "Speichern…"
+
+msgid "Error saving."
+msgstr "Fehler beim Speichern."
+
+msgid "Network error."
+msgstr "Netzwerkfehler."
+
+# Verificationpage.php
+msgid "FormForge Verification"
+msgstr "FormForge Verifizierung"
+
+msgid "Could not read PDF file: %s."
+msgstr "Konnte PDF-Datei nicht lesen: %s."
+
+msgid "%s does not contain a forge-pdf seal and cannot be verified."
+msgstr "%s enthält kein forge-pdf-Siegel und kann nicht verifiziert werden."
+
+msgid "Byte scan: searching for seal…"
+msgstr "Byte-Scan: Siegel wird gesucht…"
+
+msgid "Parsing PDF…"
+msgstr "PDF wird geparst…"
+
+msgid "Seal found — reconstructing payload…"
+msgstr "Siegel gefunden — Payload wird rekonstruiert…"
+
+msgid "HMAC check…"
+msgstr "HMAC-Prüfung…"
+
+msgid "Checking fields…"
+msgstr "Felder werden geprüft…"
+
+msgid "Checking annotations…"
+msgstr "Annotationen werden geprüft…"
+
+msgid "Checking page count…"
+msgstr "Seitenanzahl wird geprüft…"
+
+msgid "Checking images…"
+msgstr "Bilder werden geprüft…"
+
+msgid "Checking content streams…"
+msgstr "Inhaltsstreams werden geprüft…"
+
+msgid "Checking fonts…"
+msgstr "Schriften werden geprüft…"
+
+# BaseField.php
+msgid "[No entry]"
+msgstr "[Kein Eintrag]"
+
+msgid "[Other]"
+msgstr "[Sonstiges]"
+
+msgid "Show \"Other\" option"
+msgstr "\"Sonstiges\"-Option anzeigen"
+
+msgid "[Signature present – see attachment]"
+msgstr "[Unterschrift vorhanden – siehe Anhang]"
+
+msgid "Placeholder"
+msgstr "Platzhalter"
+
+msgid "Description"
+msgstr "Beschreibung"
+
+# AddressField.php
+msgid "Address"
+msgstr "Adresse"
+
+msgid "Street and house number"
+msgstr "Straße und Hausnummer"
+
+msgid "Address supplement"
+msgstr "Adresszusatz"
+
+msgid "City"
+msgstr "Ort"
+
+msgid "State / Canton"
+msgstr "Bundesland / Kanton"
+
+msgid "Postal code"
+msgstr "Postleitzahl"
+
+msgid "Country"
+msgstr "Land"
+
+msgid "Apartment, floor, c/o ..."
+msgstr "Apartment, Etage, c/o ..."
+
+msgid "Mode"
+msgstr "Modus"
+
+msgid "Simple"
+msgstr "Einzeln"
+
+msgid "Extended"
+msgstr "Erweitert"
+
+msgid "Hint text"
+msgstr "Hinweistext"
+
+msgid "Sub-fields"
+msgstr "Teilfelder"
+
+# CaptchaField.php
+msgid "reCAPTCHA: Please enter the site key in the plugin settings."
+msgstr "reCAPTCHA: Bitte Site-Key in den Plugin-Einstellungen hinterlegen."
+
+msgid "Please confirm the CAPTCHA."
+msgstr "Bitte bestätigen Sie das CAPTCHA."
+
+msgid "CAPTCHA verification failed."
+msgstr "CAPTCHA-Überprüfung fehlgeschlagen."
+
+msgid "[CAPTCHA confirmed]"
+msgstr "[CAPTCHA bestätigt]"
+
+# CheckboxField.php
+msgid "Checkboxes"
+msgstr "Checkboxen"
+
+msgid "Please specify"
+msgstr "Bitte angeben"
+
+msgid "%s: Please select at least one option."
+msgstr "%s: Bitte mindestens eine Option wählen."
+
+msgid "Layout"
+msgstr "Anordnung"
+
+msgid "Vertical"
+msgstr "Vertikal"
+
+msgid "Horizontal"
+msgstr "Horizontal"
+
+msgid "Show \"Other\" option"
+msgstr "\"Sonstiges\"-Option anzeigen"
+
+msgid "Options"
+msgstr "Optionen"
+
+msgid "Min. selection"
+msgstr "Min. Auswahl"
+
+msgid "Empty = not required"
+msgstr "Leer = keine Pflicht"
+
+msgid "Max. selection"
+msgstr "Max. Auswahl"
+
+msgid "Empty = unlimited"
+msgstr "Leer = unbegrenzt"
+
+# ConsentField.php
+msgid "Consent"
+msgstr "Einwilligung"
+
+msgid "I agree."
+msgstr "Ich stimme zu."
+
+msgid "%s is required."
+msgstr "%s ist erforderlich."
+
+msgid "Yes"
+msgstr "Ja"
+
+msgid "No"
+msgstr "Nein"
+
+msgid "I agree to the terms."
+msgstr "Ich stimme den Bedingungen zu."
+
+msgid "Consent text"
+msgstr "Zustimmungstext"
+
+# CurrencyField.php
+msgid "Currency"
+msgstr "Währung"
+
+msgid "Please enter a valid amount."
+msgstr "Bitte geben Sie einen gültigen Betrag ein."
+
+msgid "Minimum value: %s"
+msgstr "Mindestwert: %s"
+
+msgid "Maximum value: %s"
+msgstr "Maximalwert: %s"
+
+msgid "Minimum value"
+msgstr "Mindestwert"
+
+msgid "Empty = no minimum"
+msgstr "Leer = kein Minimum"
+
+msgid "Maximum value"
+msgstr "Maximalwert"
+
+msgid "Empty = no maximum"
+msgstr "Leer = kein Maximum"
+
+# DateField.php
+msgid "Date"
+msgstr "Datum"
+
+msgid "DD.MM.YYYY"
+msgstr "TT.MM.JJJJ"
+
+msgid "Open calendar"
+msgstr "Kalender öffnen"
+
+msgid "Please enter a date in DD.MM.YYYY format."
+msgstr "Bitte Datum im Format TT.MM.JJJJ eingeben."
+
+msgid "Please enter a valid date."
+msgstr "Bitte geben Sie ein gültiges Datum ein."
+
+msgid "Show calendar icon"
+msgstr "Kalender-Icon anzeigen"
+
+msgid "Pre-fill with today"
+msgstr "Heute vorausfüllen"
+
+# EmailField.php
+msgid "Email"
+msgstr "E-Mail"
+
+msgid "Please enter a valid email address."
+msgstr "Bitte geben Sie eine gültige E-Mail-Adresse ein."
+
+msgid "This email address is not allowed."
+msgstr "Diese E-Mail-Adresse ist nicht zugelassen."
+
+msgid "Validate email format"
+msgstr "Auf gültiges E-Mail-Format prüfen"
+
+msgid "Email filter"
+msgstr "E-Mail-Filter"
+
+msgid "Off"
+msgstr "Aus"
+
+msgid "Allowed"
+msgstr "Erlaubt"
+
+msgid "Blocked"
+msgstr "Gesperrt"
+
+msgid "Pattern (one per line or separated by ;)"
+msgstr "Muster (je Zeile oder mit ; trennen)"
+
+# GdprField.php
+msgid "GDPR Checkbox"
+msgstr "DSGVO-Checkbox"
+
+msgid "Privacy policy"
+msgstr "Datenschutzerklärung"
+
+msgid "I have read the <a href=\"%1$s\" target=\"_blank\" rel=\"noopener\">%2$s</a> and accept it."
+msgstr "Ich habe die <a href=\"%1$s\" target=\"_blank\" rel=\"noopener\">%2$s</a> gelesen und akzeptiere diese."
+
+msgid "Please accept the privacy policy."
+msgstr "Bitte akzeptieren Sie die Datenschutzerklärung."
+
+msgid "Privacy accepted"
+msgstr "Datenschutz akzeptiert"
+
+msgid "Privacy not accepted"
+msgstr "Datenschutz nicht akzeptiert"
+
+msgid "Privacy URL"
+msgstr "Datenschutz-URL"
+
+msgid "Privacy link text"
+msgstr "Datenschutz-Linktext"
+
+# GroupField.php
+msgid "Field group"
+msgstr "Feldgruppe"
+
+# HtmlField.php
+msgid "HTML Block"
+msgstr "HTML-Block"
+
+msgid "HTML content"
+msgstr "HTML-Inhalt"
+
+# NameField.php
+msgid "Name"
+msgstr "Name"
+
+msgid "Salutation"
+msgstr "Anrede"
+
+msgid "First name"
+msgstr "Vorname"
+
+msgid "Middle name"
+msgstr "Mittelname"
+
+msgid "Last name"
+msgstr "Nachname"
+
+msgid "Mr."
+msgstr "Herr"
+
+msgid "Ms."
+msgstr "Frau"
+
+msgid "Diverse"
+msgstr "Divers"
+
+# NumberField.php
+msgid "Number"
+msgstr "Nummer"
+
+msgid "Please enter a valid number."
+msgstr "Bitte geben Sie eine gültige Zahl ein."
+
+msgid "Step size"
+msgstr "Schrittweite"
+
+# PageBreakField.php
+msgid "Page break"
+msgstr "Seitenumbruch"
+
+msgid "Next →"
+msgstr "Weiter →"
+
+msgid "← Back"
+msgstr "← Zurück"
+
+msgid "Back button"
+msgstr "Zurück-Button"
+
+msgid "Next button"
+msgstr "Weiter-Button"
+
+# PhoneField.php
+msgid "Phone"
+msgstr "Telefon"
+
+msgid "Please enter a valid phone number."
+msgstr "Bitte geben Sie eine gültige Telefonnummer ein."
+
+msgid "Please enter the number with international prefix (+...)."
+msgstr "Bitte geben Sie die Nummer mit internationaler Vorwahl (+...) ein."
+
+msgid "This phone number is not allowed for your country."
+msgstr "Diese Telefonnummer ist für Ihr Land nicht zugelassen."
+
+# PostDataField.php
+msgid "Post data"
+msgstr "Beitragsdaten"
+
+msgid "Post field"
+msgstr "Post-Feld"
+
+msgid "Author"
+msgstr "Autor"
+
+# RadioField.php
+msgid "Radio"
+msgstr "Radio"
+
+# RatingField.php
+msgid "Rating"
+msgstr "Bewertung"
+
+msgid "Number of symbols"
+msgstr "Anzahl Symbole"
+
+msgid "Symbol & half values"
+msgstr "Symbol & Halbe Werte"
+
+msgid "Icon source"
+msgstr "Icon-Quelle"
+
+msgid "Preset"
+msgstr "Voreingestellt"
+
+msgid "Custom image"
+msgstr "Eigenes Bild"
+
+msgid "Square image. For half values the left half is used."
+msgstr "Quadratisches Bild. Bei halben Werten wird die linke Hälfte verwendet."
+
+# SelectField.php
+msgid "Dropdown"
+msgstr "Dropdown"
+
+msgid "— Please select —"
+msgstr "— Bitte wählen —"
+
+msgid "[Other]"
+msgstr "[Sonstiges]"
+
+# SepaField.php
+msgid "SEPA Direct Debit"
+msgstr "SEPA Lastschrift"
+
+msgid "SEPA Direct Debit Mandate"
+msgstr "SEPA-Lastschriftmandat"
+
+msgid "Account holder:"
+msgstr "Kontoinhaber:"
+
+msgid "Your member number"
+msgstr "Ihre Mitgliedsnummer"
+
+msgid "Signature"
+msgstr "Unterschrift"
+
+msgid "SEPA data missing."
+msgstr "SEPA-Daten fehlen."
+
+msgid "IBAN is a required field."
+msgstr "IBAN ist ein Pflichtfeld."
+
+msgid "Please enter a valid IBAN."
+msgstr "Bitte geben Sie eine gültige IBAN ein."
+
+msgid "IBANs from country \"%s\" are not allowed."
+msgstr "IBANs aus dem Land \"%s\" sind nicht zulässig."
+
+msgid "BIC is a required field."
+msgstr "BIC ist ein Pflichtfeld."
+
+msgid "Account holder is a required field."
+msgstr "Kontoinhaber ist ein Pflichtfeld."
+
+msgid "Account holder: "
+msgstr "Kontoinhaber: "
+
+msgid "Mandate title"
+msgstr "Titel des Mandats"
+
+msgid "Mandate text (HTML allowed)"
+msgstr "Mandatstext (HTML erlaubt)"
+
+msgid "Hint text (fine print, HTML allowed)"
+msgstr "Hinweistext (Kleingedrucktes, HTML erlaubt)"
+
+msgid "IBAN label"
+msgstr "IBAN-Label"
+
+msgid "Placeholder country (IBAN format)"
+msgstr "Platzhalter-Land (IBAN-Format)"
+
+msgid "BIC label"
+msgstr "BIC-Label"
+
+msgid "Account holder label"
+msgstr "Kontoinhaber-Label"
+
+msgid "Creditor ID"
+msgstr "Gläubiger-ID"
+
+msgid "Mandate reference"
+msgstr "Mandatsreferenz"
+
+msgid "Signature label"
+msgstr "Unterschrift-Label"
+
+msgid "Signature height (px)"
+msgstr "Unterschrift Höhe (px)"
+
+msgid "Stroke width"
+msgstr "Strichstärke"
+
+msgid "Creditor identification number:"
+msgstr "Gläubiger-Identifikationsnummer:"
+
+msgid "Mandate reference:"
+msgstr "Mandatsreferenz:"
+
+msgid "I hereby authorize the creditor to collect payments from my account by direct debit. At the same time, I instruct my bank to honor the direct debits drawn by the creditor on my account."
+msgstr "Hiermit ermächtige ich den Zahlungsempfänger, Zahlungen von meinem Konto mittels Lastschrift einzuziehen. Zugleich weise ich mein Kreditinstitut an, die vom Zahlungsempfänger auf mein Konto gezogenen Lastschriften einzulösen."
+
+msgid "If my account does not have sufficient funds, my bank is under no obligation to honor the direct debit. Partial payments will not be made under the direct debit scheme. I bear the costs of the returned direct debit."
+msgstr "Wenn mein angegebenes Konto die erforderliche Deckung nicht aufweist, besteht seitens des kontoführenden Instituts keine Verpflichtung zur Einlösung. Teileinlösungen werden im Lastschriftverfahren nicht vorgenommen. Die Kosten der Rücklastschrift werden von mir getragen."
+
+msgid "Note: I can request a refund of the debited amount within eight weeks, starting from the debit date. The terms agreed with my bank apply."
+msgstr "Hinweis: Ich kann innerhalb von acht Wochen, beginnend mit dem Belastungsdatum, die Erstattung des belasteten Betrages verlangen. Es gelten dabei die mit meinem Kreditinstitut vereinbarten Bedingungen."
+
+msgid "Andorra"
+msgstr "Andorra"
+
+msgid "United Arab Emirates"
+msgstr "Vereinigte Arab. Emirate"
+
+msgid "Albania"
+msgstr "Albanien"
+
+msgid "Austria"
+msgstr "Österreich"
+
+msgid "Azerbaijan"
+msgstr "Aserbaidschan"
+
+msgid "Bosnia and Herzegovina"
+msgstr "Bosnien-Herzegowina"
+
+msgid "Belgium"
+msgstr "Belgien"
+
+msgid "Bulgaria"
+msgstr "Bulgarien"
+
+msgid "Bahrain"
+msgstr "Bahrain"
+
+msgid "Brazil"
+msgstr "Brasilien"
+
+msgid "Switzerland"
+msgstr "Schweiz"
+
+msgid "Costa Rica"
+msgstr "Costa Rica"
+
+msgid "Cyprus"
+msgstr "Zypern"
+
+msgid "Czechia"
+msgstr "Tschechien"
+
+msgid "Germany"
+msgstr "Deutschland"
+
+msgid "Djibouti"
+msgstr "Dschibuti"
+
+msgid "Denmark"
+msgstr "Dänemark"
+
+msgid "Dominican Republic"
+msgstr "Dominikanische Republik"
+
+msgid "Estonia"
+msgstr "Estland"
+
+msgid "Egypt"
+msgstr "Ägypten"
+
+msgid "Spain"
+msgstr "Spanien"
+
+msgid "Finland"
+msgstr "Finnland"
+
+msgid "France"
+msgstr "Frankreich"
+
+msgid "United Kingdom"
+msgstr "Vereinigtes Königreich"
+
+msgid "Georgia"
+msgstr "Georgien"
+
+msgid "Gibraltar"
+msgstr "Gibraltar"
+
+msgid "Greenland"
+msgstr "Grönland"
+
+msgid "Greece"
+msgstr "Griechenland"
+
+msgid "Guatemala"
+msgstr "Guatemala"
+
+msgid "Croatia"
+msgstr "Kroatien"
+
+msgid "Hungary"
+msgstr "Ungarn"
+
+msgid "Ireland"
+msgstr "Irland"
+
+msgid "Iraq"
+msgstr "Irak"
+
+msgid "Iceland"
+msgstr "Island"
+
+msgid "Italy"
+msgstr "Italien"
+
+msgid "Jordan"
+msgstr "Jordanien"
+
+msgid "Kuwait"
+msgstr "Kuwait"
+
+msgid "Kazakhstan"
+msgstr "Kasachstan"
+
+msgid "Lebanon"
+msgstr "Libanon"
+
+msgid "St. Lucia"
+msgstr "St. Lucia"
+
+msgid "Liechtenstein"
+msgstr "Liechtenstein"
+
+msgid "Lithuania"
+msgstr "Litauen"
+
+msgid "Luxembourg"
+msgstr "Luxemburg"
+
+msgid "Latvia"
+msgstr "Lettland"
+
+msgid "Libya"
+msgstr "Libyen"
+
+msgid "Morocco"
+msgstr "Marokko"
+
+msgid "Monaco"
+msgstr "Monaco"
+
+msgid "Moldova"
+msgstr "Moldau"
+
+msgid "Montenegro"
+msgstr "Montenegro"
+
+msgid "North Macedonia"
+msgstr "Nordmazedonien"
+
+msgid "Mauritania"
+msgstr "Mauretanien"
+
+msgid "Malta"
+msgstr "Malta"
+
+msgid "Mauritius"
+msgstr "Mauritius"
+
+msgid "Nicaragua"
+msgstr "Nicaragua"
+
+msgid "Netherlands"
+msgstr "Niederlande"
+
+msgid "Norway"
+msgstr "Norwegen"
+
+msgid "Pakistan"
+msgstr "Pakistan"
+
+msgid "Poland"
+msgstr "Polen"
+
+msgid "Portugal"
+msgstr "Portugal"
+
+msgid "Qatar"
+msgstr "Katar"
+
+msgid "Romania"
+msgstr "Rumänien"
+
+msgid "Serbia"
+msgstr "Serbien"
+
+msgid "Saudi Arabia"
+msgstr "Saudi-Arabien"
+
+msgid "Sweden"
+msgstr "Schweden"
+
+msgid "Slovenia"
+msgstr "Slowenien"
+
+msgid "Slovakia"
+msgstr "Slowakei"
+
+msgid "San Marino"
+msgstr "San Marino"
+
+msgid "El Salvador"
+msgstr "El Salvador"
+
+msgid "Tunisia"
+msgstr "Tunesien"
+
+msgid "Turkey"
+msgstr "Türkei"
+
+msgid "Ukraine"
+msgstr "Ukraine"
+
+msgid "Vatican City"
+msgstr "Vatikanstadt"
+
+msgid "British Virgin Islands"
+msgstr "Brit. Jungferninseln"
+
+msgid "Kosovo"
+msgstr "Kosovo"
+
+# SignatureField.php
+msgid "Clear"
+msgstr "Löschen"
+
+msgid "Clear signature"
+msgstr "Unterschrift löschen"
+
+msgid "Sign here"
+msgstr "Hier unterschreiben"
+
+msgid "Height (px)"
+msgstr "Höhe (px)"
+
+msgid "File format"
+msgstr "Dateiformat"
+
+# SliderField.php
+msgid "Slider"
+msgstr "Schieberegler"
+
+msgid "Please enter a valid value."
+msgstr "Bitte geben Sie einen gültigen Wert ein."
+
+msgid "Single"
+msgstr "Einzel"
+
+msgid "Range"
+msgstr "Bereich"
+
+# TextareaField.php
+msgid "Text area"
+msgstr "Textbereich"
+
+msgid "Please enter at most %1$d words (currently: %2$d)."
+msgstr "Bitte maximal %1$d Wörter eingeben (aktuell: %2$d)."
+
+msgid "Rows"
+msgstr "Zeilen"
+
+msgid "Visible height of the field (number of text rows)"
+msgstr "Sichtbare Höhe des Feldes (Anzahl Textzeilen)"
+
+msgid "Limit"
+msgstr "Begrenzung"
+
+# TimeField.php
+msgid "Time"
+msgstr "Uhrzeit"
+
+# UploadField.php
+msgid "File upload"
+msgstr "Datei-Upload"
+
+msgid "Drop file here or"
+msgstr "Datei hier ablegen oder"
+
+msgid "click to select"
+msgstr "klicken zum Auswählen"
+
+msgid "Allowed file types: %s"
+msgstr "Erlaubte Dateitypen: %s"
+
+msgid "Maximum file size: %s MB"
+msgstr "Maximale Dateigröße: %s MB"
+
+msgid "File"
+msgstr "Datei"
+
+msgid "%s: Please upload a file."
+msgstr "%s: Bitte laden Sie eine Datei hoch."
+
+msgid "File type \".%s\" is not allowed for security reasons."
+msgstr "Dateityp \".%s\" ist aus Sicherheitsgründen nicht erlaubt."
+
+msgid "Max. file size (MB)"
+msgstr "Max. Dateigröße (MB)"
+
+msgid "Allow multiple files"
+msgstr "Mehrere Dateien erlauben"
+
+msgid "Blocked for security reasons: .%s. These types cannot be allowed."
+msgstr "Aus Sicherheitsgründen gesperrt: .%s. Diese Typen können nicht freigegeben werden."
+
+msgid "These files are shown in the PDF as a filename only and cannot be cryptographically verified."
+msgstr "Diese Dateien werden im PDF nur als Dateiname angezeigt und können nicht kryptografisch verifiziert werden."
+
+msgid "Images (jpg, png, gif, bmp, tiff, webp)"
+msgstr "Bilder (jpg, png, gif, bmp, tiff, webp)"
+
+msgid "Documents (pdf, doc, docx, xls, xlsx, odt, ppt, pptx, txt)"
+msgstr "Dokumente (pdf, doc, docx, xls, xlsx, odt, ppt, pptx, txt)"
+
+msgid "Audio (mp3, ogg, wav, m4a, flac)"
+msgstr "Audio (mp3, ogg, wav, m4a, flac)"
+
+msgid "Video (mp4, mov, avi, wmv, mkv)"
+msgstr "Video (mp4, mov, avi, wmv, mkv)"
+
+msgid "Archives (zip, tar, gz, 7z)"
+msgstr "Archive (zip, tar, gz, 7z)"
+
+msgid "Additional types"
+msgstr "Zusätzliche Typen"
+
+msgid "e.g. .pdf,.docx"
+msgstr "z.B. .pdf,.docx"
+
+# WebsiteField.php
+msgid "Website"
+msgstr "Website"
+
+msgid "Please enter a valid URL (e.g. https://example.com)."
+msgstr "Bitte geben Sie eine gültige URL ein (z.B. https://beispiel.de)."
+
+msgid "Validate URL format"
+msgstr "URL-Format prüfen"
+
+# FieldRegistry.php
+msgid "Input"
+msgstr "Eingabe"
+
+msgid "Choice"
+msgstr "Auswahl"
+
+msgid "Personal"
+msgstr "Persönlich"
+
+msgid "Advanced"
+msgstr "Erweitert"
+
+# PDF/Generator.php
+msgid "Form submission"
+msgstr "Formulareinsendung"
+
+msgid "Page %1$s of %2$s"
+msgstr "Seite %1$s von %2$s"

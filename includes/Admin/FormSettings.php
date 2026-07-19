@@ -40,8 +40,6 @@ class FormSettings
         add_action('wp_ajax_forge_forms_save_pdf_settings', [self::class, 'savePdfSettings']);
         add_action('wp_ajax_forge_forms_factory_reset', [self::class, 'handleFactoryReset']);
         add_action('wp_ajax_forge_forms_rotate_key', [self::class, 'handleRotateKey']);
-        add_action('wp_ajax_forge_debug_trigger_install', [self::class, 'handleDebugTriggerInstall']);
-        add_action('wp_ajax_forge_debug_clear_keys', [self::class, 'handleDebugClearKeys']);
         add_action('wp_ajax_forge_setup_keep_default', [self::class, 'handleSetupKeepDefault']);
         add_action('wp_ajax_forge_setup_get_master_key', [self::class, 'handleSetupGetMasterKey']);
         add_action('wp_ajax_forge_setup_confirm_secure', [self::class, 'handleSetupConfirmSecure']);
@@ -76,8 +74,8 @@ class FormSettings
         if (\ForgeForms\Plugin::userCan('settings')) {
             add_submenu_page(
                 'forge-forms',
-                'FormForge Einstellungen',
-                'Einstellungen',
+                __('FormForge Settings', 'form-forge'),
+                __('Settings', 'form-forge'),
                 'read',
                 'forge-forms-settings',
                 [self::class, 'renderSettingsPage']
@@ -93,13 +91,12 @@ class FormSettings
     public static function renderSettingsPage(): void
     {
         if (!\ForgeForms\Plugin::userCan('settings')) {
-            wp_die('Keine Berechtigung.');
+            wp_die(__('Permission denied.', 'form-forge'));
         }
 
-        $saved   = false;
-        $error   = '';
+        $saved = false;
 
-        if (isset($_POST['forge_settings_nonce']) 
+        if (isset($_POST['forge_settings_nonce'])
             && wp_verify_nonce(sanitize_key($_POST['forge_settings_nonce']), 'forge_forms_settings')
         ) {
             self::saveGeneralSettings();
@@ -113,6 +110,7 @@ class FormSettings
         $hover_color       = get_option('forge_forms_hover_color', '#1d2327');
         $accent_color      = get_option('forge_forms_accent_color', '#f59e0b');
         $border_color      = get_option('forge_forms_border_color', '#c9cdd4');
+        $admin_accent      = get_option('forge_forms_admin_accent', '#2271b1');
         $field_layout_mode = get_option('forge_forms_field_layout', 'block');
         $wp_admin_email    = get_option('admin_email');
         $setup_done_early = (bool) get_option('forge_forms_seal_setup_done', false);
@@ -123,7 +121,7 @@ class FormSettings
         ?>
         <?php if ($saved) : ?>
         <div class="forge-settings-notice forge-settings-notice--success">
-            <i class="fa-solid fa-circle-check"></i> Einstellungen gespeichert.
+            <i class="fa-solid fa-circle-check"></i> <?php echo esc_html__('Settings saved.', 'form-forge'); ?>
         </div>
         <?php endif; ?>
 
@@ -138,50 +136,46 @@ class FormSettings
                 <div id="forge-blocker-step1">
                 <h2 style="margin:0 0 14px;font-size:17px;font-weight:700;color:#1d2327;">
                     <i class="fa-solid fa-shield-halved" style="color:#f59e0b;margin-right:7px;"></i>
-                    FormForge — Ersteinrichtung
+                    <?php echo esc_html__('FormForge — Initial Setup', 'form-forge'); ?>
                 </h2>
                 <p style="margin:0 0 6px;font-size:13px;color:#1d2327;font-weight:600;">
-                    Was sind PDF-Siegelschlüssel?
+                    <?php echo esc_html__('What are PDF seal keys?', 'form-forge'); ?>
                 </p>
                 <p style="margin:0 0 10px;font-size:13px;color:#50575e;line-height:1.55;">
-                    FormForge kann aus Formulareinsendungen PDFs erstellen. Jedes dieser PDFs
-                    erhält beim Erzeugen eine unsichtbare kryptografische Signatur — ähnlich
-                    einem Siegel auf einem Brief. Diese Signatur wird aus dem Inhalt des
-                    Dokuments und einem geheimen Schlüssel berechnet.
+                    <?php
+                    echo esc_html__('FormForge can generate PDFs from form submissions. Each of these PDFs receives an invisible cryptographic signature when created — similar to a seal on a letter. This signature is calculated from the document content and a secret key.', 'form-forge'); // phpcs:ignore Generic.Files.LineLength
+                    ?>
                 </p>
                 <p style="margin:0 0 10px;font-size:13px;color:#50575e;line-height:1.55;">
-                    Auf der Verifikationsseite können Sie ein PDF hochladen: Das System
-                    berechnet die Signatur neu und vergleicht sie. Stimmt sie überein, ist
-                    das Dokument echt und unverändert. Wurde auch nur ein Zeichen geändert,
-                    schlägt die Prüfung fehl.
+                    <?php
+                    echo esc_html__('On the verification page you can upload a PDF: the system recalculates the signature and compares it. If it matches, the document is authentic and unaltered. If even a single character was changed, the check fails.', 'form-forge'); // phpcs:ignore Generic.Files.LineLength
+                    ?>
                 </p>
                 <p style="margin:0 0 14px;font-size:13px;color:#50575e;line-height:1.55;">
-                    Den Schlüssel erhalten Sie als Datei zum Herunterladen. Bewahren Sie ihn
-                    sicher außerhalb des Servers auf (z.&nbsp;B. in einem Passwortmanager
-                    oder einem verschlüsselten USB-Stick) — so können Sie ihn nach einem
-                    Serverausfall als Legacy-Schlüssel wiederherstellen und ältere PDFs
-                    weiterhin verifizieren.
+                    <?php
+                    echo esc_html__('You receive the key as a downloadable file. Keep it safely off the server (e.g. in a password manager or an encrypted USB drive) — so you can restore it as a legacy key after a server failure and continue verifying older PDFs.', 'form-forge'); // phpcs:ignore Generic.Files.LineLength
+                    ?>
                 </p>
                 <p style="margin:0 0 6px;font-size:13px;color:#1d2327;font-weight:600;">
                     <i class="fa-solid fa-circle-question" style="color:#787c82;margin-right:5px;"></i>
-                    Warum verschlüsselt wählen?
+                    <?php echo esc_html__('Why choose encrypted?', 'form-forge'); ?>
                 </p>
                 <p style="margin:0 0 8px;font-size:13px;color:#50575e;line-height:1.55;">
-                    Beim Standard-Modus liegt der Schlüssel im Klartext in der Datenbank.
-                    Wer Zugriff auf die Datenbank erlangt — etwa durch ein kompromittiertes
-                    Plugin oder ein Daten-Backup — könnte den Schlüssel auslesen und
-                    gefälschte PDFs signieren, die als echt durchgehen.
+                    <?php
+                    echo esc_html__('In standard mode, the key is stored in plaintext in the database. Anyone who gains access to the database — for example through a compromised plugin or a data backup — could read the key and sign forged PDFs that pass as authentic.', 'form-forge'); // phpcs:ignore Generic.Files.LineLength
+                    ?>
                 </p>
                 <p style="margin:0 0 16px;font-size:13px;color:#50575e;line-height:1.55;">
-                    Im verschlüsselten Modus ist der Schlüssel in der Datenbank ohne den
-                    Master-Schlüssel wertlos, welcher in der
-                    <code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;
-                                 padding:1px 5px;font-size:12px;color:#1d2327;">wp-config.php</code>
-                    separat auf dem Server liegt. Ein reiner Datenbank-Abfluss reicht
-                    damit nicht aus.
+                    <?php
+                    printf(
+                        /* translators: %s: wp-config.php as inline code element */
+                        __('In encrypted mode, the key in the database is worthless without the master key, which is stored separately on the server in %s. A database-only leak is therefore not sufficient.', 'form-forge'),
+                        '<code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;padding:1px 5px;font-size:12px;color:#1d2327;">wp-config.php</code>'
+                    );
+                    ?>
                 </p>
                 <p style="margin:0 0 10px;font-size:13px;color:#1d2327;font-weight:600;">
-                    Wie sollen die Schlüssel gespeichert werden?
+                    <?php echo esc_html__('How should the keys be stored?', 'form-forge'); ?>
                 </p>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;">
                     <button type="button" id="forge-blocker-default"
@@ -190,11 +184,10 @@ class FormSettings
                                    font-family:inherit;transition:border-color .15s;">
                         <span style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
                             <i class="fa-solid fa-database" style="font-size:15px;color:#787c82;"></i>
-                            <strong style="font-size:13px;color:#1d2327;">Standard</strong>
+                            <strong style="font-size:13px;color:#1d2327;"><?php echo esc_html__('Standard', 'form-forge'); ?></strong>
                         </span>
                         <span style="font-size:12px;color:#50575e;line-height:1.4;">
-                            Unverschlüsselt in der Datenbank gespeichert.
-                            Kompatibel mit allen Installationen.
+                            <?php echo esc_html__('Stored unencrypted in the database. Compatible with all installations.', 'form-forge'); ?>
                         </span>
                     </button>
                     <button type="button" id="forge-blocker-secure"
@@ -203,12 +196,16 @@ class FormSettings
                                    font-family:inherit;transition:border-color .15s;">
                         <span style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
                             <i class="fa-solid fa-lock" style="font-size:15px;color:#2271b1;"></i>
-                            <strong style="font-size:13px;color:#1d2327;">Verschlüsselt</strong>
+                            <strong style="font-size:13px;color:#1d2327;"><?php echo esc_html__('Encrypted', 'form-forge'); ?></strong>
                         </span>
                         <span style="font-size:12px;color:#50575e;line-height:1.4;">
-                            AES-256-GCM — erfordert einen Master-Schlüssel in der
-                            <code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;
-                                         padding:1px 5px;font-size:11px;color:#1d2327;">wp-config.php</code>.
+                            <?php
+                            printf(
+                                /* translators: %s: wp-config.php as inline code element */
+                                __('AES-256-GCM — requires a master key in %s.', 'form-forge'),
+                                '<code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;padding:1px 5px;font-size:11px;color:#1d2327;">wp-config.php</code>'
+                            );
+                            ?>
                         </span>
                     </button>
                 </div>
@@ -216,33 +213,51 @@ class FormSettings
                    style="color:#b32d2e;display:none;margin:0 0 10px;font-size:13px;"></p>
                 </div><!-- /#forge-blocker-step1 -->
 
-                <!-- Step 2: master-key setup (shown after choosing Verschlüsselt) -->
+                <!-- Step 2: master-key setup (shown after choosing Encrypted) -->
                 <div id="forge-blocker-mk-step" style="display:none;">
                     <h2 style="margin:0 0 12px;font-size:17px;font-weight:700;color:#1d2327;">
                         <i class="fa-solid fa-lock" style="color:#2271b1;margin-right:7px;"></i>
-                        Master-Schlüssel einrichten
+                        <?php echo esc_html__('Set up master key', 'form-forge'); ?>
                     </h2>
                     <p style="margin:0 0 10px;font-size:13px;color:#50575e;line-height:1.55;">
-                        Kopieren Sie die folgende Zeile und tragen Sie sie in die
-                        <code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;
-                                     padding:1px 5px;font-size:12px;color:#1d2327;">wp-config.php</code>
-                        Ihres Servers ein. So geht's:
+                        <?php
+                        printf(
+                            /* translators: %s: wp-config.php as inline code element */
+                            __('Copy the following line and add it to the %s on your server. Here\'s how:', 'form-forge'),
+                            '<code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;padding:1px 5px;font-size:12px;color:#1d2327;">wp-config.php</code>'
+                        );
+                        ?>
                     </p>
                     <ol style="margin:0 0 12px 18px;font-size:13px;color:#50575e;line-height:1.7;">
-                        <li>Öffnen Sie die Dateiverwaltung Ihres Servers — entweder über das Hosting-Control-Panel,
-                            einen FTP-Client (z.&nbsp;B. FileZilla) oder SSH.</li>
-                        <li>Navigieren Sie zum Stammverzeichnis Ihrer WordPress-Installation
-                            (dort liegen auch <code style="background:#f0f0f1;border:1px solid #c3c4c7;
-                            border-radius:3px;padding:1px 4px;font-size:11px;color:#1d2327;">wp-login.php</code>
-                            und <code style="background:#f0f0f1;border:1px solid #c3c4c7;
-                            border-radius:3px;padding:1px 4px;font-size:11px;color:#1d2327;">wp-config.php</code>).</li>
-                        <li>Öffnen Sie <code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;
-                            padding:1px 4px;font-size:11px;color:#1d2327;">wp-config.php</code> zum Bearbeiten.</li>
-                        <li>Suchen Sie die Zeile
-                            <code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;
-                            padding:1px 4px;font-size:11px;color:#1d2327;">/* That's all, stop editing! */</code>
-                            und fügen Sie die untenstehende Zeile <strong>direkt davor</strong> ein.</li>
-                        <li>Speichern Sie die Datei und kehren Sie hierher zurück.</li>
+                        <li><?php
+                            echo esc_html__('Open the file manager of your server — either via the hosting control panel, an FTP client (e.g. FileZilla), or SSH.', 'form-forge'); // phpcs:ignore Generic.Files.LineLength
+                        ?></li>
+                        <li><?php
+                            $code_wplogin = '<code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;padding:1px 4px;font-size:11px;color:#1d2327;">wp-login.php</code>';
+                            $code_wpconfig = '<code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;padding:1px 4px;font-size:11px;color:#1d2327;">wp-config.php</code>';
+                            printf(
+                                /* translators: 1: wp-login.php as code element, 2: wp-config.php as code element */
+                                __('Navigate to the root directory of your WordPress installation (where %1$s and %2$s are also located).', 'form-forge'),
+                                $code_wplogin,
+                                $code_wpconfig
+                            );
+                            ?></li>
+                        <li><?php
+                            printf(
+                                /* translators: %s: wp-config.php as inline code element */
+                                __('Open %s for editing.', 'form-forge'),
+                                '<code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;padding:1px 4px;font-size:11px;color:#1d2327;">wp-config.php</code>'
+                            );
+                            ?></li>
+                        <li><?php
+                            printf(
+                                /* translators: 1: stop-editing comment as code element, 2: "direkt davor" as strong element */
+                                __('Find the line %1$s and insert the line below %2$s.', 'form-forge'),
+                                '<code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;padding:1px 4px;font-size:11px;color:#1d2327;">/* That\'s all, stop editing! */</code>',
+                                '<strong>' . esc_html__('directly before it', 'form-forge') . '</strong>'
+                            );
+                            ?></li>
+                        <li><?php echo esc_html__('Save the file and return here.', 'form-forge'); ?></li>
                     </ol>
                     <div style="background:#f6f7f7;border:1px solid #dcdcde;border-radius:4px;
                                 padding:12px 14px;margin-bottom:12px;">
@@ -254,10 +269,10 @@ class FormSettings
                     <div style="display:flex;gap:12px;">
                         <button type="button" id="forge-blocker-mk-back" class="button"
                                 style="margin-right:auto;">
-                            <i class="fa-solid fa-arrow-left"></i> Zurück
+                            <i class="fa-solid fa-arrow-left"></i> <?php echo esc_html__('Back', 'form-forge'); ?>
                         </button>
                         <button type="button" id="forge-blocker-mk-confirm" class="button button-primary">
-                            <i class="fa-solid fa-check"></i> Eingetragen — Weiter
+                            <i class="fa-solid fa-check"></i> <?php echo esc_html__('Entered — Continue', 'form-forge'); ?>
                         </button>
                     </div>
                 </div>
@@ -266,22 +281,25 @@ class FormSettings
                 <div id="forge-blocker-ready-step" style="display:none;">
                     <h2 style="margin:0 0 12px;font-size:17px;font-weight:700;color:#1d2327;">
                         <i class="fa-solid fa-circle-check" style="color:#00a32a;margin-right:7px;"></i>
-                        Master-Schlüssel erkannt
+                        <?php echo esc_html__('Master key detected', 'form-forge'); ?>
                     </h2>
                     <p style="margin:0 0 16px;font-size:13px;color:#50575e;line-height:1.55;">
-                        Ein gültiger
-                        <code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;
-                                     padding:1px 5px;font-size:12px;color:#1d2327;">FORGE_SEAL_MASTER_KEY</code>
-                        ist in der <code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;
-                                     padding:1px 5px;font-size:12px;color:#1d2327;">wp-config.php</code>
-                        eingetragen. Klicken Sie auf „Setup abschließen", um den ersten Siegelschlüssel
-                        zu erzeugen und die Einrichtung abzuschließen.
+                        <?php
+                        $code_master = '<code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;padding:1px 5px;font-size:12px;color:#1d2327;">FORGE_SEAL_MASTER_KEY</code>';
+                        $code_wpcfg  = '<code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;padding:1px 5px;font-size:12px;color:#1d2327;">wp-config.php</code>';
+                        printf(
+                            /* translators: 1: FORGE_SEAL_MASTER_KEY constant as code element, 2: wp-config.php as code element */
+                            __('A valid %1$s is entered in %2$s. Click "Complete setup" to generate the first seal key and finish the setup.', 'form-forge'),
+                            $code_master,
+                            $code_wpcfg
+                        );
+                        ?>
                     </p>
                     <p id="forge-blocker-ready-error"
                        style="color:#b32d2e;display:none;margin:0 0 10px;font-size:13px;"></p>
                     <div style="display:flex;gap:12px;justify-content:flex-end;">
                         <button type="button" id="forge-blocker-ready-confirm" class="button button-primary">
-                            <i class="fa-solid fa-bolt"></i> Setup abschließen
+                            <i class="fa-solid fa-bolt"></i> <?php echo esc_html__('Complete setup', 'form-forge'); ?>
                         </button>
                     </div>
                 </div>
@@ -297,10 +315,10 @@ class FormSettings
                 <?php wp_nonce_field('forge_forms_settings', 'forge_settings_nonce'); ?>
 
                 <div class="forge-settings-topbar">
-                    <div class="forge-title-pill">Einstellungen</div>
+                    <div class="forge-title-pill"><?php echo esc_html__('Settings', 'form-forge'); ?></div>
                     <div class="forge-settings-topbar-actions">
                         <button type="submit" class="button button-primary">
-                            <i class="fa-solid fa-floppy-disk"></i> Speichern
+                            <i class="fa-solid fa-floppy-disk"></i> <?php echo esc_html__('Save', 'form-forge'); ?>
                         </button>
                     </div>
                 </div>
@@ -308,16 +326,16 @@ class FormSettings
                 <div class="forge-settings-tiles">
 
                     <div class="forge-settings-section-header">
-                        <i class="fa-solid fa-display"></i> Frontend
+                        <i class="fa-solid fa-display"></i> <?php echo esc_html__('Frontend', 'form-forge'); ?>
                     </div>
 
                     <div class="forge-settings-card">
                         <h2 class="forge-settings-card-title">
-                            <i class="fa-solid fa-paintbrush"></i> Formularfarben
+                            <i class="fa-solid fa-paintbrush"></i> <?php echo esc_html__('Form colors', 'form-forge'); ?>
                         </h2>
 
                         <div class="forge-settings-field">
-                            <label for="accent_color">Akzentfarbe</label>
+                            <label for="accent_color"><?php echo esc_html__('Accent color', 'form-forge'); ?></label>
                             <input type="text" id="accent_color" name="accent_color"
                                    value="<?php echo esc_attr($accent_color); ?>"
                                    class="forge-iris-input" data-default-color="#f59e0b"
@@ -326,7 +344,7 @@ class FormSettings
                         </div>
 
                         <div class="forge-settings-field">
-                            <label for="border_color">Eingabe-Rahmen</label>
+                            <label for="border_color"><?php echo esc_html__('Input border', 'form-forge'); ?></label>
                             <input type="text" id="border_color" name="border_color"
                                    value="<?php echo esc_attr($border_color); ?>"
                                    class="forge-iris-input" data-default-color="#c9cdd4"
@@ -337,20 +355,20 @@ class FormSettings
 
                     <div class="forge-settings-card">
                         <h2 class="forge-settings-card-title">
-                            <i class="fa-solid fa-table-list"></i> Feldausgabe
+                            <i class="fa-solid fa-table-list"></i> <?php echo esc_html__('Field output', 'form-forge'); ?>
                         </h2>
                         <div class="forge-settings-field">
-                            <label>Layout in E-Mail &amp; PDF</label>
+                            <label><?php echo esc_html__('Layout in email & PDF', 'form-forge'); ?></label>
                             <div class="forge-card-radio-group">
                                 <label class="forge-card-radio">
                                     <input type="radio" name="field_layout_mode" value="block"
                                         <?php checked($field_layout_mode, 'block'); ?>>
                                     <span class="forge-card-radio-head">
                                         <i class="fa-solid fa-list"></i>
-                                        <strong>Block</strong>
+                                        <strong><?php echo esc_html__('Block', 'form-forge'); ?></strong>
                                     </span>
                                     <span class="forge-card-radio-desc">
-                                        Bezeichnung über dem Wert.
+                                        <?php echo esc_html__('Label above the value.', 'form-forge'); ?>
                                     </span>
                                 </label>
                                 <label class="forge-card-radio">
@@ -358,10 +376,10 @@ class FormSettings
                                         <?php checked($field_layout_mode, 'inline'); ?>>
                                     <span class="forge-card-radio-head">
                                         <i class="fa-solid fa-grip-lines"></i>
-                                        <strong>Inline</strong>
+                                        <strong><?php echo esc_html__('Inline', 'form-forge'); ?></strong>
                                     </span>
                                     <span class="forge-card-radio-desc">
-                                        Bezeichnung: Wert in einer Zeile.
+                                        <?php echo esc_html__('Label: value on one line.', 'form-forge'); ?>
                                     </span>
                                 </label>
                             </div>
@@ -371,11 +389,11 @@ class FormSettings
                     <?php if ($is_full_admin) : ?>
                     <div class="forge-settings-card">
                         <h2 class="forge-settings-card-title">
-                            <i class="fa-solid fa-shield-halved"></i> reCAPTCHA v2
+                            <i class="fa-solid fa-shield-halved"></i> <?php echo esc_html__('reCAPTCHA v2', 'form-forge'); ?>
                         </h2>
 
                         <div class="forge-settings-field">
-                            <label for="recaptcha_site">Site Key</label>
+                            <label for="recaptcha_site"><?php echo esc_html__('Site Key', 'form-forge'); ?></label>
                             <input type="text" id="recaptcha_site" name="recaptcha_site"
                                    value="<?php echo esc_attr($recaptcha_site); ?>"
                                    placeholder="6Le…"
@@ -384,7 +402,7 @@ class FormSettings
                         </div>
 
                         <div class="forge-settings-field">
-                            <label for="recaptcha_secret">Secret Key</label>
+                            <label for="recaptcha_secret"><?php echo esc_html__('Secret Key', 'form-forge'); ?></label>
                             <input type="text" id="recaptcha_secret" name="recaptcha_secret"
                                    value="<?php echo esc_attr($recaptcha_secret); ?>"
                                    placeholder="6Le…"
@@ -395,16 +413,16 @@ class FormSettings
                     <?php endif; ?>
 
                     <div class="forge-settings-section-header">
-                        <i class="fa-solid fa-server"></i> Backend
+                        <i class="fa-solid fa-server"></i> <?php echo esc_html__('Backend', 'form-forge'); ?>
                     </div>
 
                     <div class="forge-settings-card">
                         <h2 class="forge-settings-card-title">
-                            <i class="fa-solid fa-envelope"></i> E-Mail-Versand
+                            <i class="fa-solid fa-envelope"></i> <?php echo esc_html__('Email delivery', 'form-forge'); ?>
                         </h2>
 
                         <div class="forge-settings-field">
-                            <label for="forge_cfg_a">Absender-E-Mail</label>
+                            <label for="forge_cfg_a"><?php echo esc_html__('Sender email', 'form-forge'); ?></label>
                             <input type="text" inputmode="email" id="forge_cfg_a" name="forge_cfg_a"
                                    value="<?php echo esc_attr($from_email); ?>"
                                    placeholder="<?php echo esc_attr($wp_admin_email); ?>"
@@ -412,13 +430,18 @@ class FormSettings
                                    data-1p-ignore data-bwignore data-form-type="other"
                                    spellcheck="false">
                             <p class="forge-settings-hint">
-                                Leer lassen, um die WordPress-Admin-E-Mail zu verwenden
-                                (<?php echo esc_html($wp_admin_email); ?>).
+                                <?php
+                                printf(
+                                    /* translators: %s: admin e-mail address */
+                                    __('Leave blank to use the WordPress admin email (%s).', 'form-forge'),
+                                    esc_html($wp_admin_email)
+                                );
+                                ?>
                             </p>
                         </div>
 
                         <div class="forge-settings-field">
-                            <label for="forge_cfg_b">Absender-Name</label>
+                            <label for="forge_cfg_b"><?php echo esc_html__('Sender name', 'form-forge'); ?></label>
                             <input type="text" id="forge_cfg_b" name="forge_cfg_b"
                                    value="<?php echo esc_attr($from_name); ?>"
                                    autocomplete="off" data-lpignore="true"
@@ -429,11 +452,23 @@ class FormSettings
 
                     <div class="forge-settings-card">
                         <h2 class="forge-settings-card-title">
-                            <i class="fa-solid fa-pen-ruler"></i> Editor
+                            <i class="fa-solid fa-pen-ruler"></i> <?php echo esc_html__('Editor', 'form-forge'); ?>
                         </h2>
 
                         <div class="forge-settings-field">
-                            <label for="hover_color">Hover-Farbe</label>
+                            <label for="admin_accent"><?php echo esc_html__('Admin accent color', 'form-forge'); ?></label>
+                            <input type="text" id="admin_accent" name="admin_accent"
+                                   value="<?php echo esc_attr($admin_accent); ?>"
+                                   class="forge-iris-input" data-default-color="#2271b1"
+                                   autocomplete="off" data-lpignore="true"
+                                   data-1p-ignore data-bwignore spellcheck="false">
+                            <p class="forge-settings-hint">
+                                <?php echo esc_html__('Color for buttons, sliders, and toggles in the admin area.', 'form-forge'); ?>
+                            </p>
+                        </div>
+
+                        <div class="forge-settings-field">
+                            <label for="hover_color"><?php echo esc_html__('Hover color', 'form-forge'); ?></label>
                             <input type="text" id="hover_color" name="hover_color"
                                    value="<?php echo esc_attr($hover_color); ?>"
                                    class="forge-iris-input" data-default-color="#1d2327"
@@ -455,7 +490,7 @@ class FormSettings
                     <div class="forge-settings-card forge-settings-card--security"
                          <?php echo $is_full_admin ? '' : 'hidden'; ?>>
                         <h2 class="forge-settings-card-title">
-                            <i class="fa-solid fa-shield-halved"></i> Sicherheit
+                            <i class="fa-solid fa-shield-halved"></i> <?php echo esc_html__('Security', 'form-forge'); ?>
                         </h2>
 
                         <?php if ($setup_done) : ?>
@@ -463,23 +498,23 @@ class FormSettings
                         <div style="border:1px solid #b8e6c1;border-radius:4px;padding:10px 14px;
                                     margin-bottom:14px;background:#f0faf2;display:flex;align-items:center;gap:6px;">
                             <i class="fa-solid fa-lock" style="color:#00a32a;"></i>
-                            <strong style="color:#007017;">Verschlüsselt</strong>
+                            <strong style="color:#007017;"><?php echo esc_html__('Encrypted', 'form-forge'); ?></strong>
                             <span style="color:#50575e;font-size:13px;">
-                                Schlüssel sind mit AES-256-GCM gesichert.</span>
+                                <?php echo esc_html__('Keys are secured with AES-256-GCM.', 'form-forge'); ?></span>
                         </div>
-                        <?php else : ?>
+                            <?php else : ?>
                         <button type="button" id="forge-upgrade-enc-btn"
                                 class="forge-security-action-btn" style="margin-bottom:14px;">
                             <span class="forge-security-action-icon" style="color:#787c82;">
                                 <i class="fa-solid fa-database"></i>
                             </span>
                             <span class="forge-security-action-body">
-                                <strong>Standard — unverschlüsselt</strong>
-                                <span>Klicken, um auf AES-256-GCM umzustellen</span>
+                                <strong><?php echo esc_html__('Standard — unencrypted', 'form-forge'); ?></strong>
+                                <span><?php echo esc_html__('Click to switch to AES-256-GCM', 'form-forge'); ?></span>
                             </span>
                             <i class="fa-solid fa-chevron-right forge-security-action-arrow"></i>
                         </button>
-                        <?php endif; ?>
+                            <?php endif; ?>
                         <?php endif; ?>
 
                         <div class="forge-security-actions" <?php echo !$setup_done ? 'hidden' : ''; ?>>
@@ -488,7 +523,7 @@ class FormSettings
                                     <i class="fa-solid fa-magnifying-glass"></i>
                                 </span>
                                 <span class="forge-security-action-body">
-                                    <strong>PDF-Schlüssel einsehen</strong>
+                                    <strong><?php echo esc_html__('View PDF keys', 'form-forge'); ?></strong>
                                 </span>
                                 <i class="fa-solid fa-chevron-right forge-security-action-arrow"></i>
                             </button>
@@ -498,7 +533,7 @@ class FormSettings
                                     <i class="fa-solid fa-file-import"></i>
                                 </span>
                                 <span class="forge-security-action-body">
-                                    <strong>Legacy-Schlüssel hinzufügen</strong>
+                                    <strong><?php echo esc_html__('Add legacy key', 'form-forge'); ?></strong>
                                 </span>
                                 <i class="fa-solid fa-chevron-right forge-security-action-arrow"></i>
                             </button>
@@ -508,7 +543,7 @@ class FormSettings
                                     <i class="fa-solid fa-arrows-rotate"></i>
                                 </span>
                                 <span class="forge-security-action-body">
-                                    <strong>PDF-Schlüssel rotieren</strong>
+                                    <strong><?php echo esc_html__('Rotate PDF key', 'form-forge'); ?></strong>
                                 </span>
                                 <i class="fa-solid fa-chevron-right forge-security-action-arrow"></i>
                             </button>
@@ -517,7 +552,7 @@ class FormSettings
 
                     <div class="forge-settings-card" <?php echo $is_full_admin ? '' : 'hidden'; ?>>
                         <h2 class="forge-settings-card-title">
-                            <i class="fa-solid fa-screwdriver-wrench"></i> Sonstige
+                            <i class="fa-solid fa-screwdriver-wrench"></i> <?php echo esc_html__('Miscellaneous', 'form-forge'); ?>
                         </h2>
 
                         <div class="forge-security-actions">
@@ -527,7 +562,7 @@ class FormSettings
                                     <i class="fa-solid fa-users-gear"></i>
                                 </span>
                                 <span class="forge-security-action-body">
-                                    <strong>Benutzerzugang</strong>
+                                    <strong><?php echo esc_html__('User access', 'form-forge'); ?></strong>
                                 </span>
                                 <i class="fa-solid fa-chevron-right forge-security-action-arrow"></i>
                             </button>
@@ -537,26 +572,12 @@ class FormSettings
                                     <i class="fa-solid fa-arrow-rotate-left"></i>
                                 </span>
                                 <span class="forge-security-action-body">
-                                    <strong>Auf Werkseinstellungen zurücksetzen</strong>
+                                    <strong><?php echo esc_html__('Reset to factory defaults', 'form-forge'); ?></strong>
                                 </span>
                                 <i class="fa-solid fa-chevron-right forge-security-action-arrow"></i>
                             </button>
                         </div>
 
-                        <?php if (defined('WP_DEBUG') && WP_DEBUG) : ?>
-                        <div class="forge-security-debug">
-                            <p class="forge-settings-hint"><strong>DEV</strong> — nur sichtbar wenn WP_DEBUG aktiv</p>
-                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                                <button type="button" id="forge-debug-install-btn" class="button">
-                                    <i class="fa-solid fa-play"></i> Install-Prompt auslösen
-                                </button>
-                                <button type="button" id="forge-debug-clear-keys-btn" class="button"
-                                        style="color:#b32d2e;border-color:#b32d2e;">
-                                    <i class="fa-solid fa-trash"></i> Alle Schlüssel löschen
-                                </button>
-                            </div>
-                        </div>
-                        <?php endif; ?>
                     </div>
 
                 </div><!-- /.forge-settings-tiles -->
@@ -568,23 +589,27 @@ class FormSettings
             <div class="forge-modal-box forge-key-rotate-modal"
                  role="dialog" aria-modal="true" aria-labelledby="forge-key-modal-title">
                 <h2 id="forge-key-modal-title" style="color:#c07a00;">
-                    <i class="fa-solid fa-key"></i> PDF-Schlüssel rotieren
+                    <i class="fa-solid fa-key"></i> <?php echo esc_html__('Rotate PDF key', 'form-forge'); ?>
                 </h2>
                 <p>
-                    Leitet einen neuen Schlüssel per PBKDF2 ab. PDFs die mit dem
-                    bisherigen Schlüssel gesiegelt wurden, bleiben verifizierbar und
-                    werden als <em>rotiert</em> markiert.
+                    <?php
+                    printf(
+                        /* translators: %s: "rotiert" as an em element */
+                        __('Derives a new key via PBKDF2. PDFs sealed with the previous key remain verifiable and are marked as %s.', 'form-forge'),
+                        '<em>' . esc_html__('rotated', 'form-forge') . '</em>'
+                    );
+                    ?>
                 </p>
 
                 <div class="forge-key-rotate-fields">
                     <div class="forge-settings-field">
-                        <label for="forge_key_pw">Neues Schlüssel-Passwort</label>
+                        <label for="forge_key_pw"><?php echo esc_html__('New key password', 'form-forge'); ?></label>
                         <input type="text" id="forge_key_pw"
                                class="forge-fake-password"
                                autocomplete="off" data-lpignore="true"
                                data-1p-ignore data-bwignore spellcheck="false"
                                readonly
-                               placeholder="Min. 12 Zeichen…">
+                               placeholder="<?php echo esc_attr__('Min. 12 characters…', 'form-forge'); ?>">
                         <div id="forge-key-strength" class="forge-key-strength-bar">
                             <span></span><span></span><span></span><span></span><span></span>
                         </div>
@@ -592,7 +617,7 @@ class FormSettings
                     </div>
 
                     <div class="forge-settings-field">
-                        <label for="forge_key_pw2">Passwort bestätigen</label>
+                        <label for="forge_key_pw2"><?php echo esc_html__('Confirm password', 'form-forge'); ?></label>
                         <input type="text" id="forge_key_pw2"
                                class="forge-fake-password"
                                autocomplete="off" data-lpignore="true"
@@ -602,20 +627,27 @@ class FormSettings
 
                     <label class="forge-reset-check-wrap">
                         <input type="checkbox" id="forge_key_compromised" value="1">
-                        <span>Bisherigen Schlüssel als <strong>kompromittiert</strong> markieren</span>
+                        <span><?php
+                                $strong_cmp = '<strong>' . esc_html__('compromised', 'form-forge') . '</strong>';
+                                printf(
+                                    /* translators: %s: "kompromittiert" as a strong element */
+                                    __('Mark the previous key as %s', 'form-forge'),
+                                    $strong_cmp
+                                );
+                                ?></span>
                     </label>
                     <p id="forge-key-compromised-hint" class="forge-settings-hint" hidden
                        style="color:#b32d2e;margin:0 0 12px;">
                         <i class="fa-solid fa-circle-exclamation"></i>
-                        PDFs mit dem bisherigen Schlüssel werden in der Verifizierung als kompromittiert angezeigt.
+                        <?php echo esc_html__('PDFs sealed with the previous key will be shown as compromised during verification.', 'form-forge'); ?>
                     </p>
                 </div>
 
                 <div class="forge-reset-actions">
-                    <button type="button" id="forge-key-cancel" class="button">Abbrechen</button>
+                    <button type="button" id="forge-key-cancel" class="button"><?php echo esc_html__('Cancel', 'form-forge'); ?></button>
                     <button type="button" id="forge-key-confirm" class="button button-primary forge-reset-confirm"
                             disabled>
-                        <i class="fa-solid fa-rotate"></i> Schlüssel rotieren
+                        <i class="fa-solid fa-rotate"></i> <?php echo esc_html__('Rotate key', 'form-forge'); ?>
                     </button>
                 </div>
                 <p id="forge-key-modal-msg" class="forge-settings-hint" hidden
@@ -628,7 +660,7 @@ class FormSettings
             <div class="forge-modal-box forge-key-view-modal"
                  role="dialog" aria-modal="true" aria-labelledby="forge-key-view-title">
                 <h2 id="forge-key-view-title" class="forge-key-view-title">
-                    <i class="fa-solid fa-magnifying-glass"></i> PDF-Schlüssel
+                    <i class="fa-solid fa-magnifying-glass"></i> <?php echo esc_html__('PDF keys', 'form-forge'); ?>
                 </h2>
 
                 <?php if (!empty($key_history)) : ?>
@@ -636,10 +668,10 @@ class FormSettings
                 <table class="forge-key-master-table">
                     <thead>
                         <tr>
-                            <th>Fingerprint</th>
-                            <th>Status</th>
-                            <th>Datum</th>
-                            <th>Von</th>
+                            <th><?php echo esc_html__('Fingerprint', 'form-forge'); ?></th>
+                            <th><?php echo esc_html__('Status', 'form-forge'); ?></th>
+                            <th><?php echo esc_html__('Date', 'form-forge'); ?></th>
+                            <th><?php echo esc_html__('By', 'form-forge'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -655,29 +687,27 @@ class FormSettings
                         $cmp       = !empty($entry['compromised']);
                         $at        = esc_html((string)($entry['retired_at'] ?? '—'));
                         $by        = esc_html((string)($entry['retired_by_login'] ?? '—'));
-                        $is_legacy = in_array($sta, ['rotated-legacy', 'compromised-legacy'], true);
-                        $date_lbl  = $is_legacy ? 'Hinzugefügt' : 'Zurückgezogen';
 
                         $extra_badge = '';
                         if ($sta === 'rotated-legacy') {
                             $badge_cls   = 'forge-key-badge forge-key-badge--rotated';
-                            $badge_lbl   = 'ROTIERT';
-                            $extra_badge = '<span class="forge-key-badge forge-key-badge--legacy">LEGACY</span>';
+                            $badge_lbl   = __('ROTATED', 'form-forge');
+                            $extra_badge = '<span class="forge-key-badge forge-key-badge--legacy">' . esc_html__('LEGACY', 'form-forge') . '</span>';
                         } elseif ($sta === 'compromised-legacy') {
                             $badge_cls   = 'forge-key-badge forge-key-badge--compromised';
-                            $badge_lbl   = 'KOMPROMITTIERT';
-                            $extra_badge = '<span class="forge-key-badge forge-key-badge--legacy">LEGACY</span>';
+                            $badge_lbl   = __('COMPROMISED', 'form-forge');
+                            $extra_badge = '<span class="forge-key-badge forge-key-badge--legacy">' . esc_html__('LEGACY', 'form-forge') . '</span>';
                         } elseif ($cmp) {
                             $badge_cls = 'forge-key-badge forge-key-badge--compromised';
-                            $badge_lbl = 'KOMPROMITTIERT';
+                            $badge_lbl = __('COMPROMISED', 'form-forge');
                         } else {
                             $badge_cls = 'forge-key-badge forge-key-badge--rotated';
-                            $badge_lbl = 'ROTIERT' . ($sta === 'initial' ? ' (Initial)' : '');
+                            $badge_lbl = __('ROTATED', 'form-forge') . ($sta === 'initial' ? ' (Initial)' : '');
                         }
                         ?>
                         <tr class="forge-key-uuid-row">
                             <td colspan="4">
-                                <span class="forge-key-uuid-lbl">UUID:</span>
+                                <span class="forge-key-uuid-lbl"><?php echo esc_html__('UUID:', 'form-forge'); ?></span>
                                 <code class="forge-key-uuid-code"><?php echo $uuid; ?></code>
                             </td>
                         </tr>
@@ -699,13 +729,13 @@ class FormSettings
                 </div><!-- /.forge-key-view-scroll -->
                 <?php else : ?>
                 <p class="forge-settings-hint" style="margin-top:12px;">
-                    Noch keine Rotationen durchgeführt — kein Protokoll vorhanden.
+                    <?php echo esc_html__('No rotations performed yet — no log available.', 'form-forge'); ?>
                 </p>
                 <?php endif; ?>
 
                 <div class="forge-reset-actions" style="margin-top:20px;">
                     <span></span>
-                    <button type="button" id="forge-key-view-close" class="button">Schließen</button>
+                    <button type="button" id="forge-key-view-close" class="button"><?php echo esc_html__('Close', 'form-forge'); ?></button>
                 </div>
             </div>
         </div>
@@ -717,38 +747,45 @@ class FormSettings
                 <div class="forge-reset-header">
                     <span class="forge-reset-icon"><i class="fa-solid fa-triangle-exclamation"></i></span>
                     <div>
-                        <h2 id="forge-reset-title">Zurücksetzen bestätigen</h2>
-                        <p class="forge-reset-subtitle">Diese Aktion kann nicht rückgängig gemacht werden.</p>
+                        <h2 id="forge-reset-title"><?php echo esc_html__('Confirm reset', 'form-forge'); ?></h2>
+                        <p class="forge-reset-subtitle"><?php echo esc_html__('This action cannot be undone.', 'form-forge'); ?></p>
                     </div>
                 </div>
 
-                <p class="forge-reset-lead">Folgende Einstellungen werden unwiderruflich gelöscht:</p>
+                <p class="forge-reset-lead"><?php echo esc_html__('The following settings will be permanently deleted:', 'form-forge'); ?></p>
                 <ul class="forge-reset-list">
-                    <li><i class="fa-solid fa-envelope"></i> E-Mail-Absender (Adresse &amp; Name)</li>
-                    <li><i class="fa-solid fa-shield-halved"></i> reCAPTCHA Site- &amp; Secret Key</li>
-                    <li><i class="fa-solid fa-paintbrush"></i> Darstellungsfarben</li>
-                    <li><i class="fa-solid fa-file-pdf"></i> PDF-Layouteinstellungen</li>
+                    <li><i class="fa-solid fa-envelope"></i> <?php echo esc_html__('Email sender (address & name)', 'form-forge'); ?></li>
+                    <li><i class="fa-solid fa-shield-halved"></i> <?php echo esc_html__('reCAPTCHA Site- & Secret Key', 'form-forge'); ?></li>
+                    <li><i class="fa-solid fa-paintbrush"></i> <?php echo esc_html__('Display colors', 'form-forge'); ?></li>
+                    <li><i class="fa-solid fa-file-pdf"></i> <?php echo esc_html__('PDF layout settings', 'form-forge'); ?></li>
                     <li><i class="fa-solid fa-users"></i>
-                        Benutzerverwaltung &amp; Zugriffsrechte</li>
+                        <?php echo esc_html__('User management & access rights', 'form-forge'); ?></li>
                 </ul>
 
                 <div class="forge-reset-key-notice">
                     <i class="fa-solid fa-key"></i>
-                    <span>PDF-Siegelschlüssel werden <strong>nicht</strong> gelöscht.</span>
+                    <span><?php
+                            $strong_nicht = '<strong>' . esc_html__('not', 'form-forge') . '</strong>';
+                            printf(
+                                /* translators: %s: "nicht" as a strong element */
+                                __('PDF seal keys will %s be deleted.', 'form-forge'),
+                                $strong_nicht
+                            );
+                            ?></span>
                 </div>
 
                 <label class="forge-reset-check-wrap" id="forge-reset-forms-label">
                     <input type="checkbox" id="forge-reset-delete-forms">
                     <div class="forge-reset-check-content">
-                        <span class="forge-reset-check-title">Formulare &amp; Auswahl-Gruppen löschen</span>
-                        <span class="forge-reset-check-desc">Alle Formulare und Formular-Auswahl-Gruppen werden unwiderruflich entfernt.</span>
+                        <span class="forge-reset-check-title"><?php echo esc_html__('Delete forms & selection groups', 'form-forge'); ?></span>
+                        <span class="forge-reset-check-desc"><?php echo esc_html__('All forms and form selection groups will be permanently removed.', 'form-forge'); ?></span>
                     </div>
                 </label>
 
                 <div class="forge-reset-actions">
-                    <button type="button" id="forge-reset-cancel" class="button">Abbrechen</button>
-                    <button type="button" id="forge-reset-confirm" class="button button-primary forge-reset-confirm">
-                        <i class="fa-solid fa-rotate-left"></i> Zurücksetzen
+                    <button type="button" id="forge-reset-cancel" class="button"><?php echo esc_html__('Cancel', 'form-forge'); ?></button>
+                    <button type="button" id="forge-reset-confirm" class="button forge-reset-confirm">
+                        <i class="fa-solid fa-rotate-left"></i> <?php echo esc_html__('Reset', 'form-forge'); ?>
                     </button>
                 </div>
             </div>
@@ -759,32 +796,31 @@ class FormSettings
             <div class="forge-modal-box forge-key-download-modal" role="dialog" aria-modal="true"
                  aria-labelledby="forge-key-dl-title">
                 <h2 id="forge-key-dl-title" style="color:#1a56db;">
-                    <i class="fa-solid fa-key"></i> Schlüssel sichern
+                    <i class="fa-solid fa-key"></i> <?php echo esc_html__('Back up key', 'form-forge'); ?>
                 </h2>
                 <p>
-                    Ein neuer PDF-Siegelschlüssel wurde erstellt. Laden Sie die Schlüsseldatei herunter
-                    und bewahren Sie sie sicher auf — z.B. in einem Passwortmanager.
-                    Sie benötigen sie, um alte PDFs nach einem vollständigen Serververlust erneut
-                    verifizieren zu können.
+                    <?php
+                    echo esc_html__('A new PDF seal key has been created. Download the key file and store it securely — e.g. in a password manager. You will need it to re-verify old PDFs after a total server loss.', 'form-forge'); // phpcs:ignore Generic.Files.LineLength
+                    ?>
                 </p>
                 <div class="forge-key-dl-info">
-                    <div><strong>UUID:</strong>
+                    <div><strong><?php echo esc_html__('UUID:', 'form-forge'); ?></strong>
                         <code id="forge-key-dl-uuid" class="forge-key-fp-cell forge-key-uuid-cell"></code>
                     </div>
-                    <div><strong>Erstellt:</strong> <span id="forge-key-dl-date"></span></div>
+                    <div><strong><?php echo esc_html__('Created:', 'form-forge'); ?></strong> <span id="forge-key-dl-date"></span></div>
                 </div>
                 <div class="forge-reset-actions" style="margin-top:20px;flex-direction:column;gap:10px;">
                     <button type="button" id="forge-key-dl-btn"
                             class="button button-primary" style="width:100%;justify-content:center;">
-                        <i class="fa-solid fa-download"></i> Schlüsseldatei herunterladen
+                        <i class="fa-solid fa-download"></i> <?php echo esc_html__('Download key file', 'form-forge'); ?>
                     </button>
                     <button type="button" id="forge-key-dl-confirm" class="button" disabled
                             style="width:100%;justify-content:center;">
-                        <i class="fa-solid fa-check"></i> Gespeichert — Weiter
+                        <i class="fa-solid fa-check"></i> <?php echo esc_html__('Saved — Continue', 'form-forge'); ?>
                     </button>
                 </div>
                 <p class="forge-settings-hint" style="margin-top:12px;text-align:center;">
-                    Sie müssen die Datei herunterladen, bevor Sie fortfahren können.
+                    <?php echo esc_html__('You must download the file before you can continue.', 'form-forge'); ?>
                 </p>
             </div>
         </div>
@@ -794,27 +830,31 @@ class FormSettings
             <div class="forge-modal-box forge-master-key-modal" role="dialog" aria-modal="true"
                  aria-labelledby="forge-master-key-title">
                 <h2 id="forge-master-key-title" style="color:#1a56db;">
-                    <i class="fa-solid fa-lock"></i> Master-Schlüssel einrichten
+                    <i class="fa-solid fa-lock"></i> <?php echo esc_html__('Set up master key', 'form-forge'); ?>
                 </h2>
                 <p>
-                    Fügen Sie diese Zeile in Ihre <code>wp-config.php</code> ein,
-                    <strong>bevor</strong> Sie auf „Weiter" klicken.
-                    Der Schlüssel verlässt niemals den Server — er liegt nur in Ihrer Konfigurationsdatei.
+                    <?php
+                    printf(
+                        /* translators: 1: wp-config.php as code element, 2: "bevor" as strong element */
+                        __('Add this line to your %1$s %2$s clicking "Continue". The key never leaves the server — it lives only in your configuration file.', 'form-forge'),
+                        '<code>wp-config.php</code>',
+                        '<strong>' . esc_html__('before', 'form-forge') . '</strong>'
+                    );
+                    ?>
                 </p>
                 <div class="forge-key-dl-info" style="margin-bottom:14px;">
                     <div style="font-size:11px;font-family:monospace;word-break:break-all;"
                          id="forge-master-key-line">—</div>
                 </div>
                 <p class="forge-settings-hint">
-                    Verlieren Sie diese Zeile, sind alle gespeicherten Schlüssel nicht mehr entschlüsselbar.
-                    Bewahren Sie sie genauso sicher auf wie ein Passwort.
+                    <?php echo esc_html__('If you lose this line, all stored keys become unrecoverable. Keep it as safe as a password.', 'form-forge'); // phpcs:ignore Generic.Files.LineLength ?>
                 </p>
                 <p id="forge-master-key-error" class="forge-settings-hint"
                    style="color:#b32d2e;display:none;margin-top:8px;"></p>
                 <div class="forge-reset-actions" style="margin-top:20px;">
-                    <button type="button" id="forge-master-key-cancel" class="button">Abbrechen</button>
+                    <button type="button" id="forge-master-key-cancel" class="button"><?php echo esc_html__('Cancel', 'form-forge'); ?></button>
                     <button type="button" id="forge-master-key-confirm" class="button button-primary">
-                        <i class="fa-solid fa-check"></i> Eingetragen — Weiter
+                        <i class="fa-solid fa-check"></i> <?php echo esc_html__('Entered — Continue', 'form-forge'); ?>
                     </button>
                 </div>
             </div>
@@ -825,25 +865,25 @@ class FormSettings
             <div class="forge-modal-box forge-legacy-import-modal" role="dialog" aria-modal="true"
                  aria-labelledby="forge-legacy-key-title">
                 <h2 id="forge-legacy-key-title" style="color:#a9a9a9;">
-                    <i class="fa-solid fa-file-import"></i> Legacy-Schlüssel hinzufügen
+                    <i class="fa-solid fa-file-import"></i> <?php echo esc_html__('Add legacy key', 'form-forge'); ?>
                 </h2>
                 <p style="margin-bottom:4px;">
-                    Fügen Sie den vollständigen Inhalt der gespeicherten Schlüsseldatei ein.
+                    <?php echo esc_html__('Paste the full contents of the saved key file.', 'form-forge'); ?>
                 </p>
                 <textarea id="forge-legacy-key-json" rows="10"
                           style="width:100%;font-family:monospace;font-size:12px;resize:vertical;"
                           placeholder='{"plugin":"FormForge PDF Seal Key","uuid":"...","key":"...","created_at":"..."}'
                           autocomplete="off" spellcheck="false"></textarea>
-                <p style="margin:12px 0 6px;font-weight:600;">Status dieses Schlüssels:</p>
+                <p style="margin:12px 0 6px;font-weight:600;"><?php echo esc_html__('Status of this key:', 'form-forge'); ?></p>
                 <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer;">
                     <input type="radio" name="forge_legacy_status" id="forge-legacy-status-rotated"
                            value="rotated-legacy" checked>
-                    Rotiert &mdash; Schlüssel wurde regulär abgelöst
+                    <?php echo esc_html__('Rotated — key was regularly replaced', 'form-forge'); ?>
                 </label>
                 <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
                     <input type="radio" name="forge_legacy_status" id="forge-legacy-status-compromised"
                            value="compromised-legacy">
-                    Kompromittiert &mdash; Schlüssel wurde als unsicher eingestuft
+                    <?php echo esc_html__('Compromised — key was classified as unsafe', 'form-forge'); ?>
                 </label>
                 <p id="forge-legacy-key-error" class="forge-settings-hint"
                    style="color:#b32d2e;display:none;margin-top:10px;"></p>
@@ -852,13 +892,13 @@ class FormSettings
                           background:#fff8e1;border:1px solid #f0c040;border-radius:4px;padding:8px 10px;">
                 </p>
                 <div class="forge-reset-actions" style="margin-top:16px;">
-                    <button type="button" id="forge-legacy-key-cancel" class="button">Abbrechen</button>
+                    <button type="button" id="forge-legacy-key-cancel" class="button"><?php echo esc_html__('Cancel', 'form-forge'); ?></button>
                     <button type="button" id="forge-legacy-key-force" class="button button-primary"
                             style="display:none;">
-                        <i class="fa-solid fa-plus"></i> Trotzdem importieren
+                        <i class="fa-solid fa-plus"></i> <?php echo esc_html__('Import anyway', 'form-forge'); ?>
                     </button>
                     <button type="button" id="forge-legacy-key-confirm" class="button button-primary">
-                        <i class="fa-solid fa-plus"></i> Hinzufügen
+                        <i class="fa-solid fa-plus"></i> <?php echo esc_html__('Add', 'form-forge'); ?>
                     </button>
                 </div>
             </div>
@@ -869,16 +909,15 @@ class FormSettings
             <div class="forge-modal-box forge-access-modal"
                  role="dialog" aria-modal="true" aria-labelledby="forge-access-modal-title">
                 <h2 id="forge-access-modal-title">
-                    <i class="fa-solid fa-users-gear"></i> Benutzerzugang
+                    <i class="fa-solid fa-users-gear"></i> <?php echo esc_html__('User access', 'form-forge'); ?>
                 </h2>
-                <p>Administratoren haben immer vollen Zugang.
-                   Benutzereinstellungen überschreiben die Rolleneinstellung.</p>
+                <p><?php echo esc_html__('Administrators always have full access. User settings override the role setting.', 'form-forge'); ?></p>
 
                 <div id="forge-access-loading" style="text-align:center;padding:24px 0;">
-                    <i class="fa-solid fa-spinner fa-spin"></i> Wird geladen…
+                    <i class="fa-solid fa-spinner fa-spin"></i> <?php echo esc_html__('Loading…', 'form-forge'); ?>
                 </div>
                 <div id="forge-access-content" style="display:none;">
-                    <h3 class="forge-access-section-title">Rollen</h3>
+                    <h3 class="forge-access-section-title"><?php echo esc_html__('Roles', 'form-forge'); ?></h3>
                     <div class="forge-access-scroll">
                         <table class="forge-access-table">
                             <thead><tr id="forge-access-roles-head"></tr></thead>
@@ -886,14 +925,14 @@ class FormSettings
                         </table>
                     </div>
 
-                    <h3 class="forge-access-section-title">Benutzer-Ausnahmen</h3>
+                    <h3 class="forge-access-section-title"><?php echo esc_html__('User exceptions', 'form-forge'); ?></h3>
                     <div class="forge-access-scroll" id="forge-access-users-scroll">
                         <table class="forge-access-table">
                             <thead><tr id="forge-access-users-head"></tr></thead>
                             <tbody id="forge-access-users-body">
                                 <tr id="forge-access-no-users">
                                     <td colspan="6" class="forge-access-empty">
-                                        Keine Benutzerausnahmen konfiguriert.
+                                        <?php echo esc_html__('No user exceptions configured.', 'form-forge'); ?>
                                     </td>
                                 </tr>
                             </tbody>
@@ -902,7 +941,7 @@ class FormSettings
                     <div class="forge-access-search-section">
                         <input type="text" id="forge-access-user-search"
                                class="forge-access-search-input"
-                               placeholder="Benutzer hinzufügen…"
+                               placeholder="<?php echo esc_attr__('Add user…', 'form-forge'); ?>"
                                autocomplete="off" spellcheck="false">
                         <div id="forge-access-user-dropdown"
                              class="forge-access-dropdown" hidden></div>
@@ -912,9 +951,9 @@ class FormSettings
                 </div>
 
                 <div class="forge-reset-actions" style="margin-top:16px;">
-                    <button type="button" id="forge-access-cancel" class="button">Abbrechen</button>
+                    <button type="button" id="forge-access-cancel" class="button"><?php echo esc_html__('Cancel', 'form-forge'); ?></button>
                     <button type="button" id="forge-access-save" class="button button-primary">
-                        <i class="fa-solid fa-floppy-disk"></i> Speichern
+                        <i class="fa-solid fa-floppy-disk"></i> <?php echo esc_html__('Save', 'form-forge'); ?>
                     </button>
                 </div>
             </div>
@@ -943,7 +982,7 @@ class FormSettings
                 'id'    => (int) $_uid,
                 'name'  => $_ud
                     ? ($_ud->display_name ?: $_ud->user_login)
-                    : 'Unbekannt (#' . (int) $_uid . ')',
+                    : 'Unknown (#' . (int) $_uid . ')',
                 'perms' => is_array($_perms) ? $_perms : [],
             ];
         }
@@ -979,9 +1018,29 @@ class FormSettings
 
         <script>
         jQuery(function ($) {
-$('.forge-iris-input').wpColorPicker();
+function forgeLuminance(hex) {
+    var r = parseInt(hex.slice(1, 3), 16);
+    var g = parseInt(hex.slice(3, 5), 16);
+    var b = parseInt(hex.slice(5, 7), 16);
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+$('.forge-iris-input').wpColorPicker({
+    change: function (event, ui) {
+        var hex = ui.color.toString();
+        var id  = this.id;
+        if (id === 'admin_accent') {
+            var lum = forgeLuminance(hex);
+            document.documentElement.style.setProperty('--forge-admin-accent', hex);
+            document.documentElement.style.setProperty('--forge-accent-text', lum > 0.55 ? '#1d2327' : '#ffffff');
+            document.documentElement.style.setProperty('--forge-admin-accent-fg', lum > 0.55 ? '#1d2327' : hex);
+        } else if (id === 'hover_color') {
+            document.documentElement.style.setProperty('--forge-hover-color', hex);
+            document.documentElement.style.setProperty('--forge-hover-color-fg', forgeLuminance(hex) > 0.55 ? '#1d2327' : hex);
+        }
+    },
+});
 
-            /* The Sicherheit/Sonstige cards stay in the DOM (hidden) for
+            /* The Security/Miscellaneous cards stay in the DOM (hidden) for
                non-admins so existing JS bindings don't null-crash. This is
                UI-only — the real boundary is server-side (manage_options
                checks in the AJAX handlers) — but re-hide on tamper anyway. */
@@ -1050,7 +1109,7 @@ $('.forge-iris-input').wpColorPicker();
                 }
 
                 confirmBtn.disabled = true;
-                confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Wird zurückgesetzt…';
+                confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Resetting…';
 
                 $.post(ajaxurl, {
                     action:    'forge_forms_factory_reset',
@@ -1063,7 +1122,7 @@ $('.forge-iris-input').wpColorPicker();
                     } else {
                         confirmed = false;
                         confirmBtn.disabled = false;
-                        confirmBtn.innerHTML = 'Fehler – erneut versuchen';
+                        confirmBtn.innerHTML = 'Error — try again';
                     }
                 });
             });
@@ -1071,15 +1130,15 @@ $('.forge-iris-input').wpColorPicker();
             function startCountdown() {
                 var sec = 10;
                 confirmBtn.disabled = true;
-                confirmBtn.innerHTML = 'Sind Sie sicher? (' + sec + ')';
+                confirmBtn.innerHTML = 'Are you sure? (' + sec + ')';
                 countdownTimer = setInterval(function () {
                     sec--;
                     if (sec <= 0) {
                         clearInterval(countdownTimer);
                         confirmBtn.disabled = false;
-                        confirmBtn.innerHTML = '<i class="fa-solid fa-check"></i> Ja, zurücksetzen';
+                        confirmBtn.innerHTML = '<i class="fa-solid fa-check"></i> Yes, reset';
                     } else {
-                        confirmBtn.innerHTML = 'Sind Sie sicher? (' + sec + ')';
+                        confirmBtn.innerHTML = 'Are you sure? (' + sec + ')';
                     }
                 }, 1000);
             }
@@ -1088,7 +1147,7 @@ $('.forge-iris-input').wpColorPicker();
                 clearInterval(countdownTimer);
                 confirmed = false;
                 confirmBtn.disabled = false;
-                confirmBtn.innerHTML = 'Zurücksetzen';
+                confirmBtn.innerHTML = 'Reset';
             }
 
             function closeModal() {
@@ -1115,11 +1174,11 @@ $('.forge-iris-input').wpColorPicker();
 
             function rules(pw) {
                 return [
-                    { ok: pw.length >= 12,          label: 'Min. 12 Zeichen' },
-                    { ok: /[A-Z]/.test(pw),         label: 'Großbuchstabe' },
-                    { ok: /[a-z]/.test(pw),         label: 'Kleinbuchstabe' },
-                    { ok: /[0-9]/.test(pw),         label: 'Ziffer' },
-                    { ok: /[^A-Za-z0-9]/.test(pw), label: 'Sonderzeichen' },
+                    { ok: pw.length >= 12,          label: 'Min. 12 characters' },
+                    { ok: /[A-Z]/.test(pw),         label: 'Uppercase letter' },
+                    { ok: /[a-z]/.test(pw),         label: 'Lowercase letter' },
+                    { ok: /[0-9]/.test(pw),         label: 'Digit' },
+                    { ok: /[^A-Za-z0-9]/.test(pw), label: 'Special character' },
                 ];
             }
 
@@ -1198,7 +1257,7 @@ $('.forge-iris-input').wpColorPicker();
                         var ok  = data.success;
                         var txt = (data.data && data.data.message)
                             ? data.data.message
-                            : (ok ? 'Erfolgreich.' : 'Fehler.');
+                            : (ok ? 'Success.' : 'Error.');
                         modalMsg.hidden      = false;
                         modalMsg.textContent = txt;
                         modalMsg.style.color = ok ? '#1a5c28' : '#b32d2e';
@@ -1215,7 +1274,7 @@ $('.forge-iris-input').wpColorPicker();
                     })
                     .catch(function () {
                         modalMsg.hidden      = false;
-                        modalMsg.textContent = 'Netzwerkfehler.';
+                        modalMsg.textContent = 'Network error.';
                         modalMsg.style.color = '#b32d2e';
                         confirmBtn.disabled  = false;
                     });
@@ -1338,12 +1397,12 @@ $('.forge-iris-input').wpColorPicker();
                             confirmBtn.disabled = false;
                             return;
                         }
-                        errEl.textContent   = (data.data && data.data.message) || 'Fehler.';
+                        errEl.textContent   = (data.data && data.data.message) || 'Error.';
                         errEl.style.display = 'block';
                         confirmBtn.disabled = false;
                     })
                     .catch(function () {
-                        errEl.textContent   = 'Netzwerkfehler.';
+                        errEl.textContent   = 'Network error.';
                         errEl.style.display = 'block';
                         confirmBtn.disabled = false;
                     });
@@ -1411,7 +1470,7 @@ $('.forge-iris-input').wpColorPicker();
                 fetch(ajaxurl, { method: 'POST', body: fd })
                     .then(function (r) { return r.json(); })
                     .then(onSuccess)
-                    .catch(function () { showBlockerError('Netzwerkfehler.'); });
+                    .catch(function () { showBlockerError('Network error.'); });
             }
 
             function hideStep1() { step1Div.style.display = 'none'; }
@@ -1447,7 +1506,7 @@ $('.forge-iris-input').wpColorPicker();
                         mkLine.textContent = data.data.define_line;
                         mkConfirm.disabled = false;
                     } else {
-                        showBlockerError((data.data && data.data.message) || 'Fehler.');
+                        showBlockerError((data.data && data.data.message) || 'Error.');
                     }
                 });
             } else if (setupState === 'ready') {
@@ -1467,7 +1526,7 @@ $('.forge-iris-input').wpColorPicker();
                         } else {
                             btnDefault.disabled = false;
                             btnSecure.disabled  = false;
-                            showBlockerError((data.data && data.data.message) || 'Fehler.');
+                            showBlockerError((data.data && data.data.message) || 'Error.');
                         }
                     });
                 });
@@ -1482,7 +1541,7 @@ $('.forge-iris-input').wpColorPicker();
                             // Roll back to step 1 on error.
                             mkStep.style.display = 'none';
                             showStep1();
-                            showBlockerError((data.data && data.data.message) || 'Fehler.');
+                            showBlockerError((data.data && data.data.message) || 'Error.');
                             return;
                         }
                         mkLine.textContent = data.data.define_line;
@@ -1514,7 +1573,7 @@ $('.forge-iris-input').wpColorPicker();
                     postBlocker('forge_setup_confirm_secure', null, function (data) {
                         if (!data.success) {
                             mkConfirm.disabled    = false;
-                            mkError.textContent   = (data.data && data.data.message) || 'Fehler.';
+                            mkError.textContent   = (data.data && data.data.message) || 'Error.';
                             mkError.style.display = 'block';
                             return;
                         }
@@ -1531,7 +1590,7 @@ $('.forge-iris-input').wpColorPicker();
                     postBlocker('forge_setup_confirm_secure', null, function (data) {
                         if (!data.success) {
                             readyConfirm.disabled    = false;
-                            readyError.textContent   = (data.data && data.data.message) || 'Fehler.';
+                            readyError.textContent   = (data.data && data.data.message) || 'Error.';
                             readyError.style.display = 'block';
                             return;
                         }
@@ -1603,7 +1662,7 @@ $('.forge-iris-input').wpColorPicker();
                     .then(function (data) {
                         if (!data.success) {
                             mkConfirm.disabled    = false;
-                            mkError.textContent   = (data.data && data.data.message) || 'Fehler.';
+                            mkError.textContent   = (data.data && data.data.message) || 'Error.';
                             mkError.style.display = 'block';
                             return;
                         }
@@ -1616,44 +1675,10 @@ $('.forge-iris-input').wpColorPicker();
                     })
                     .catch(function () {
                         mkConfirm.disabled    = false;
-                        mkError.textContent   = 'Netzwerkfehler.';
+                        mkError.textContent   = 'Network error.';
                         mkError.style.display = 'block';
                     });
             });
-        }());
-
-        /* ── Debug actions (WP_DEBUG only) ── */
-        (function () {
-            var debugNonce = <?php echo wp_json_encode(wp_create_nonce('forge_debug_actions')); ?>;
-
-            function debugPost(action, label) {
-                var fd = new FormData();
-                fd.append('action', action);
-                fd.append('nonce',  debugNonce);
-                fetch(ajaxurl, { method: 'POST', body: fd })
-                    .then(function (r) { return r.json(); })
-                    .then(function (d) {
-                        var fallback = label + ' — ' + (d.success ? 'OK' : 'Fehler');
-                        alert((d.data && d.data.message) ? d.data.message : fallback);
-                        if (d.success) { location.reload(); }
-                    })
-                    .catch(function () { alert(label + ': Netzwerkfehler'); });
-            }
-
-            var installBtn   = document.getElementById('forge-debug-install-btn');
-            var clearKeysBtn = document.getElementById('forge-debug-clear-keys-btn');
-
-            if (installBtn) {
-                installBtn.addEventListener('click', function () {
-                    debugPost('forge_debug_trigger_install', 'Install-Prompt');
-                });
-            }
-            if (clearKeysBtn) {
-                clearKeysBtn.addEventListener('click', function () {
-                    if (!confirm('Alle Schlüssel unwiderruflich löschen?')) { return; }
-                    debugPost('forge_debug_clear_keys', 'Schlüssel löschen');
-                });
-            }
         }());
 
         /* ── Fake-password: remove readonly on focus so managers can't pre-fill ── */
@@ -1688,8 +1713,11 @@ $('.forge-iris-input').wpColorPicker();
             if (!canvas) return;
             var ctx = canvas.getContext('2d');
             var mouse = { x: -9999, y: -9999 };
-            var DOTS = 80, LINK = 150, SPEED = 0.4, COLOR = '99, 132, 180';
-            var particles = [];
+            var _ah = getComputedStyle(document.documentElement).getPropertyValue('--forge-admin-accent').trim()||'#2271b1';
+            var _rgb = function(h){return parseInt(h.slice(1,3),16)+','+parseInt(h.slice(3,5),16)+','+parseInt(h.slice(5,7),16);};
+            var DOTS = Math.min(120, Math.max(40, Math.round(window.innerWidth * window.innerHeight / 26000)));
+            var LINK = 150, SPEED = 1.0, COLOR = _rgb(_ah);
+            var particles = [], paused = false, FRAME_MS = 1000 / 30;
             function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
             function rand(a, b) { return a + Math.random() * (b - a); }
             function init() {
@@ -1700,12 +1728,15 @@ $('.forge-iris-input').wpColorPicker();
                 }
             }
             function draw() {
+                if (paused) return;
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                particles.forEach(function(p) {
+                for (var i = 0; i < particles.length; i++) {
+                    var p = particles[i];
                     p.x += p.vx; p.y += p.vy;
                     if (p.x < 0 || p.x > canvas.width)  p.vx *= -1;
                     if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
-                });
+                }
+                ctx.lineWidth = 1;
                 for (var i = 0; i < particles.length; i++) {
                     for (var j = i + 1; j < particles.length; j++) {
                         var dx = particles[i].x - particles[j].x, dy = particles[i].y - particles[j].y;
@@ -1714,7 +1745,7 @@ $('.forge-iris-input').wpColorPicker();
                             ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y);
                             ctx.lineTo(particles[j].x, particles[j].y);
                             ctx.strokeStyle = 'rgba(' + COLOR + ',' + (1 - d/LINK) * 0.3 + ')';
-                            ctx.lineWidth = 1; ctx.stroke();
+                            ctx.stroke();
                         }
                     }
                     var mdx = particles[i].x - mouse.x, mdy = particles[i].y - mouse.y;
@@ -1723,28 +1754,32 @@ $('.forge-iris-input').wpColorPicker();
                         ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y);
                         ctx.lineTo(mouse.x, mouse.y);
                         ctx.strokeStyle = 'rgba(' + COLOR + ',' + (1 - md/LINK) * 0.55 + ')';
-                        ctx.lineWidth = 1; ctx.stroke();
+                        ctx.stroke();
                     }
                 }
-                particles.forEach(function(p) {
-                    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
-                    ctx.fillStyle = 'rgba(' + COLOR + ', 0.5)'; ctx.fill();
-                });
-                requestAnimationFrame(draw);
+                ctx.fillStyle = 'rgba(' + COLOR + ', 0.5)';
+                for (var i = 0; i < particles.length; i++) {
+                    ctx.beginPath(); ctx.arc(particles[i].x, particles[i].y, particles[i].r, 0, Math.PI*2); ctx.fill();
+                }
+                setTimeout(function() { requestAnimationFrame(draw); }, FRAME_MS - 2);
             }
             document.addEventListener('mousemove', function(e) { mouse.x = e.clientX; mouse.y = e.clientY; });
+            document.addEventListener('visibilitychange', function() {
+                paused = document.hidden;
+                if (!paused) requestAnimationFrame(draw);
+            });
             window.addEventListener('resize', function() { resize(); init(); });
-            resize(); init(); draw();
+            resize(); init(); requestAnimationFrame(draw);
         }());
 
         /* ── User-access modal ── */
         (function () {
             var CAPS = [
-                ['view_forms',      'Liste'],
-                ['edit_forms',      'Formulare'],
-                ['edit_pdf_layout', 'PDF-Layout'],
+                ['view_forms',      'List'],
+                ['edit_forms',      'Forms'],
+                ['edit_pdf_layout', 'PDF Layout'],
                 ['use_verifier',    'Verifier'],
-                ['settings',        'Einstellungen'],
+                ['settings',        'Settings'],
             ];
 
             var overlay    = document.getElementById('forge-access-overlay');
@@ -1806,7 +1841,7 @@ $('.forge-iris-input').wpColorPicker();
                 [rolesHead, usersHead].forEach(function (head, isUsers) {
                     head.innerHTML = '';
                     var thName = document.createElement('th');
-                    thName.textContent = isUsers ? 'Benutzer' : 'Rolle';
+                    thName.textContent = isUsers ? 'User' : 'Role';
                     thName.className = 'forge-access-th forge-access-th--name';
                     head.appendChild(thName);
                     CAPS.forEach(function (cap) {
@@ -1875,7 +1910,7 @@ $('.forge-iris-input').wpColorPicker();
                     var nameBtn = document.createElement('button');
                     nameBtn.type = 'button';
                     nameBtn.className = 'forge-access-name-btn';
-                    nameBtn.title = 'Klicken zum Entfernen';
+                    nameBtn.title = 'Click to remove';
                     nameBtn.textContent = u.name;
                     (function (idx) {
                         nameBtn.addEventListener('click', function () {
@@ -1945,7 +1980,7 @@ $('.forge-iris-input').wpColorPicker();
                     var inlineAdd = document.createElement('button');
                     inlineAdd.type = 'button';
                     inlineAdd.className = 'forge-access-inline-add';
-                    inlineAdd.textContent = '+ Hinzufügen';
+                    inlineAdd.textContent = '+ Add';
                     inlineAdd.addEventListener('mousedown', function (e) {
                         e.preventDefault();
                         users.push({ id: u.id, name: u.name, perms: emptyPerms() });
@@ -2007,7 +2042,7 @@ $('.forge-iris-input').wpColorPicker();
                         });
                         closeModal();
                     } else {
-                        showError('Fehler beim Speichern.');
+                        showError('Error saving.');
                     }
                 });
             });
@@ -2046,7 +2081,7 @@ $('.forge-iris-input').wpColorPicker();
                 e.preventDefault();
                 var btn = form.querySelector('button[type="submit"]');
                 var origHtml = btn ? btn.innerHTML : '';
-                if (btn) { btn.disabled = true; btn.innerHTML = '<span class="forge-spinner"></span> Speichern…'; }
+                if (btn) { btn.disabled = true; btn.innerHTML = '<span class="forge-spinner"></span> Saving…'; }
                 var fd = new FormData(form);
                 fd.set('action', 'forge_save_general_settings');
                 requestAnimationFrame(function(){ requestAnimationFrame(function(){
@@ -2057,12 +2092,12 @@ $('.forge-iris-input').wpColorPicker();
                         if (data.success) {
                             showNotice(data.data.message, false);
                         } else {
-                            showNotice((data.data && data.data.message) || 'Fehler beim Speichern.', true);
+                            showNotice((data.data && data.data.message) || 'Error saving.', true);
                         }
                     })
                     .catch(function(){
                         if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
-                        showNotice('Netzwerkfehler.', true);
+                        showNotice('Network error.', true);
                     });
                 }); }); // requestAnimationFrame double-frame
             });
@@ -2078,12 +2113,12 @@ $('.forge-iris-input').wpColorPicker();
      */
     public static function handleSaveGeneralSettings(): void
     {
-        if (!\ForgeForms\Plugin::userCan('settings')) {
+        if (!\ForgeForms\Plugin::userCan('settings') || !current_user_can('manage_options')) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
         check_ajax_referer('forge_forms_settings', 'forge_settings_nonce');
         self::saveGeneralSettings();
-        wp_send_json_success(['message' => 'Einstellungen gespeichert.']);
+        wp_send_json_success(['message' => __('Settings saved.', 'form-forge')]);
     }
 
     /**
@@ -2106,12 +2141,14 @@ $('.forge-iris-input').wpColorPicker();
         $secret_key = sanitize_text_field(wp_unslash($_POST['recaptcha_secret'] ?? ''));
         update_option('forge_forms_recaptcha_secret_key', $secret_key);
 
-        $hover  = sanitize_hex_color(wp_unslash($_POST['hover_color']  ?? '')) ?? '#1d2327';
-        $accent = sanitize_hex_color(wp_unslash($_POST['accent_color'] ?? '')) ?? '#f59e0b';
-        $border = sanitize_hex_color(wp_unslash($_POST['border_color'] ?? '')) ?? '#c9cdd4';
+        $hover        = sanitize_hex_color(wp_unslash($_POST['hover_color']    ?? '')) ?? '#1d2327';
+        $accent       = sanitize_hex_color(wp_unslash($_POST['accent_color']   ?? '')) ?? '#f59e0b';
+        $border       = sanitize_hex_color(wp_unslash($_POST['border_color']   ?? '')) ?? '#c9cdd4';
+        $admin_accent = sanitize_hex_color(wp_unslash($_POST['admin_accent']   ?? '')) ?? '#2271b1';
         update_option('forge_forms_hover_color', $hover);
         update_option('forge_forms_accent_color', $accent);
         update_option('forge_forms_border_color', $border);
+        update_option('forge_forms_admin_accent', $admin_accent);
 
         $layout_mode = wp_unslash($_POST['field_layout_mode'] ?? 'block');
         update_option(
@@ -2142,6 +2179,7 @@ $('.forge-iris-input').wpColorPicker();
             'forge_forms_hover_color',
             'forge_forms_accent_color',
             'forge_forms_border_color',
+            'forge_forms_admin_accent',
             'forge_forms_pdf_settings',
             'forge_forms_pdf_layout',
             'forge_forms_field_layout',
@@ -2175,7 +2213,7 @@ $('.forge-iris-input').wpColorPicker();
      */
     public static function savePdfSettings(): void
     {
-        if (!\ForgeForms\Plugin::userCan('settings')) {
+        if (!\ForgeForms\Plugin::userCan('settings') || !current_user_can('manage_options')) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
         check_ajax_referer('forge_forms_admin_nonce', 'nonce');
@@ -2219,7 +2257,7 @@ $('.forge-iris-input').wpColorPicker();
         $compromised = !empty($_POST['key_compromised']) && $_POST['key_compromised'] === '1';
 
         if ($password === '' || $password !== $confirm) {
-            wp_send_json_error(['message' => 'Passwörter stimmen nicht überein.']);
+            wp_send_json_error(['message' => __('Passwords do not match.', 'form-forge')]);
             return;
         }
 
@@ -2232,7 +2270,7 @@ $('.forge-iris-input').wpColorPicker();
         $new_key = \ForgeForms\PDF\HashSeal::rotateKey($password, $compromised);
         wp_send_json_success(
             [
-            'message'    => 'Schlüssel erfolgreich rotiert.',
+            'message'    => __('Key rotated successfully.', 'form-forge'),
             'key_uuid'   => $new_key['uuid'],
             'key_value'  => $new_key['key'],
             'created_at' => $new_key['created_at'],
@@ -2247,7 +2285,7 @@ $('.forge-iris-input').wpColorPicker();
      */
     public static function handleSetupKeepDefault(): void
     {
-        if (!\ForgeForms\Plugin::userCan('settings')) {
+        if (!\ForgeForms\Plugin::userCan('settings') || !current_user_can('manage_options')) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
         check_ajax_referer('forge_seal_setup', 'nonce');
@@ -2256,7 +2294,7 @@ $('.forge-iris-input').wpColorPicker();
         \ForgeForms\PDF\HashSeal::getCurrentKeyId(); // ensure initial key exists
         $dl = \ForgeForms\PDF\HashSeal::claimPendingDownload();
         if (!$dl) {
-            wp_send_json_error(['message' => 'Kein ausstehender Schlüssel-Download gefunden.']);
+            wp_send_json_error(['message' => __('No pending key download found.', 'form-forge')]);
             return;
         }
         wp_send_json_success($dl);
@@ -2269,7 +2307,7 @@ $('.forge-iris-input').wpColorPicker();
      */
     public static function handleSetupGetMasterKey(): void
     {
-        if (!\ForgeForms\Plugin::userCan('settings')) {
+        if (!\ForgeForms\Plugin::userCan('settings') || !current_user_can('manage_options')) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
         check_ajax_referer('forge_seal_setup', 'nonce');
@@ -2279,7 +2317,7 @@ $('.forge-iris-input').wpColorPicker();
         set_transient('forge_setup_master_key_' . get_current_user_id(), $master_hex, 600);
         // Invalidate OPcache so the next request (confirm) re-reads wp-config.php from disk.
         if (function_exists('opcache_invalidate')) {
-            opcache_invalidate(ABSPATH . 'wp-config.php', true);
+            opcache_invalidate(\ABSPATH . 'wp-config.php', true);
         }
         wp_send_json_success(
             [
@@ -2295,7 +2333,7 @@ $('.forge-iris-input').wpColorPicker();
      */
     public static function handleSetupResetChoice(): void
     {
-        if (!\ForgeForms\Plugin::userCan('settings')) {
+        if (!\ForgeForms\Plugin::userCan('settings') || !current_user_can('manage_options')) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
         check_ajax_referer('forge_seal_setup', 'nonce');
@@ -2311,7 +2349,7 @@ $('.forge-iris-input').wpColorPicker();
      */
     public static function handleSetupConfirmSecure(): void
     {
-        if (!\ForgeForms\Plugin::userCan('settings')) {
+        if (!\ForgeForms\Plugin::userCan('settings') || !current_user_can('manage_options')) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
         check_ajax_referer('forge_seal_setup', 'nonce');
@@ -2319,8 +2357,7 @@ $('.forge-iris-input').wpColorPicker();
         if (!defined('FORGE_SEAL_MASTER_KEY') || (string) FORGE_SEAL_MASTER_KEY === '') {
             wp_send_json_error(
                 [
-                'message' => 'FORGE_SEAL_MASTER_KEY nicht gefunden. '
-                    . 'Bitte prüfen Sie die wp-config.php und versuchen Sie es erneut.',
+                'message' => __('FORGE_SEAL_MASTER_KEY not found. Please check wp-config.php and try again.', 'form-forge'), // phpcs:ignore Generic.Files.LineLength
                 ]
             );
             return;
@@ -2330,8 +2367,7 @@ $('.forge-iris-input').wpColorPicker();
         if ($expected && !hash_equals($expected, strtolower((string) FORGE_SEAL_MASTER_KEY))) {
             wp_send_json_error(
                 [
-                'message' => 'Der eingetragene Master-Schlüssel stimmt nicht mit dem erwarteten überein. '
-                    . 'Bitte prüfen Sie die wp-config.php.',
+                'message' => __('The entered master key does not match the expected value. Please check wp-config.php.', 'form-forge'), // phpcs:ignore Generic.Files.LineLength
                 ]
             );
             return;
@@ -2358,8 +2394,7 @@ $('.forge-iris-input').wpColorPicker();
             }
             wp_send_json_error(
                 [
-                'message' => 'Setup abgeschlossen, aber kein Download-Eintrag gefunden. '
-                    . 'Bitte rotieren Sie den Schlüssel, um einen Download zu erzeugen.',
+                'message' => __('Setup complete, but no download entry found. Please rotate the key to generate a download.', 'form-forge'), // phpcs:ignore Generic.Files.LineLength
                 ]
             );
             return;
@@ -2383,13 +2418,13 @@ $('.forge-iris-input').wpColorPicker();
 
         $raw = sanitize_textarea_field(wp_unslash($_POST['key_json'] ?? ''));
         if ($raw === '') {
-            wp_send_json_error(['message' => 'Kein Inhalt eingefügt.']);
+            wp_send_json_error(['message' => __('No content pasted.', 'form-forge')]);
             return;
         }
 
         $parsed = json_decode($raw, true);
         if (!is_array($parsed)) {
-            wp_send_json_error(['message' => 'Ungültiges JSON-Format.']);
+            wp_send_json_error(['message' => __('Invalid JSON format.', 'form-forge')]);
             return;
         }
 
@@ -2397,15 +2432,15 @@ $('.forge-iris-input').wpColorPicker();
         $key  = isset($parsed['key'])  ? sanitize_text_field($parsed['key'])  : '';
 
         if ($uuid === '' || $key === '') {
-            wp_send_json_error(['message' => 'Fehlende Pflichtfelder: uuid und key.']);
+            wp_send_json_error(['message' => __('Missing required fields: uuid and key.', 'form-forge')]);
             return;
         }
         if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $uuid)) {
-            wp_send_json_error(['message' => 'UUID hat ungültiges Format.']);
+            wp_send_json_error(['message' => __('UUID has invalid format.', 'form-forge')]);
             return;
         }
         if (!preg_match('/^[0-9a-f]{64}$/i', $key)) {
-            wp_send_json_error(['message' => 'Schlüsselwert muss genau 64 Hex-Zeichen lang sein.']);
+            wp_send_json_error(['message' => __('Key value must be exactly 64 hex characters.', 'form-forge')]); // phpcs:ignore Generic.Files.LineLength
             return;
         }
 
@@ -2419,7 +2454,7 @@ $('.forge-iris-input').wpColorPicker();
                 && ($active_rec['uuid'] ?? '') === $uuid
                 && ($active_rec['key']  ?? '') === $key;
             if ($active_dup) {
-                wp_send_json_error(['message' => 'Dieser Schlüssel ist bereits als aktiver Schlüssel vorhanden.']);
+                wp_send_json_error(['message' => __('This key already exists as the active key.', 'form-forge')]); // phpcs:ignore Generic.Files.LineLength
                 return;
             }
         }
@@ -2431,7 +2466,7 @@ $('.forge-iris-input').wpColorPicker();
             if ($history_dup) {
                 wp_send_json_error(
                     [
-                    'message' => 'Dieser Schlüssel ist bereits im Verlauf vorhanden (identischer Eintrag).',
+                    'message' => __('This key already exists in the history (identical entry).', 'form-forge'), // phpcs:ignore Generic.Files.LineLength
                     ]
                 );
                 return;
@@ -2446,10 +2481,13 @@ $('.forge-iris-input').wpColorPicker();
             wp_send_json_error(
                 [
                 'code'    => 'plugin_mismatch',
-                'message' => 'Plugin-Bezeichnung stimmt nicht überein.',
-                'text'    => 'Der Eintrag „plugin" lautet „' . esc_html($plugin_field)
-                    . '" — das sieht nicht nach einem Schlüssel dieses Plugins aus.',
-                'confirm' => 'Sind Sie sicher, dass Sie diesen Schlüssel importieren möchten?',
+                'message' => __('Plugin name does not match.', 'form-forge'),
+                'text'    => sprintf(
+                    /* translators: %s: the plugin field value from the uploaded JSON */
+                    __('The "plugin" field reads "%s" — this does not appear to be a key from this plugin.', 'form-forge'), // phpcs:ignore Generic.Files.LineLength
+                    esc_html($plugin_field)
+                ),
+                'confirm' => __('Are you sure you want to import this key?', 'form-forge'), // phpcs:ignore Generic.Files.LineLength
                 ]
             );
             return;
@@ -2465,41 +2503,7 @@ $('.forge-iris-input').wpColorPicker();
             sanitize_text_field($parsed['created_at'] ?? ''),
             $key_status
         );
-        wp_send_json_success(['message' => 'Legacy-Schlüssel erfolgreich hinzugefügt.']);
-    }
-
-    /**
-     * AJAX handler (debug) that resets the seal setup state.
-     *
-     * @return void
-     */
-    public static function handleDebugTriggerInstall(): void
-    {
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => 'Forbidden'], 403);
-        }
-        check_ajax_referer('forge_debug_actions', 'nonce');
-        // Reset setup state so the blocker reappears.
-        delete_option('forge_forms_seal_setup_done');
-        delete_option('forge_forms_seal_encryption');
-        wp_send_json_success(['message' => 'Setup-Prompt zurückgesetzt. Seite wird neu geladen.']);
-    }
-
-    /**
-     * AJAX handler (debug) that deletes all seal keys.
-     *
-     * @return void
-     */
-    public static function handleDebugClearKeys(): void
-    {
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => 'Forbidden'], 403);
-        }
-        check_ajax_referer('forge_debug_actions', 'nonce');
-        delete_option('forge_forms_seal_key');
-        delete_option('forge_forms_seal_key_history');
-        delete_option('forge_forms_seal_key_pending_download');
-        wp_send_json_success(['message' => 'Alle Schlüssel gelöscht.']);
+        wp_send_json_success(['message' => __('Legacy key added successfully.', 'form-forge')]);
     }
 
     /**

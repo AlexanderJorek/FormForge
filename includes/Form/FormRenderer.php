@@ -54,7 +54,7 @@ class FormRenderer
      *
      * @return string Rendered HTML string.
      */
-    public static function render(int $form_id, array $settings_override = []): string
+    public static function render(int $form_id, array $settings_override = [], ?array $fields_override = null): string
     {
         $form = FormModel::get($form_id);
         if (!$form) {
@@ -63,12 +63,15 @@ class FormRenderer
         if (!empty($settings_override)) {
             $form->settings = array_merge($form->settings, $settings_override);
         }
+        if ($fields_override !== null) {
+            $form->fields = $fields_override;
+        }
 
         $nonce        = wp_create_nonce('forge_forms_submit_' . $form_id);
         $ajax_url     = esc_url(admin_url('admin-ajax.php'));
-        $submit_label   = esc_html($form->settings['submit_label']   ?? 'Absenden');
-        $submit_working = esc_attr($form->settings['submit_working'] ?? 'Wird gesendet…');
-        $success_msg    = esc_attr($form->settings['success_message'] ?? 'Vielen Dank!');
+        $submit_label   = esc_html($form->settings['submit_label']   ?? __('Submit', 'form-forge'));
+        $submit_working = esc_attr($form->settings['submit_working'] ?? __('Sending…', 'form-forge'));
+        $success_msg    = esc_attr($form->settings['success_message'] ?? __('Thank you!', 'form-forge'));
 
         /* Resolve one handler per unique field type; let each field enqueue its own scripts. */
         $seen_handlers = [];
@@ -185,7 +188,8 @@ class FormRenderer
 
             if ($handler->isGroupContainer()) {
                 $children_html = self::renderChildFields($field_cfg['children'] ?? []);
-                $html .= '<div class="forge-row"><div class="forge-col forge-col-12">'
+                $group_cond    = method_exists($handler, 'rowCondAttr') ? $handler->rowCondAttr($field_cfg) : '';
+                $html .= '<div class="forge-row"' . $group_cond . '><div class="forge-col forge-col-12">'
                     . $handler->openTag($field_cfg, $field_id)
                     . $children_html
                     . $handler->closeTag()
@@ -217,13 +221,13 @@ class FormRenderer
                     $next_handler = null;
                 }
 
-                if ($next_handler) {
-                    $next_cond = !empty($next['conditions']['rules'])
-                        ? ' data-conditions="' . esc_attr(wp_json_encode($next['conditions'])) . '"'
-                        : '';
-                    $col_a  = '<div class="forge-col forge-col-6"' . $cond_attr . '>';
+                $either_cond = !empty($field_cfg['conditions']['rules'])
+                    || !empty($next['conditions']['rules']);
+
+                if ($next_handler && !$either_cond) {
+                    $col_a  = '<div class="forge-col forge-col-6">';
                     $col_a .= $handler->render($field_cfg, $field_id) . '</div>';
-                    $col_b  = '<div class="forge-col forge-col-6"' . $next_cond . '>';
+                    $col_b  = '<div class="forge-col forge-col-6">';
                     $col_b .= $next_handler->render($next, $next_id) . '</div>';
                     $html  .= '<div class="forge-row forge-row--pair">' . $col_a . $col_b . '</div>';
                     $i += 2;

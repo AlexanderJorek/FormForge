@@ -62,7 +62,9 @@ class ConsentField extends BaseField
 .forge-consent-label input[type="checkbox"]:checked {
     border-color: var(--forge-accent);
     background: var(--forge-accent);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpolyline points='1,5 4.5,8.5 11,1' stroke='%23ffffff' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' \
+viewBox='0 0 12 10'%3E%3Cpolyline points='1,5 4.5,8.5 11,1' stroke='%23ffffff' \
+stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: center;
     background-size: 11px 9px;
@@ -84,7 +86,7 @@ CSS;
      */
     public function getLabel(): string
     {
-        return 'Einwilligung';
+        return __('Consent', 'form-forge');
     }
 
     /**
@@ -110,7 +112,7 @@ CSS;
     {
         $req     = !empty($config['required']) ? ' required aria-required="true"' : '';
         $checked = !empty($value) ? ' checked' : '';
-        $text    = wp_kses_post($config['consent_text'] ?? 'Ich stimme zu.');
+        $text    = wp_kses_post($config['consent_text'] ?? __('I agree.', 'form-forge'));
 
         $inner = '<label class="forge-consent-label">'
             . '<input type="checkbox" id="' . esc_attr($field_id)
@@ -132,7 +134,8 @@ CSS;
     public function validate(mixed $value, array $config): bool|string
     {
         if (!empty($config['required']) && empty($value)) {
-            return ($config['label'] ?? 'Zustimmung') . ' ist erforderlich.';
+            $label = $config['label'] ?? __('Consent', 'form-forge');
+            return sprintf(__('%s is required.', 'form-forge'), esc_html($label));
         }
         return true;
     }
@@ -147,7 +150,7 @@ CSS;
      */
     public function map(mixed $value, array $config): string
     {
-        return (!empty($value) && $value !== '0') ? 'Ja' : 'Nein';
+        return (!empty($value) && $value !== '0') ? __('Yes', 'form-forge') : __('No', 'form-forge');
     }
 
     /**
@@ -157,7 +160,7 @@ CSS;
      */
     public function getDefaultConfig(): array
     {
-        return array_merge(parent::getDefaultConfig(), ['consent_text' => 'Ich stimme den Bedingungen zu.']);
+        return array_merge(parent::getDefaultConfig(), ['consent_text' => __('I agree to the terms.', 'form-forge')]);
     }
 
     /**
@@ -171,7 +174,7 @@ CSS;
             [
                 'key'   => 'consent_text',
                 'type'  => 'textarea',
-                'label' => 'Zustimmungstext',
+                'label' => __('Consent text', 'form-forge'),
             ],
         ];
     }

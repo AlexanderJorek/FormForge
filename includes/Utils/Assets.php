@@ -70,38 +70,82 @@ class Assets
         );
 
         \wp_localize_script(
-            'forge-forms-front', 'ForgeForms', [
+            'forge-forms-front',
+            'ForgeForms',
+            [
             'ajaxUrl'    => \admin_url('admin-ajax.php'),
             'ibanBicUrl' => \admin_url('admin-ajax.php'),
             'i18n'       => [
-                'submitting'   => 'Wird gesendet…',
-                'error_server' => 'Serverfehler. Bitte versuchen Sie es erneut.',
+                'submitting'              => __('Sending…', 'form-forge'),
+                'error_server'            => __('Server error. Please try again.', 'form-forge'),
+                // Upload field
+                'upload_remove_prefix'    => __('Remove: ', 'form-forge'),
+                'upload_too_many'         => __('Too many files. Maximum %d allowed.', 'form-forge'),
+                'upload_no_types'         => __('No allowed file types in selection.', 'form-forge'),
+                'upload_skipped_one'      => __('1 file was skipped due to file type.', 'form-forge'),
+                'upload_skipped_many'     => __('%d files were skipped due to file type.', 'form-forge'),
+                'upload_overflow'         => __('Too many files total (%1$d). Max. %2$d per submission.', 'form-forge'),
+                // Checkbox field
+                'checkbox_min'            => __('Please select at least %d option(s).', 'form-forge'),
+                'checkbox_max'            => __('Please select at most %d option(s).', 'form-forge'),
+                // SEPA field
+                'sepa_iban_invalid'       => __('Invalid IBAN (check digit incorrect).', 'form-forge'),
+                'sepa_iban_incomplete'    => __('Please enter a complete and valid IBAN.', 'form-forge'),
+                'sepa_bic_invalid'        => __('Please enter a valid BIC.', 'form-forge'),
+                'sepa_iban_required'      => __('IBAN is required.', 'form-forge'),
+                'sepa_bic_required'       => __('BIC is required.', 'form-forge'),
+                'sepa_holder_required'    => __('Account holder is required.', 'form-forge'),
+                'sepa_sig_required'       => __('Please sign.', 'form-forge'),
+                'sepa_looking_up'         => __('Looking up', 'form-forge'),
+                'sepa_iban_unvalidated'   => __('Could not be validated.', 'form-forge'),
+                'sepa_country_blocked'    => __('This country is not allowed.', 'form-forge'),
             ],
             ]
         );
 
-        /* Collect field-specific CSS from each field's getStyles().
-         * Deduplicates by class name (first definition wins — same type won't
-         * appear twice in the registry). Injected as a single inline style block. */
-        $fieldCss = [];
-        foreach (\ForgeForms\Fields\FieldRegistry::all() as $class) {
-            $css = trim((new $class())->getStyles());
+        /* Single pass over all field classes — collect CSS, empty-checks,
+         * validators, inits, and skip-validation flags without re-instantiating. */
+        $fieldCss    = [];
+        $emptyChecks = [];
+        $pairs       = [];
+        $seenRules   = [];
+        $inits       = [];
+        $skip        = [];
+
+        foreach (\ForgeForms\Fields\FieldRegistry::all() as $type => $class) {
+            $handler = new $class();
+
+            $css = trim($handler->getStyles());
             if ($css !== '') {
                 $fieldCss[] = $css;
             }
-        }
-        if (!empty($fieldCss)) {
-            \wp_add_inline_style('forge-forms-front', implode("\n", $fieldCss));
-        }
 
-        /* Collect empty-check functions defined in each field's getClientEmptyCheck().
-         * Keyed by field type (matching the forge-field--{type} CSS class). */
-        $emptyChecks = [];
-        foreach (\ForgeForms\Fields\FieldRegistry::all() as $type => $class) {
-            $entry = (new $class())->getClientEmptyCheck();
+            $entry = $handler->getClientEmptyCheck();
             if (!empty($entry['fn'])) {
                 $emptyChecks[] = json_encode($type) . ':' . trim($entry['fn']);
             }
+
+            foreach ($handler->getClientValidation() as $vEntry) {
+                $rule = $vEntry['rule'] ?? '';
+                $fn   = $vEntry['fn']   ?? '';
+                if ($rule !== '' && $fn !== '' && !isset($seenRules[$rule])) {
+                    $seenRules[$rule] = true;
+                    $pairs[]          = json_encode($rule) . ':' . trim($fn);
+                }
+            }
+
+            $fn = $handler->getClientInit();
+            if ($fn !== '') {
+                $inits[] = json_encode($type) . ':' . trim($fn);
+            }
+
+            if ($handler->skipValidation()) {
+                $skip[] = json_encode($type);
+            }
+        }
+
+        if (!empty($fieldCss)) {
+            \wp_add_inline_style('forge-forms-front', implode("\n", $fieldCss));
         }
         if (!empty($emptyChecks)) {
             \wp_add_inline_script(
@@ -110,25 +154,6 @@ class Assets
                 'before'
             );
         }
-
-        /* Collect client validators defined in each field's getClientValidation().
-         * Deduplicates by rule name (first definition wins). Outputs an inline
-         * script before front.js that populates window.ForgeValidators so the
-         * validation loop in front.js needs zero knowledge of specific field types. */
-        $pairs    = [];
-        $seen     = [];
-        foreach (\ForgeForms\Fields\FieldRegistry::all() as $class) {
-            $handler = new $class();
-            foreach ($handler->getClientValidation() as $entry) {
-                $rule = $entry['rule'] ?? '';
-                $fn   = $entry['fn']   ?? '';
-                if ($rule === '' || $fn === '' || isset($seen[$rule])) {
-                    continue;
-                }
-                $seen[$rule] = true;
-                $pairs[]     = json_encode($rule) . ':' . trim($fn);
-            }
-        }
         if (!empty($pairs)) {
             \wp_add_inline_script(
                 'forge-forms-front',
@@ -136,21 +161,17 @@ class Assets
                 'before'
             );
         }
-
-        /* Collect per-field-type init functions from getClientInit().
-         * Exposed as window.ForgeFieldInits keyed by field type.
-         * front.js iterates and calls each with the root element. */
-        $inits = [];
-        foreach (\ForgeForms\Fields\FieldRegistry::all() as $type => $class) {
-            $fn = (new $class())->getClientInit();
-            if ($fn !== '') {
-                $inits[] = json_encode($type) . ':' . trim($fn);
-            }
-        }
         if (!empty($inits)) {
             \wp_add_inline_script(
                 'forge-forms-front',
                 'window.ForgeFieldInits={' . implode(',', $inits) . '};',
+                'before'
+            );
+        }
+        if (!empty($skip)) {
+            \wp_add_inline_script(
+                'forge-forms-front',
+                'window.ForgeSkipValidation=[' . implode(',', $skip) . '];',
                 'before'
             );
         }
@@ -169,21 +190,6 @@ class Assets
                 [],
                 FORGE_FORMS_VERSION,
                 true
-            );
-        }
-
-        /* Collect field types that opt out of client-side validation entirely. */
-        $skip = [];
-        foreach (\ForgeForms\Fields\FieldRegistry::all() as $type => $class) {
-            if ((new $class())->skipValidation()) {
-                $skip[] = json_encode($type);
-            }
-        }
-        if (!empty($skip)) {
-            \wp_add_inline_script(
-                'forge-forms-front',
-                'window.ForgeSkipValidation=[' . implode(',', $skip) . '];',
-                'before'
             );
         }
     }
@@ -210,8 +216,9 @@ class Assets
                 'forge-forms-admin',
                 FORGE_FORMS_URL . 'assets/css/admin.css',
                 ['font-awesome'],
-                filemtime(FORGE_FORMS_PATH . 'assets/css/admin.css')
+                FORGE_FORMS_VERSION
             );
+            self::addAdminCssVars();
 
             \wp_enqueue_style('wp-color-picker');
             \wp_enqueue_script('wp-color-picker');
@@ -225,10 +232,9 @@ class Assets
             );
 
             \wp_enqueue_media();
-        }
 
-        /* General admin pages */
-        if (str_contains($hook, 'forge-forms')) {
+        /* General admin pages (non-editor) */
+        } elseif (str_contains($hook, 'forge-forms')) {
             \wp_enqueue_style(
                 'font-awesome',
                 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css',
@@ -239,13 +245,9 @@ class Assets
                 'forge-forms-admin',
                 FORGE_FORMS_URL . 'assets/css/admin.css',
                 ['font-awesome'],
-                filemtime(FORGE_FORMS_PATH . 'assets/css/admin.css')
+                FORGE_FORMS_VERSION
             );
-            $hover = \get_option('forge_forms_hover_color', '#1d2327');
-            if (!preg_match('/^#[0-9a-fA-F]{6}$/', $hover)) {
-                $hover = '#1d2327';
-            }
-            \wp_add_inline_style('forge-forms-admin', ':root { --forge-hover-color: ' . $hover . '; }');
+            self::addAdminCssVars();
             $needs_picker = str_contains($hook, 'forge-forms-settings')
                          || str_contains($hook, 'forge-forms-pdf-layout');
             if ($needs_picker) {
@@ -270,8 +272,9 @@ class Assets
                 'forge-forms-admin',
                 FORGE_FORMS_URL . 'assets/css/admin.css',
                 [],
-                filemtime(FORGE_FORMS_PATH . 'assets/css/admin.css')
+                FORGE_FORMS_VERSION
             );
+            self::addAdminCssVars();
             \wp_enqueue_script(
                 'forge-pdfjs',
                 FORGE_FORMS_URL . 'assets/vendor/pdfjs/pdf.js',
@@ -287,13 +290,54 @@ class Assets
                 true
             );
             \wp_localize_script(
-                'forge-forms-verification', 'ForgeVerifier', [
+                'forge-forms-verification',
+                'ForgeVerifier',
+                [
                 'ajaxUrl'     => \admin_url('admin-ajax.php'),
                 'nonce'       => \wp_create_nonce('forge_verifier_nonce'),
                 'pdfJsWorker' => FORGE_FORMS_URL . 'assets/vendor/pdfjs/pdf.worker.js',
                 ]
             );
         }
+    }
+
+    /**
+     * Injects --forge-admin-accent and --forge-hover-color onto the forge-forms-admin stylesheet.
+     *
+     * @return void
+     */
+    private static function addAdminCssVars(): void
+    {
+        $hover        = \get_option('forge_forms_hover_color', '#1d2327');
+        $admin_accent = \get_option('forge_forms_admin_accent', '#2271b1');
+        if (!preg_match('/^#[0-9a-fA-F]{6}$/', $hover)) {
+            $hover = '#1d2327';
+        }
+        if (!preg_match('/^#[0-9a-fA-F]{6}$/', $admin_accent)) {
+            $admin_accent = '#2271b1';
+        }
+        $r = hexdec(substr($admin_accent, 1, 2));
+        $g = hexdec(substr($admin_accent, 3, 2));
+        $b = hexdec(substr($admin_accent, 5, 2));
+        $luminance   = (0.299 * $r + 0.587 * $g + 0.114 * $b) / 255;
+        $accent_text = $luminance > 0.55 ? '#1d2327' : '#ffffff';
+        $accent_fg   = $luminance > 0.55 ? '#1d2327' : $admin_accent;
+
+        $hr = hexdec(substr($hover, 1, 2));
+        $hg = hexdec(substr($hover, 3, 2));
+        $hb = hexdec(substr($hover, 5, 2));
+        $hover_lum = (0.299 * $hr + 0.587 * $hg + 0.114 * $hb) / 255;
+        $hover_fg  = $hover_lum > 0.55 ? '#1d2327' : $hover;
+
+        \wp_add_inline_style(
+            'forge-forms-admin',
+            ':root { --forge-admin-accent: ' . $admin_accent
+                . '; --forge-admin-accent--rgb: ' . $r . ',' . $g . ',' . $b
+                . '; --forge-hover-color: ' . $hover
+                . '; --forge-hover-color-fg: ' . $hover_fg
+                . '; --forge-accent-text: ' . $accent_text
+                . '; --forge-admin-accent-fg: ' . $accent_fg . '; }'
+        );
     }
 
     /**
@@ -305,7 +349,7 @@ class Assets
     {
         global $post;
         if (!$post || !\is_a($post, 'WP_Post')) {
-            return true;
+            return false;
         }
         return str_contains((string)$post->post_content, '[forge_form');
     }
