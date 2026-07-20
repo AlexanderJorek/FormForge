@@ -133,7 +133,7 @@ class PostDataField extends BaseField
         }
         $selected = (array)($config['post_field'] ?? ['post_title']);
         $filtered = array_intersect_key($value, array_flip($selected));
-        return implode(', ', array_filter(array_map('strval', $filtered)));
+        return implode(', ', array_filter(array_map('strval', $filtered), static fn($v) => $v !== ''));
     }
 
     /**

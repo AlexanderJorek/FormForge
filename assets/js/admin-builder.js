@@ -17,6 +17,10 @@
  *   onReorder  – called with the new DOM order of rows after a drop
  */
 function makeSortable(list, handleSel, rowSel, onReorder) {
+    /* move/up listeners are on document, not list or item: the dragged item is
+       switched to position:fixed and can be moved anywhere on the page (or off
+       the list entirely) during the drag, so tracking must not depend on the
+       pointer staying over any particular element. */
     list.addEventListener('pointerdown', function (e) {
         var handle = e.target.closest(handleSel);
         if (!handle) { return; }
@@ -75,6 +79,14 @@ var PALETTE_GROUPS  = [];
 var TYPE_COLOR_MAP  = {};
 var _lastRenderedFieldsJson = null; /* dirty-check cache for renderFieldList */
 
+/* Client-side mirror of the form's JSON structure as read/written by
+   includes/Admin/FormEditor.php (see `data-form` on #forge-editor for the
+   initial payload, and bindSave() below for the save payload). `fields`
+   entries are plain objects keyed by field type + settings; a field with
+   type === 'group' additionally has a `children` array of the same shape
+   (see buildGroupRow/buildChildRow). Keep this shape in sync with
+   FormEditor.php's expected schema — the PHP side does not validate deeply,
+   so a shape drift here can silently corrupt saved forms. */
 var state = {
     fields: [], notifications: [], formName: 'Neues Formular',
     settings: {
@@ -158,6 +170,15 @@ document.addEventListener('click', function (e) {
     showUnsavedDialog(function () { window.location.href = href; });
 }, true);
 
+/* Drag/drop state below is intentionally module-level (not passed through
+   closures) because drag operations span multiple independent DOM event
+   listeners (dragstart on a row, dragover/drop on the list, dragend on the
+   row) that all need to agree on "what is being dragged and where would it
+   land" without re-deriving it from the DOM each time. Two independent
+   "tracks" exist: dragSrcIdx/dropLineTarget for reordering top-level fields
+   (and pulling a child out of a group), and dragChildSrc/childGroupDropTarget
+   for reordering within a group's child list — see initDragDrop() and the
+   group-row equivalent in buildGroupRow(). */
 var dragSrcIdx           = null;
 var dragBrokenPartnerIdx = null; /* partner idx whose cols we set to 12 on dragstart */
 var dropSideMode         = null; /* 'left' | 'right' | null */
@@ -277,6 +298,10 @@ function renderFieldList() {
     if (!list) return;
     var json = JSON.stringify(state.fields);
     if (json === _lastRenderedFieldsJson) return;
+    /* renderFieldList() doubles as the dirty-flag setter: any state.fields
+       change that triggers a re-render also marks the form dirty, except the
+       very first call (bootstrap), which must not flip the unsaved-changes
+       guard for a freshly loaded form. */
     if (_lastRenderedFieldsJson !== null) { markDirty(); } /* skip initial render */
     _lastRenderedFieldsJson = json;
     list.innerHTML = '';
@@ -477,7 +502,10 @@ function buildFieldRow(field, idx) {
         var f = state.fields[dragSrcIdx];
         dragBrokenPartnerIdx = null;
         if (f && f.cols === 6) {
-            /* Find the actual pair partner via isSecondInPair, not just the first col-6 neighbor */
+            /* Find the actual pair partner via isSecondInPair, not just the first col-6 neighbor.
+               Must resolve partnerIdx (which reads cols on neighboring fields) BEFORE mutating
+               any cols below — isSecondInPair's parity check would itself be corrupted if the
+               dragged field's cols were already flipped to 12 at this point. */
             var partnerIdx = null;
             if (isSecondInPair(dragSrcIdx)) {
                 partnerIdx = dragSrcIdx - 1;
@@ -496,6 +524,11 @@ function buildFieldRow(field, idx) {
         }
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', String(dragSrcIdx));
+        /* setTimeout(0), not synchronous: the browser snapshots the drag image
+           from the element's current rendered state right after dragstart fires.
+           Hiding the row synchronously here would make the drag image blank/empty
+           in Firefox and some Chromium builds — deferring to the next tick lets
+           the native drag image get captured first. */
         setTimeout(function () {
             /* Hide from grid flow AND mark class so cacheMidpoints excludes it */
             row.style.display = 'none';
@@ -959,6 +992,10 @@ function initDragDrop() {
         if (dragSrcIdx === null && dragChildSrc === null) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
+        /* dragover can fire far more often than once per frame; only the most
+           recent pointer Y matters, so we stash it and let a single pending
+           rAF flush it, instead of recomputing the drop-line position (and
+           touching layout) on every event. */
         pendingY = e.clientY;
         if (!rafPending) {
             rafPending = true;
@@ -982,7 +1019,12 @@ function initDragDrop() {
         hideDropLine();
         list.classList.remove('forge-drag-active');
 
-        /* Child dragged OUT of group → becomes a top-level field */
+        /* Child dragged OUT of group → becomes a top-level field.
+           This branch fires when a group-child row is dropped on the
+           top-level list (not the group's own child list) — dragChildSrc
+           is only set while a child drag is in progress, so its presence
+           here is what disambiguates "dropped into top-level list" from
+           the normal top-level reorder handled below. */
         if (dragChildSrc !== null) {
             clearGroupDropIndicators();
             if (!dropLineTarget) { dragChildSrc = null; cachedMidpoints = []; return; }
@@ -1027,6 +1069,10 @@ function initDragDrop() {
             insertIdx = parseInt(dropLineTarget.beforeEl.dataset.idx, 10);
         }
 
+        /* insertIdx was read from the pre-splice DOM order; once `from` is
+           spliced out of state.fields everything after it shifts down one
+           index, so if the target was after the source it must be decremented
+           to still point at the same field. */
         if (from < insertIdx) { insertIdx--; }
         dropLineTarget = null;
         if (insertIdx === from) { renderFieldList(); return; }
@@ -1039,6 +1085,13 @@ function initDragDrop() {
     });
 }
 
+/* Fields are laid out in a 12-column grid; cols===6 means "half width" and
+   only renders side-by-side correctly when paired with an immediately
+   adjacent cols===6 sibling (see isSecondInPair/cacheMidpoints, which skip
+   the second half of a pair when computing drop targets). Any reorder or
+   group-extraction can break that adjacency, so repairPairs() must run
+   after every mutation of state.fields to fall back orphaned halves to
+   full width (cols=12). */
 /* Reset any cols=6 field that no longer has a consecutive partner */
 function repairPairs() {
     var i = 0;
@@ -2912,6 +2965,13 @@ function spOptionsList(parent, key, label, values, onChange) {
             labelInp.placeholder = 'Bezeichnung';
             labelInp.addEventListener('input', function () {
                 opts[i].label = this.value;
+                /* Auto-derive value from label only while the user hasn't manually
+                   diverged it. Detected by comparing the current stored value against
+                   slugify() of the label as it was BEFORE this keystroke (this.value
+                   minus its last char) — if they still match, the value was still
+                   being auto-generated up to now, so keep auto-deriving; if the user
+                   had hand-edited the value field, this comparison fails and the
+                   value is left alone. */
                 if (!opts[i].value || opts[i].value === slugify(this.value.slice(0, -1))) {
                     opts[i].value = slugify(this.value);
                     var vi = optRow.querySelector('.forge-sp-opt-value');
@@ -3074,10 +3134,16 @@ function spHtmlEditor(parent, key, label, value, onChange, opts) {
         modeBar.appendChild(modePill);
         hdr.appendChild(modeBar);
 
-        previewDiv = document.createElement('div');
+        // Sandboxed iframe (no allow-scripts) rather than an innerHTML div —
+        // this preview renders whatever the admin authoring the notification
+        // typed, and another admin later opens the same form editor and
+        // triggers this same render, so a raw innerHTML div would be a
+        // stored self-XSS vector between co-privileged admin accounts.
+        previewDiv = document.createElement('iframe');
         previewDiv.className = 'forge-sp-html-preview';
+        previewDiv.setAttribute('sandbox', 'allow-same-origin');
         previewDiv.hidden    = true;
-        previewDiv.innerHTML = value || '';
+        previewDiv.srcdoc    = value || '';
     }
 
     if (hdr.children.length) row.appendChild(hdr);
@@ -3093,7 +3159,7 @@ function spHtmlEditor(parent, key, label, value, onChange, opts) {
 
     ta.addEventListener('input', function () {
         onChange(this.value);
-        if (previewDiv && !previewDiv.hidden) previewDiv.innerHTML = this.value;
+        if (previewDiv && !previewDiv.hidden) previewDiv.srcdoc = this.value;
         resizeTa();
     });
     row.appendChild(ta);
@@ -3113,7 +3179,7 @@ function spHtmlEditor(parent, key, label, value, onChange, opts) {
         if (mode === 'preview') {
             ta.hidden = true;
             previewDiv.hidden = false;
-            previewDiv.innerHTML = ta.value;
+            previewDiv.srcdoc = ta.value;
         } else {
             ta.hidden = false;
             previewDiv.hidden = true;
@@ -4541,6 +4607,10 @@ function bindSave() {
         var fd = new FormData();
         fd.append('action',    'forge_forms_save_form');
         fd.append('nonce',     NONCE);
+        /* btoa() only accepts Latin1; encodeURIComponent+unescape re-encodes the
+           UTF-8 JSON string into a Latin1-safe byte sequence first so field
+           labels/options with non-ASCII characters (e.g. German umlauts) survive
+           the round trip. PHP decodes with base64_decode() — see FormEditor.php. */
         fd.append('form_data', btoa(unescape(encodeURIComponent(JSON.stringify(payload)))));
         fetch(AJAX_URL, { method: 'POST', body: fd })
             .then(function (r) { return r.json(); })

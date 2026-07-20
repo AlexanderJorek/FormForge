@@ -7,7 +7,7 @@
         var options  = wrap.querySelector('.fsel-options');
         var optItems = wrap.querySelectorAll('.fsel-option');
         var forms    = wrap.querySelectorAll('.fsel-form');
-        var favIdx   = parseInt(wrap.dataset.fav || '0', 10);
+        var favIdx   = parseInt(wrap.dataset.fav || '0', 10); /* server-chosen default form index, set by the [form_select] shortcode render */
 
         function select(idx) {
             var opt = wrap.querySelector('.fsel-option[data-idx="' + idx + '"]');

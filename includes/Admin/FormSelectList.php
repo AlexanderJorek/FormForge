@@ -392,8 +392,8 @@ class FormSelectList
         check_ajax_referer('forge_fsel_save', 'nonce');
 
         $id        = (int) ($_POST['id'] ?? 0);
-        $title     = sanitize_text_field(wp_unslash($_POST['title'] ?? ''));
-        $items_raw = json_decode(wp_unslash($_POST['items'] ?? '[]'), true);
+        $title     = sanitize_text_field(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['title'] ?? '')));
+        $items_raw = json_decode(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['items'] ?? '[]'), '[]'), true);
         if (!is_array($items_raw)) {
             wp_send_json_error(['message' => 'Ungültige Daten.']);
         }
@@ -456,6 +456,8 @@ class FormSelectList
             return '';
         }
 
+        // Server picks the initially-shown form (falls back to index 0 if none marked
+        // favorite); the front-end script then reads data-fav to preselect the same item
         $fav_idx = 0;
         foreach ($fsel->items as $i => $item) {
             if ($item['favorite']) {

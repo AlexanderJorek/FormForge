@@ -1,6 +1,16 @@
 /*!
  * FormForge — Performance Debugger
  * Toggle via the ⚡ button in the form editor header (WP_DEBUG + manage_options only).
+ *
+ * Loaded only by includes/Admin/FormEditor.php, and only when $perf_mode is
+ * true (WP_DEBUG + manage_options). It is enqueued with $in_footer=false so
+ * it lands in <head> and runs before admin-builder.js — that ordering is
+ * required because the setTimeout/setInterval patch below (see "Timer
+ * interception") must wrap the native timer functions before any other
+ * script schedules a callback with them, or timers set during
+ * admin-builder.js's early boot would be invisible to this profiler.
+ * ForgePerfData (phpRenderMs/formId/fieldCount) is injected server-side via
+ * wp_localize_script() in the same PHP method.
  */
 (function () {
 'use strict';

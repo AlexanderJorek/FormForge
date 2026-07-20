@@ -105,22 +105,22 @@ class PDFLayoutEditor
         /* Use live settings from the request so the user doesn't have to save first */
         if (!empty($_POST['settings'])) {
             /* wp_unslash is required — WordPress's wp_magic_quotes() slashes all $_POST values */
-            $raw = json_decode(wp_unslash($_POST['settings']), true);
+            $raw = json_decode(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['settings'] ?? '')), true);
             if (!is_array($raw)) {
                 \ForgeForms\forge_log('ajaxPreview: settings JSON decode failed — ' . json_last_error_msg());
             }
             if (is_array($raw)) {
                 $defs = self::defaults();
-                $sanitized_hl = self::sanitizeHeaderLayout((array) ($raw['header_layout'] ?? []));
+                $sanitized_hl = self::sanitizeHeaderLayout((array) ($raw['header_layout'] ?? []), false);
                 $preview_opts = [
-                    'logo_url'        => esc_url_raw($raw['logo_url'] ?? ''),
+                    'logo_url'        => esc_url_raw(\ForgeForms\Utils\Sanitize::str($raw['logo_url'] ?? '')),
                     'logo_width'      => min(400, max(40, (int) ($raw['logo_width']     ?? 180))),
-                    'accent_color'    => sanitize_hex_color($raw['accent_color']    ?? '') ?: $defs['accent_color'],
-                    'separator_color' => sanitize_hex_color($raw['separator_color'] ?? '') ?: $defs['separator_color'],
-                    'font_family'     => sanitize_key($raw['font_family'] ?? 'dejavusans'),
+                    'accent_color'    => sanitize_hex_color(\ForgeForms\Utils\Sanitize::str($raw['accent_color']    ?? '')) ?: $defs['accent_color'],
+                    'separator_color' => sanitize_hex_color(\ForgeForms\Utils\Sanitize::str($raw['separator_color'] ?? '')) ?: $defs['separator_color'],
+                    'font_family'     => sanitize_key(\ForgeForms\Utils\Sanitize::str($raw['font_family'] ?? '', 'dejavusans')),
                     'font_size_body'  => min(20, max(6, (int) ($raw['font_size_body'] ?? 11))),
                     'title_size'      => min(36, max(10, (int) ($raw['title_size']     ?? 18))),
-                    'footer_text'     => sanitize_textarea_field($raw['footer_text'] ?? ''),
+                    'footer_text'     => sanitize_textarea_field(\ForgeForms\Utils\Sanitize::str($raw['footer_text'] ?? '')),
                     'margin_top'      => min(50, max(0, (int) ($raw['margin_top']    ?? 15))),
                     'margin_bottom'   => min(50, max(0, (int) ($raw['margin_bottom'] ?? 15))),
                     'margin_left'     => min(50, max(0, (int) ($raw['margin_left']   ?? 15))),
@@ -145,6 +145,8 @@ class PDFLayoutEditor
 
         $dummy = self::dummyFields();
 
+        // form_id=0 signals to Generator/HashSeal that this is a throwaway layout preview,
+        // not a real submission — it must not be persisted or count toward seal history
         $path = \ForgeForms\PDF\Generator::generate($dummy, 0, 'Layout-Vorschau');
 
         if (!$path || !file_exists($path)) {
@@ -152,6 +154,7 @@ class PDFLayoutEditor
         }
 
         $data = file_get_contents($path);
+        // Delete immediately after reading — no submission data is ever kept on disk (see CLAUDE.md)
         @unlink($path);
 
         if ($data === false) {
@@ -1720,29 +1723,32 @@ class PDFLayoutEditor
 
         $hidden = array_values(
             array_filter(
-                array_map('sanitize_key', explode(',', wp_unslash($_POST['section_hidden'] ?? ''))),
+                array_map('sanitize_key', explode(',', \ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['section_hidden'] ?? '')))),
                 fn($s) => isset($labels[$s])
             )
         );
 
+        $header_layout_decoded = json_decode(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['header_layout_json'] ?? ''), '{}'), true);
+
         update_option(
             'forge_forms_pdf_layout',
             [
-            'logo_url'        => esc_url_raw(wp_unslash($_POST['logo_url'] ?? '')),
+            'logo_url'        => esc_url_raw(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['logo_url'] ?? ''))),
             'logo_width'      => min(400, max(40, (int) ($_POST['logo_width'] ?? 180))),
-            'accent_color'    => sanitize_hex_color($_POST['accent_color']    ?? '') ?: $defs['accent_color'],
-            'separator_color' => sanitize_hex_color($_POST['separator_color'] ?? '') ?: $defs['separator_color'],
-            'font_family'     => sanitize_key($_POST['font_family'] ?? 'dejavusans'),
+            'accent_color'    => sanitize_hex_color(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['accent_color']    ?? ''))) ?: $defs['accent_color'],
+            'separator_color' => sanitize_hex_color(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['separator_color'] ?? ''))) ?: $defs['separator_color'],
+            'font_family'     => sanitize_key(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['font_family'] ?? ''), 'dejavusans')),
             'font_size_body'  => min(20, max(6, (int) ($_POST['font_size_body'] ?? 11))),
             'title_size'      => min(36, max(10, (int) ($_POST['title_size']     ?? 18))),
-            'footer_text'     => sanitize_textarea_field(wp_unslash($_POST['footer_text'] ?? '')),
+            'footer_text'     => sanitize_textarea_field(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['footer_text'] ?? ''))),
             'margin_top'      => min(50, max(0, (int) ($_POST['margin_top']    ?? 15))),
             'margin_bottom'   => min(50, max(0, (int) ($_POST['margin_bottom'] ?? 15))),
             'margin_left'     => min(50, max(0, (int) ($_POST['margin_left']   ?? 15))),
             'margin_right'    => min(50, max(0, (int) ($_POST['margin_right']  ?? 15))),
             'section_hidden'  => $hidden,
             'header_layout'   => self::sanitizeHeaderLayout(
-                json_decode(wp_unslash($_POST['header_layout_json'] ?? '{}'), true) ?: []
+                is_array($header_layout_decoded) ? $header_layout_decoded : [],
+                true
             ),
             ]
         );
@@ -1751,23 +1757,78 @@ class PDFLayoutEditor
     }
 
     /**
+     * Resolves an image element's src to a local media-library attachment URL.
+     *
+     * Local attachment URLs resolve immediately with no network access. External
+     * URLs are only ever fetched when $persist is true (i.e. on final save, not
+     * on every live-preview keystroke), and are fetched exactly once via
+     * media_sideload_image() — which downloads through wp_safe_remote_get()
+     * (WordPress's own SSRF guard, rejecting loopback/private/link-local
+     * targets) and validates the result is actually an image before storing it
+     * as a normal attachment. From then on the field behaves like any other
+     * local image and mPDF never makes an outbound request for it.
+     *
+     * @param string $src     Raw src URL from the layout editor.
+     * @param bool   $persist True when called from the final save handler.
+     *
+     * @return string Local attachment URL, or '' if it can't be resolved/fetched.
+     */
+    private static function resolveImageSrc(string $src, bool $persist): string
+    {
+        if ($src === '') {
+            return '';
+        }
+        if (attachment_url_to_postid($src)) {
+            return $src;
+        }
+        if (!$persist || !preg_match('#^https?://#i', $src)) {
+            return '';
+        }
+
+        require_once ABSPATH . 'wp-admin/includes/media.php';
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+
+        $attachment_id = media_sideload_image($src, 0, null, 'id');
+        if (is_wp_error($attachment_id)) {
+            \ForgeForms\forge_log(
+                'ForgeForms PDFLayoutEditor: failed to sideload header image '
+                . $src . ' — ' . $attachment_id->get_error_message()
+            );
+            return '';
+        }
+
+        return wp_get_attachment_url($attachment_id) ?: '';
+    }
+
+    /**
      * Sanitizes the header layout grid configuration.
      *
-     * @param array $raw Raw header layout data from POST.
+     * @param array $raw     Raw header layout data from POST.
+     * @param bool  $persist True when sanitizing for the final save (allows a
+     *                       one-time external-image fetch); false for live
+     *                       preview, where external URLs are resolved only if
+     *                       they were already sideloaded on a prior save.
      *
      * @return array Sanitized header layout array.
      */
-    private static function sanitizeHeaderLayout(array $raw): array
+    private static function sanitizeHeaderLayout(array $raw, bool $persist = false): array
     {
         $rows = min(30, max(2, (int) ($raw['rows'] ?? 8)));
         $elements = [];
         foreach ((array) ($raw['elements'] ?? []) as $el) {
-            $type = sanitize_key($el['type'] ?? '');
+            // $el is a per-element array decoded from client JSON — 'type'/'id'
+            // are normally strings, but nothing guarantees that; sanitize_key()
+            // has a strict string type hint and throws an uncaught TypeError
+            // on an array/object value.
+            $el_type = $el['type'] ?? '';
+            $type = sanitize_key(is_string($el_type) ? $el_type : '');
             if (!in_array($type, ['title', 'image', 'html'], true)) {
                 continue;
             }
+            $el_id = $el['id'] ?? 'e1';
             $item = [
-                'id'   => sanitize_key($el['id'] ?? 'e1'),
+                'id'   => sanitize_key(is_string($el_id) ? $el_id : 'e1'),
                 'type' => $type,
                 'x'    => max(0, min(41, (int) ($el['x'] ?? 0))),
                 'y'    => max(0, (int) ($el['y'] ?? 0)),
@@ -1775,23 +1836,40 @@ class PDFLayoutEditor
                 'h'    => max(1, (int) ($el['h'] ?? 4)),
             ];
             if ($type === 'title') {
-                $item['text']  = sanitize_text_field($el['text']  ?? '{form_title}');
+                // The header-builder editor is a contenteditable box that writes
+                // formatted HTML into el.content (bold/italic/color/superscript
+                // spans) — el.text is only ever a plain-text fallback. Persist
+                // content through the same inline-formatting allow-list used at
+                // PDF-render time (pdf-templates/layout.php), or the admin's
+                // formatting is silently discarded on every save.
+                $raw_content = $el['content'] ?? $el['text'] ?? '{form_title}';
+                $raw_html = is_string($raw_content) ? $raw_content : '{form_title}';
+                $item['content'] = wp_kses($raw_html, [
+                    'b'      => [],
+                    'strong' => [],
+                    'i'      => [],
+                    'em'     => [],
+                    'u'      => ['style' => []],
+                    's'      => [],
+                    'del'    => [],
+                    'sup'    => [],
+                    'sub'    => [],
+                    'span'   => ['style' => []],
+                    'br'     => [],
+                ]);
                 $item['size']  = min(72, max(6, (int) ($el['size'] ?? 18)));
                 $item['bold']  = !empty($el['bold']);
                 $item['align'] = in_array($el['align'] ?? '', ['left', 'center', 'right'], true) ? $el['align'] : 'left';
-                $item['color'] = sanitize_hex_color($el['color'] ?? '') ?: '#1d2327';
+                $item['color'] = sanitize_hex_color(\ForgeForms\Utils\Sanitize::str($el['color'] ?? '')) ?: '#1d2327';
             } elseif ($type === 'image') {
-                $src = esc_url_raw($el['src'] ?? '');
-                /* Only allow images that resolve to a local media-library
-                   attachment — an arbitrary external/file:// URL here would
-                   let mPDF fetch it at PDF-generation time (SSRF). */
-                if ($src === '' || !attachment_url_to_postid($src)) {
+                $src = self::resolveImageSrc(esc_url_raw(\ForgeForms\Utils\Sanitize::str($el['src'] ?? '')), $persist);
+                if ($src === '') {
                     continue;
                 }
                 $item['src'] = $src;
                 $item['fit'] = in_array($el['fit'] ?? '', ['contain', 'cover', 'fill'], true) ? $el['fit'] : 'contain';
             } elseif ($type === 'html') {
-                $item['html'] = wp_kses_post($el['html'] ?? '');
+                $item['html'] = wp_kses_post(\ForgeForms\Utils\Sanitize::str($el['html'] ?? ''));
             }
             $elements[] = $item;
         }

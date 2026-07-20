@@ -99,7 +99,8 @@ CSS;
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         if (empty($config['expanded'])) {
-            $attrs = $this->inputAttrs($config, $field_id, 'text', ['value' => esc_attr((string)($value ?? ''))]);
+            $safe_value = is_array($value) ? '' : ($value ?? '');
+            $attrs = $this->inputAttrs($config, $field_id, 'text', ['value' => esc_attr((string)$safe_value)]);
             return $this->wrap($field_id, $config, '<input' . $attrs . '>');
         }
 
@@ -111,7 +112,8 @@ CSS;
             if (empty($config[$k . '_enabled'])) {
                 continue;
             }
-            $label = esc_html($config[$k . '_label'] ?? $sf['label']);
+            $label_raw = $config[$k . '_label'] ?? $sf['label'];
+            $label = esc_html($label_raw);
             $ph    = esc_attr($config[$k . '_placeholder'] ?? '');
             $req   = !empty($config[$k . '_required']) ? ' required aria-required="true"' : '';
 
@@ -122,7 +124,7 @@ CSS;
             if (!empty($sf['is_select'])) {
                 $cur    = esc_attr((string)($val[$k] ?? ''));
                 $inner .= '<select name="' . esc_attr($field_id) . '[' . $k . ']"'
-                    . ' class="forge-input forge-name-prefix" aria-label="' . $label . '"' . $req . '>';
+                    . ' class="forge-input forge-name-prefix" aria-label="' . esc_attr($label_raw) . '"' . $req . '>';
                 foreach (['', __('Mr.', 'form-forge'), __('Ms.', 'form-forge'), __('Diverse', 'form-forge'), 'Dr.', 'Prof.', 'Dipl.', 'Ing.'] as $opt) {
                     $inner .= '<option value="' . esc_attr($opt) . '"' . selected($cur, $opt, false) . '>'
                         . ($opt === '' ? '—' : esc_html($opt)) . '</option>';
@@ -170,7 +172,8 @@ CSS;
     public function validate(mixed $value, array $config): bool|string
     {
         if (empty($config['expanded'])) {
-            if (!empty($config['required']) && trim((string)($value ?? '')) === '') {
+            $scalar = is_array($value) ? '' : trim((string)($value ?? ''));
+            if (!empty($config['required']) && $scalar === '') {
                 $label = $config['label'] ?? __('Name', 'form-forge');
                 return sprintf(__('%s: Required field.', 'form-forge'), esc_html($label));
             }

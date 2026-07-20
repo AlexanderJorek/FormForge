@@ -3,6 +3,11 @@
 /**
  * MPDF HTML layout template for form submission PDF output.
  *
+ * NOTE: This is rendered by mPDF, not the browser — it is not subject to WordPress's
+ * output-escaping/KSES filters or CSP. Field values echoed here ($value in the loop
+ * below) arrive already pre-escaped by each field type's own pdfData()/map() handler
+ * (see includes/PDF/Generator.php), so they are intentionally NOT re-escaped in this file.
+ *
  * PHP Version 8.1
  *
  * @category  FormForge

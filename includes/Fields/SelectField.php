@@ -243,6 +243,14 @@ CSS;
         $req     = !empty($config['required']) ? ' required aria-required="true"' : '';
         $options = $config['options'] ?? [];
 
+        /* extractValue() returns ['value' => ..., '__other_text__' => ...] when
+           "Other" was selected with typed text — unwrap to the plain
+           selection for every comparison below. */
+        $other_text = is_array($value) ? trim((string)($value['__other_text__'] ?? '')) : '';
+        if (is_array($value)) {
+            $value = $value['value'] ?? '';
+        }
+
         /* When no submitted value, fall back to the option marked as default */
         if ($value === null) {
             foreach ($options as $opt) {
@@ -273,7 +281,8 @@ CSS;
         if (!empty($config['other_option'])) {
             $show  = (string)($value ?? '') === '__other__' ? '' : ' style="display:none"';
             $inner .= '<input type="text" name="' . esc_attr($field_id) . '_other"'
-                . ' class="forge-input forge-other-input" placeholder="Bitte angeben"' . $show . '>';
+                . ' class="forge-input forge-other-input" value="' . esc_attr($other_text) . '"'
+                . ' placeholder="' . esc_attr__('Please specify', 'form-forge') . '"' . $show . '>';
         }
 
         return $this->wrap($field_id, $config, $inner);
@@ -289,11 +298,18 @@ CSS;
      */
     public function map(mixed $value, array $config): string
     {
-        if (empty($value)) {
+        $other_text = '';
+        if (is_array($value)) {
+            $other_text = trim((string)($value['__other_text__'] ?? ''));
+            $value      = $value['value'] ?? '';
+        }
+        if ($value === '' || $value === null) {
             return __('[No entry]', 'form-forge');
         }
         if ((string)$value === '__other__') {
-            return __('[Other]', 'form-forge');
+            return $other_text !== ''
+                ? sprintf('%s (%s)', __('Other', 'form-forge'), $other_text)
+                : __('[Other]', 'form-forge');
         }
         foreach ($config['options'] ?? [] as $opt) {
             $opt_val = is_array($opt) ? ($opt['value'] ?? '') : $opt;
@@ -302,6 +318,80 @@ CSS;
             }
         }
         return (string)$value;
+    }
+
+    /**
+     * Validates the submitted value.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return bool|string True on valid, error message string on invalid.
+     */
+    public function validate(mixed $value, array $config): bool|string
+    {
+        $base = parent::validate($value, $config);
+        if ($base !== true) {
+            return $base;
+        }
+        $selected = is_array($value) ? ($value['value'] ?? '') : $value;
+        if ($selected === '' || $selected === null) {
+            return true;
+        }
+        if ((string)$selected === '__other__') {
+            return !empty($config['other_option'])
+                ? true
+                : __('Please select a valid option.', 'form-forge');
+        }
+        $allowed = array_map(
+            static fn($o) => (string)(is_array($o) ? ($o['value'] ?? '') : $o),
+            $config['options'] ?? []
+        );
+        if (!in_array((string)$selected, $allowed, true)) {
+            return __('Please select a valid option.', 'form-forge');
+        }
+        return true;
+    }
+
+    /**
+     * Returns the selected option, plus the typed "Other" text when present.
+     *
+     * @param string $field_id The field element ID.
+     *
+     * @return mixed String selection, or ['value' => ..., 'other_text' => ...]
+     *               when "Other" was selected and a companion text field was submitted.
+     */
+    public function extractValue(string $field_id): mixed
+    {
+        $selected = isset($_POST[$field_id]) ? sanitize_text_field(wp_unslash($_POST[$field_id])) : '';
+        if ($selected === '__other__' && isset($_POST[$field_id . '_other'])) {
+            return [
+                'value'           => $selected,
+                '__other_text__'  => sanitize_text_field(wp_unslash($_POST[$field_id . '_other'])),
+            ];
+        }
+        return $selected;
+    }
+
+    /**
+     * Like extractFromRaw(), but also captures the group copy's sibling
+     * "{child_id}_other" free-text value, mirroring extractValue().
+     *
+     * @param mixed $raw       The raw value from the group copy array.
+     * @param mixed $other_raw The raw "{child_id}_other" value from the same copy, if any.
+     *
+     * @return mixed
+     */
+    public function extractFromRawWithOther(mixed $raw, mixed $other_raw): mixed
+    {
+        $selected = $this->extractFromRaw($raw);
+        if ($selected === '__other__' && $other_raw !== null) {
+            return [
+                'value'          => $selected,
+                '__other_text__' => sanitize_text_field(wp_unslash($other_raw)),
+            ];
+        }
+        return $selected;
     }
 
     /**
@@ -314,7 +404,6 @@ CSS;
         return array_merge(
             parent::getDefaultConfig(),
             [
-            'multiple'     => false,
             'other_option' => false,
             'options'      => [
                 ['value' => 'option-1', 'label' => 'Option 1', 'default' => false],

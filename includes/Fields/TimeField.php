@@ -84,6 +84,25 @@ CSS;
     }
 
     /**
+     * Validates the submitted value.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return bool|string True on valid, error message string on invalid.
+     */
+    public function validate(mixed $value, array $config): bool|string
+    {
+        $base = parent::validate($value, $config);
+        if ($base !== true) {
+            return $base;
+        }
+        // Format validation is intentionally left to the browser's type="time" input.
+        // Any non-empty string is accepted server-side.
+        return true;
+    }
+
+    /**
      * Returns the default field configuration.
      *
      * @return array

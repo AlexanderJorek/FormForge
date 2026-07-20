@@ -41,7 +41,7 @@ class FormProcessor
     public static function handle(): void
     {
         /* ---- Nonce ---- */
-        $nonce   = sanitize_key($_POST['forge_nonce'] ?? '');
+        $nonce   = sanitize_key(\ForgeForms\Utils\Sanitize::str($_POST['forge_nonce'] ?? null));
         $form_id = (int)($_POST['form_id'] ?? 0);
 
         if (!$form_id || !wp_verify_nonce($nonce, 'forge_forms_submit_' . $form_id)) {
@@ -68,7 +68,10 @@ class FormProcessor
             wp_send_json_success(['message' => $hp_msg]);
         }
 
-        /* ---- Pass 1: extract all values (no validation yet) ---- */
+        /* ---- Pass 1: extract all values (no validation yet) ----
+           Two passes are required because conditional-visibility rules (Pass 2) can
+           reference any other field's value, including ones defined later in the form —
+           so every value must be extracted and flattened before any field can be validated. */
         $raw = [];
 
         foreach ($form->fields as $field_cfg) {
@@ -89,13 +92,23 @@ class FormProcessor
                 $group_post = isset($_POST[$field_id]) && is_array($_POST[$field_id])
                     ? $_POST[$field_id] : [];
                 $sanitized  = [];
+                // Cap the number of repeatable-group copies processed per field —
+                // otherwise a POST with an arbitrarily large number of copy
+                // indices multiplies work by count(children) per copy with no
+                // ceiling, a cheap amplification vector.
+                $max_group_copies = 100;
+                $processed_copies  = 0;
 
                 if (!empty($group_post)) {
                     foreach ($group_post as $copy_idx => $copy_data) {
+                        if ($processed_copies >= $max_group_copies) {
+                            break;
+                        }
                         $copy_idx = (int) $copy_idx;
                         if ($copy_idx < 1 || !is_array($copy_data)) {
                             continue;
                         }
+                        $processed_copies++;
                         $sanitized[$copy_idx] = [];
                         foreach ($children as $child_cfg) {
                             $child_id   = $child_cfg['id']   ?? '';
@@ -107,7 +120,10 @@ class FormProcessor
                             if (!$ch) {
                                 continue;
                             }
-                            $sanitized[$copy_idx][$child_id] = $ch->extractFromRaw($copy_data[$child_id] ?? '');
+                            $sanitized[$copy_idx][$child_id] = $ch->extractFromRawWithOther(
+                                $copy_data[$child_id] ?? '',
+                                $copy_data[$child_id . '_other'] ?? null
+                            );
                         }
                     }
                 } else {
@@ -210,6 +226,9 @@ class FormProcessor
                         }
 
                         $val  = $copy_data[$child_id] ?? '';
+                        // Qualify the error key with group+copy index only when the group repeats
+                        // (multiple copies) — otherwise a single copy just uses the bare child_id,
+                        // since front.js's error-display lookup expects that shorter key by default
                         $ekey = count($group_raw) > 1
                             ? $field_id . '[' . $copy_idx . '][' . $child_id . ']'
                             : $child_id;
@@ -234,11 +253,6 @@ class FormProcessor
             if ($result !== true) {
                 $errors[$field_id] = $result;
             }
-        }
-
-        /* ---- Honeypot check ---- */
-        if (!empty($_POST['forge_hp_field'])) {
-            wp_send_json_success(['message' => $form->settings['success_message'] ?? __('Thank you for your submission!', 'form-forge')]);
         }
 
         if (!empty($errors)) {
@@ -273,7 +287,15 @@ class FormProcessor
      */
     private static function isRateLimited(int $form_id): bool
     {
-        $ip  = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
+        // ClientIp::resolve() uses REMOTE_ADDR by default (unspoofable) and only trusts
+        // X-Forwarded-For when REMOTE_ADDR is explicitly allowlisted via the
+        // FORGE_TRUSTED_PROXIES constant — see includes/Utils/ClientIp.php
+        $ip = \ForgeForms\Utils\ClientIp::resolve();
+        if ($ip === '') {
+            // Unknown client: fail closed rather than pooling every such
+            // request into one shared rate-limit bucket.
+            return true;
+        }
         $key = 'forge_rl_' . md5($ip . '_' . $form_id);
         $count = (int) get_transient($key);
         if ($count >= 10) {
@@ -304,9 +326,15 @@ class FormProcessor
 
             $group_hidden = self::isHiddenByConditions($field_cfg, $flat);
 
-            /* Determine copy count to replicate GroupField::mapNormalized key suffixing. */
-            $copies     = is_array($raw[$field_id] ?? null) ? ($raw[$field_id]) : [];
-            $copy_count = count($copies);
+            /* Determine copy count to replicate GroupField::mapNormalized key suffixing.
+               Only real group-container fields use the [copy_idx => [child_id => val]]
+               shape — a plain Radio/Select field with "Other" selected also has an
+               array-shaped raw value (['value' => ..., '__other_text__' => ...]),
+               which must never be misread as repeatable-group copies. */
+            $field_handler = FieldRegistry::get($field_cfg['type'] ?? '');
+            $is_group      = $field_handler && $field_handler->isGroupContainer();
+            $copies        = ($is_group && is_array($raw[$field_id] ?? null)) ? $raw[$field_id] : [];
+            $copy_count    = count($copies);
 
             if ($group_hidden) {
                 $hidden[] = $field_id;
@@ -392,6 +420,14 @@ class FormProcessor
         $op    = $rule['operator'] ?? 'equals';
         $rv    = strtolower((string)($rule['value'] ?? ''));
         $val   = $flat[$fid] ?? '';
+        // Fields with an "Other" free-text option (Checkbox/Select) attach the
+        // typed text under this internal key alongside the actual selection(s)
+        // — it must never be treated as a selectable option value here, or a
+        // user's free-typed text could accidentally satisfy/break an
+        // equals/contains condition rule aimed at the real options.
+        if (is_array($val)) {
+            unset($val['__other_text__']);
+        }
         $isArr = is_array($val);
         $str   = $isArr ? strtolower(implode(',', $val)) : strtolower((string)$val);
         $lower = $isArr ? array_map('strtolower', $val) : [];

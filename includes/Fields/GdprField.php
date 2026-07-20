@@ -90,6 +90,17 @@ CSS;
     }
 
     /**
+     * Returns false because GDPR acceptance is always mandatory — validate()
+     * enforces it unconditionally, so a "required" toggle would be misleading.
+     *
+     * @return bool
+     */
+    public function hasRequired(): bool
+    {
+        return false;
+    }
+
+    /**
      * Returns the Font Awesome icon class.
      *
      * @return string
@@ -110,6 +121,7 @@ CSS;
      */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
+        // GDPR acceptance is always required by law — 'required' config is ignored (see hasRequired())
         $req     = ' required aria-required="true"';
         $checked = !empty($value) ? ' checked' : '';
         $policy_url  = esc_url($config['privacy_policy_url'] ?? get_privacy_policy_url());
@@ -140,6 +152,8 @@ CSS;
      */
     public function validate(mixed $value, array $config): bool|string
     {
+        // Always mandatory regardless of the 'required' config flag — GDPR consent
+        // can't be made optional, so it errors on empty unconditionally
         if (empty($value)) {
             return __('Please accept the privacy policy.', 'form-forge');
         }

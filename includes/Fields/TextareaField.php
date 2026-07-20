@@ -114,10 +114,18 @@ class TextareaField extends BaseField
         }
         $max  = (int)($config['limit_max'] ?? 0);
         $type = $config['limit_type'] ?? 'chars';
-        if ($max > 0 && $type === 'words' && !empty($value)) {
+        if ($max > 0 && $type === 'words' && $value !== null && $value !== '') {
             $count = count(preg_split('/\s+/', trim((string)$value), -1, PREG_SPLIT_NO_EMPTY));
             if ($count > $max) {
                 return sprintf(__('Please enter at most %1$d words (currently: %2$d).', 'form-forge'), $max, $count);
+            }
+        }
+        // Server-side backstop for the char limit — render() only enforces it
+        // via the client-side maxlength attribute, which a direct POST bypasses.
+        if ($max > 0 && $type === 'chars' && $value !== null && $value !== '') {
+            $length = function_exists('mb_strlen') ? mb_strlen((string)$value) : strlen((string)$value);
+            if ($length > $max) {
+                return sprintf(__('Please enter at most %1$d characters (currently: %2$d).', 'form-forge'), $max, $length);
             }
         }
         return true;

@@ -218,6 +218,27 @@ CSS;
         if (!checkdate((int)$m, (int)$d, (int)$y)) {
             return __('Please enter a valid date.', 'form-forge');
         }
+        // Compare as YYYYMMDD strings so chronological order matches string order
+        $ymd = sprintf('%04d%02d%02d', (int)$y, (int)$m, (int)$d);
+
+        $minDate = trim((string)($config['min_date'] ?? ''));
+        if ($minDate !== '' && preg_match('/^\d{2}\.\d{2}\.\d{4}$/', $minDate)) {
+            [$minD, $minM, $minY] = explode('.', $minDate);
+            $minYmd = sprintf('%04d%02d%02d', (int)$minY, (int)$minM, (int)$minD);
+            if ($ymd < $minYmd) {
+                return sprintf(__('Please enter a date on or after %s.', 'form-forge'), $minDate);
+            }
+        }
+
+        $maxDate = trim((string)($config['max_date'] ?? ''));
+        if ($maxDate !== '' && preg_match('/^\d{2}\.\d{2}\.\d{4}$/', $maxDate)) {
+            [$maxD, $maxM, $maxY] = explode('.', $maxDate);
+            $maxYmd = sprintf('%04d%02d%02d', (int)$maxY, (int)$maxM, (int)$maxD);
+            if ($ymd > $maxYmd) {
+                return sprintf(__('Please enter a date on or before %s.', 'form-forge'), $maxDate);
+            }
+        }
+
         return true;
     }
 
@@ -277,6 +298,16 @@ CSS;
                 'key'   => 'prefill_today',
                 'type'  => 'checkbox',
                 'label' => __('Pre-fill with today', 'form-forge'),
+            ],
+            [
+                'key'   => 'min_date',
+                'type'  => 'text',
+                'label' => __('Earliest allowed date (DD.MM.YYYY)', 'form-forge'),
+            ],
+            [
+                'key'   => 'max_date',
+                'type'  => 'text',
+                'label' => __('Latest allowed date (DD.MM.YYYY)', 'form-forge'),
             ],
         ];
     }

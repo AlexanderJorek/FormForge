@@ -28,17 +28,25 @@ defined('ABSPATH') || exit;
  */
 class UploadField extends BaseField
 {
+    // Extensions that can execute server-side or run scripts in a browser if opened
+    // directly — always denied regardless of allowed_types config (defense-in-depth
+    // against a malicious file renamed to a permitted-looking extension)
     private const BLOCKED_TYPES = [
         'htm','html','shtml','phtml','jse','jar','xml','css','asp','aspx',
         'jsp','sql','hta','dll','bat','com','sh','bash','py','pl','js',
         'php','php3','php4','php5','php7','pht','phar','cgi',
-        'svg','swf','dfxp','rar','exe',
+        'svg','swf','dfxp','rar','exe','htaccess','htpasswd','config','ini',
     ];
 
+    // Second line of defense: real MIME type (via finfo) is checked against this list too,
+    // so a blocked file can't slip through by using an allowed extension with mismatched content.
+    // image/svg+xml is explicitly denied even though it reports as "image/*" — SVG is XML and can
+    // carry <script>/XXE payloads that mPDF's SVG renderer would parse when embedding the file.
     private const BLOCKED_MIME_TYPES = [
         'text/html', 'application/x-httpd-php', 'application/x-php',
         'application/x-sh', 'application/x-msdownload', 'application/x-executable',
         'text/x-shellscript', 'text/x-python', 'text/x-perl',
+        'image/svg+xml', 'application/xml', 'text/xml',
     ];
 
     private const TYPE_GROUPS = [
@@ -363,6 +371,8 @@ CSS;
         $acc_attr = $accept !== '' ? ' accept="' . esc_attr($accept) . '"' : '';
 
         $max      = (int)($config['max_size_mb'] ?? 10);
+        // Cap client-side hint to the server's actual max_file_uploads ini limit — no point
+        // letting the user pick more files than PHP will accept from the multipart request
         $max_files = $multiple ? max(1, (int)(ini_get('max_file_uploads') ?: 20)) : 1;
         $inner  = '<div class="forge-upload-zone"'
             . ' data-multiple="' . ($multiple ? '1' : '0') . '"'
@@ -417,6 +427,8 @@ CSS;
                 }
             }
         }
+        // Strip blocked extensions even if the admin explicitly listed them in
+        // allowed_types — the deny-list always wins over form-builder config
         $blocked = self::BLOCKED_TYPES;
         $exts    = array_unique(
             array_filter(
@@ -452,6 +464,28 @@ CSS;
     }
 
     /**
+     * Returns true when $_FILES-shaped 'name' (scalar or array, for multi-file
+     * inputs) actually contains a filename — a file literally named "0" must
+     * not be treated the same as "no file" by empty().
+     *
+     * @param mixed $name The 'name' value from a $_FILES-shaped array.
+     *
+     * @return bool
+     */
+    private static function hasFileName(mixed $name): bool
+    {
+        if (is_array($name)) {
+            foreach ($name as $n) {
+                if ($n !== '' && $n !== null) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return $name !== '' && $name !== null;
+    }
+
+    /**
      * Validates the submitted value.
      *
      * @param mixed $value  Submitted value.
@@ -464,23 +498,39 @@ CSS;
         $file = is_array($value) ? $value : null;
 
         if (!empty($config['required'])) {
-            if (!$file || empty($file['name'])) {
+            if (!$file || !self::hasFileName($file['name'] ?? null)) {
                 $label = $config['label'] ?? __('File', 'form-forge');
                 return sprintf(__('%s: Please upload a file.', 'form-forge'), esc_html($label));
             }
         }
 
-        if ($file && !empty($file['name'])) {
+        if ($file && self::hasFileName($file['name'] ?? null)) {
             $names     = is_array($file['name']) ? $file['name'] : [$file['name']];
             $tmp_names = is_array($file['tmp_name'] ?? null) ? $file['tmp_name'] : [$file['tmp_name'] ?? ''];
+            $sizes     = is_array($file['size'] ?? null) ? $file['size'] : [$file['size'] ?? 0];
+            $max_bytes = (int)($config['max_size_mb'] ?? 10) * 1024 * 1024;
+            $finfo     = new \finfo(FILEINFO_MIME_TYPE);
             foreach ($names as $i => $name) {
                 $ext = strtolower(pathinfo((string)$name, PATHINFO_EXTENSION));
                 if (in_array($ext, self::BLOCKED_TYPES, true)) {
                     return sprintf(__('File type ".%s" is not allowed for security reasons.', 'form-forge'), esc_html($ext));
                 }
+                if ((int)($sizes[$i] ?? 0) > $max_bytes) {
+                    return sprintf(
+                        __('"%1$s" exceeds the maximum file size of %2$d MB.', 'form-forge'),
+                        esc_html((string)$name),
+                        (int)($config['max_size_mb'] ?? 10)
+                    );
+                }
                 $tmp = $tmp_names[$i] ?? '';
-                if ($tmp && is_readable($tmp) && is_uploaded_file($tmp)) {
-                    $finfo = new \finfo(FILEINFO_MIME_TYPE);
+                // MIME check only runs when the tmp file actually exists (real HTTP upload).
+                // Non-readable paths (e.g. unit-test stubs) skip MIME verification — the
+                // extension block above already ran. In production, is_uploaded_file() must
+                // pass; a readable file that fails it is rejected to prevent path-traversal.
+                if ($tmp && is_readable($tmp)) {
+                    if (!is_uploaded_file($tmp)) {
+                        return __('File upload could not be verified.', 'form-forge');
+                    }
                     $real_mime = $finfo->file($tmp) ?: '';
                     if (in_array($real_mime, self::BLOCKED_MIME_TYPES, true)) {
                         return sprintf(__('File type ".%s" is not allowed for security reasons.', 'form-forge'), esc_html($ext));
@@ -528,7 +578,7 @@ CSS;
     ): array {
         $file_data = ($context['files'] ?? [])[$field_id] ?? null;
 
-        if (!$file_data || (is_array($file_data) && empty($file_data['name']))) {
+        if (!$file_data || (is_array($file_data) && !self::hasFileName($file_data['name'] ?? null))) {
             return [$field_id => [
                 'label'              => $label,
                 'type'               => 'upload',
@@ -558,6 +608,7 @@ CSS;
 
         $info_parts   = [];
         $materialized = [];
+        $finfo        = new \finfo(FILEINFO_MIME_TYPE);
 
         foreach ($files_list as $file) {
             $tmp  = $file['tmp_name'] ?? '';
@@ -586,7 +637,6 @@ CSS;
                 continue;
             }
 
-            $finfo = new \finfo(FILEINFO_MIME_TYPE);
             $mime  = sanitize_mime_type(
                 $finfo->file($tmp) ?: 'application/octet-stream'
             );
@@ -624,7 +674,7 @@ CSS;
         foreach ($field['materialized_files'] ?? [] as $file) {
             $mime   = $file['mime'] ?? '';
             $binary = !empty($file['base64']) ? base64_decode($file['base64'], true) : false;
-            if ($binary === false || !str_starts_with($mime, 'image/')) {
+            if ($binary === false || !str_starts_with($mime, 'image/') || $mime === 'image/svg+xml') {
                 continue;
             }
             $desc->attachImage($binary, (string)($file['name'] ?? 'upload'), $mime);

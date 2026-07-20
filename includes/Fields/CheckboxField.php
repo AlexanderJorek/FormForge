@@ -167,7 +167,9 @@ CSS;
             $value = $defaults ?: null;
         }
 
-        $selected = is_array($value) ? $value : (array)$value;
+        $other_text = is_array($value) ? trim((string)($value['__other_text__'] ?? '')) : '';
+        $selected   = is_array($value) ? $value : (array)$value;
+        unset($selected['__other_text__']);
         $layout   = !empty($config['layout']) ? ' forge-checkbox-group--horizontal' : '';
 
         $min_sel   = (int)($config['min_selections'] ?? 0);
@@ -200,7 +202,8 @@ CSS;
                 . ' value="__other__"' . $other_chk . '> Other…</label>';
             $show  = $other_chk ? '' : ' style="display:none"';
             $inner .= '<input type="text" name="' . esc_attr($field_id) . '_other"'
-                . ' class="forge-input forge-other-input" placeholder="' . esc_attr__('Please specify', 'form-forge') . '"' . $show . '>';
+                . ' class="forge-input forge-other-input" value="' . esc_attr($other_text) . '"'
+                . ' placeholder="' . esc_attr__('Please specify', 'form-forge') . '"' . $show . '>';
         }
         $inner .= '</div>';
 
@@ -217,9 +220,13 @@ CSS;
     public function extractValue(string $field_id): mixed
     {
         $vals = $_POST[$field_id] ?? [];
-        return is_array($vals)
+        $out  = is_array($vals)
             ? array_map(static fn($v) => sanitize_text_field(wp_unslash($v)), $vals)
             : [];
+        if (in_array('__other__', $out, true) && isset($_POST[$field_id . '_other'])) {
+            $out['__other_text__'] = sanitize_text_field(wp_unslash($_POST[$field_id . '_other']));
+        }
+        return $out;
     }
 
     /**
@@ -239,6 +246,39 @@ CSS;
     }
 
     /**
+     * Like extractFromRaw(), but also captures the group copy's sibling
+     * "{child_id}_other" free-text value, mirroring extractValue().
+     *
+     * @param mixed $raw       The raw value from the group copy array.
+     * @param mixed $other_raw The raw "{child_id}_other" value from the same copy, if any.
+     *
+     * @return mixed
+     */
+    public function extractFromRawWithOther(mixed $raw, mixed $other_raw): mixed
+    {
+        $out = $this->extractFromRaw($raw);
+        if (in_array('__other__', $out, true) && $other_raw !== null) {
+            $out['__other_text__'] = sanitize_text_field(wp_unslash($other_raw));
+        }
+        return $out;
+    }
+
+    /**
+     * Returns the actually-selected option values from an extractValue() array,
+     * excluding the internal __other_text__ companion entry so it never counts
+     * toward min/max selection limits or required checks.
+     *
+     * @param array $value Raw value array from extractValue().
+     *
+     * @return array Filtered, selected option values.
+     */
+    private static function selectedOptions(array $value): array
+    {
+        unset($value['__other_text__']);
+        return array_filter($value, static fn($v) => $v !== '' && $v !== null);
+    }
+
+    /**
      * Validates the submitted value.
      *
      * @param mixed $value  Submitted value.
@@ -249,13 +289,13 @@ CSS;
     public function validate(mixed $value, array $config): bool|string
     {
         if (!empty($config['required'])) {
-            $vals = is_array($value) ? array_filter($value) : [];
+            $vals = is_array($value) ? self::selectedOptions($value) : [];
             if (empty($vals)) {
                 $label = $config['label'] ?? __('Field', 'form-forge');
                 return sprintf(__('%s: Please select at least one option.', 'form-forge'), esc_html($label));
             }
         }
-        $selected = is_array($value) ? array_filter($value) : [];
+        $selected = is_array($value) ? self::selectedOptions($value) : [];
         $cnt      = count($selected);
         $min      = (int)($config['min_selections'] ?? 0);
         $max      = (int)($config['max_selections'] ?? 0);
@@ -264,6 +304,21 @@ CSS;
         }
         if ($max > 0 && $cnt > $max) {
             return sprintf(__('Please select at most %d option(s).', 'form-forge'), $max);
+        }
+        $allowed = array_map(
+            static fn($o) => (string)(is_array($o) ? ($o['value'] ?? '') : $o),
+            $config['options'] ?? []
+        );
+        foreach ($selected as $v) {
+            if ((string)$v === '__other__') {
+                if (empty($config['other_option'])) {
+                    return __('Please select a valid option.', 'form-forge');
+                }
+                continue;
+            }
+            if (!in_array((string)$v, $allowed, true)) {
+                return __('Please select a valid option.', 'form-forge');
+            }
         }
         return true;
     }
@@ -278,14 +333,17 @@ CSS;
      */
     public function map(mixed $value, array $config): string
     {
-        $selected = is_array($value) ? array_filter($value) : [];
+        $selected = is_array($value) ? self::selectedOptions($value) : [];
         if (empty($selected)) {
             return __('[No entry]', 'form-forge');
         }
+        $other_text = is_array($value) ? trim((string)($value['__other_text__'] ?? '')) : '';
         $labels = [];
         foreach ($selected as $v) {
             if ((string)$v === '__other__') {
-                $labels[] = __('[Other]', 'form-forge');
+                $labels[] = $other_text !== ''
+                    ? sprintf('%s (%s)', __('Other', 'form-forge'), $other_text)
+                    : __('[Other]', 'form-forge');
                 continue;
             }
             $found = false;

@@ -356,6 +356,11 @@ CSS;
                     return sprintf(__('Maximum value: %s', 'form-forge'), $max);
                 }
             }
+            $from = $value['from'] ?? null;
+            $to   = $value['to']   ?? null;
+            if (is_numeric($from) && is_numeric($to) && (float)$from > (float)$to) {
+                return __('The "from" value must not be greater than the "to" value.', 'form-forge');
+            }
         } elseif ($value !== '' && $value !== null) {
             if (!is_numeric($value)) {
                 return __('Please enter a valid value.', 'form-forge');

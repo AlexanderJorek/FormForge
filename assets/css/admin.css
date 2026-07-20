@@ -405,7 +405,7 @@
     overflow-y: auto;
     padding: 20px 20px 0;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-auto-rows: min-content;
     gap: 4px;
     align-content: start;
@@ -484,6 +484,7 @@
     border-radius: 0 6px 6px 0;
     display: flex;
     align-items: center;
+    min-width: 0;
     transition: border-color .15s;
     cursor: default;
 }
@@ -2716,28 +2717,65 @@
 
 /* â”€â”€ List page: lock scroll to viewport (same principle as editor) â”€â”€ */
 .forge-list-page #wpfooter,
-.forge-list-page #screen-meta               { display: none !important; }
+.forge-list-page #screen-meta,
+.forge-verification-page #wpfooter,
+.forge-verification-page #screen-meta       { display: none !important; }
 
 .forge-list-page html,
-.forge-list-page body                        { overflow: hidden !important; height: 100% !important; }
-.forge-list-page #wpcontent                  { overflow: hidden !important; height: 100% !important;
+.forge-list-page body,
+.forge-verification-page html,
+.forge-verification-page body               { overflow: hidden !important; height: 100% !important; }
+.forge-list-page #wpcontent,
+.forge-verification-page #wpcontent         { overflow: hidden !important; height: 100% !important;
                                               padding: 0 !important; min-height: 0 !important; }
 .forge-list-page #wpbody,
-.forge-list-page #wpbody-content             { overflow: hidden !important; height: 100% !important;
+.forge-list-page #wpbody-content,
+.forge-verification-page #wpbody,
+.forge-verification-page #wpbody-content    { overflow: hidden !important; height: 100% !important;
                                               padding: 0 !important; margin: 0 !important; min-height: 0 !important; }
 
 /* Full-page particle canvas */
 #forge-particle-canvas {
     position: fixed;
-    inset: 0;
+    top: 0; left: 0;
     width: 100vw;
     height: 100vh;
     z-index: 0;
     pointer-events: none;
     display: block;
 }
-.forge-list-page #forge-particle-canvas {
+.forge-list-page #forge-particle-canvas,
+.forge-verification-page #forge-particle-canvas {
     background: #f0f0f1 !important;
+}
+
+/* Upload form stretches inside #forge-verification-body so idle-state (flex:1) fills the space */
+#pdf-upload-form {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+/* Verification wrap: transparent so the fixed canvas shows through; z-index:1 above canvas (z-index:0) */
+.forge-verification-wrap {
+    position: relative;
+    z-index: 1;
+    background: transparent !important;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 20px 20px 40px !important;
+    margin: 0 !important;
+    box-sizing: border-box;
+}
+
+/* Inner body div: fills remaining height so idle-state flex:1 works */
+#forge-verification-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 /* WP admin bar sits above canvas */
@@ -2748,7 +2786,7 @@
     position: relative;
     z-index: 1;
     background: transparent !important;
-    height: calc(100vh - 32px);
+    height: calc(100vh - 32px); /* subtract WP adminbar (desktop height, see 782px override below) */
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -2763,10 +2801,46 @@
     overflow: visible !important;
     min-height: 0 !important;
 }
+
 @media (max-width: 782px) {
-    .forge-list-page .forge-list-wrap.wrap {
-        padding: 6px 12px 24px !important;
+    /* Form editor: row actions are hover-only (inaccessible on touch) — remove from layout
+       so the flex row's minimum width fits inside a narrow 2-col grid cell */
+    .forge-row-actions { display: none !important; }
+    #forge-field-list { padding: 8px 8px 0 !important; }
+
+    /* Form editor: WP admin bar is 46px on mobile (vs 32px desktop). The editor-page CSS sets
+       overflow:hidden on html/body, suppressing WP's own html{padding-top:46px} clearance — so
+       the editor starts at y=0 and its canvas header (save button + name input) is hidden behind
+       the admin bar. Push the editor down by 46px and shrink its height to match. */
+    #forge-editor {
+        margin-top: 46px;
+        height: calc(100vh - 46px);
     }
+
+    /* 60px top padding = guaranteed clearance below the 46px WP admin bar even when
+       WP's own html{padding-top} is absent (some mobile admin configurations omit it) */
+    .forge-list-page .forge-list-wrap.wrap {
+        padding: 60px 12px 24px !important;
+    }
+    #forge-verification-body {
+        padding: 60px 12px 40px;
+    }
+    /* Toolbar: 2-row grid — [left | right] on row 1, [search] full-width on row 2 */
+    .forge-list-toolbar {
+        grid-template-columns: auto 1fr;
+        grid-template-rows: auto auto;
+        gap: 6px 8px;
+    }
+    .forge-toolbar-left   { grid-column: 1; grid-row: 1; }
+    .forge-toolbar-right  { grid-column: 2; grid-row: 1; justify-self: end; }
+    .forge-toolbar-center { grid-column: 1 / -1; grid-row: 2; }
+    .forge-import-wrap input[type="text"] {
+        width: 100px !important;
+        max-width: 100px !important;
+        min-width: 0 !important;
+    }
+    .forge-bulk-bar { gap: 4px; }
+
     .forge-settings-topbar {
         flex-wrap: wrap;
         gap: 10px;
@@ -2776,6 +2850,19 @@
     }
     .forge-settings-section-header {
         grid-column: 1 !important;
+    }
+
+    /* On mobile the WP sidebar is a fly-out overlay, so the content area is full-width:
+       reset the +80px desktop sidebar offset back to a true 50% centre. */
+    #forge-pdf-scan-more-btn {
+        left: 50% !important;
+    }
+    .forge-pdf-idle-card,
+    #forge-pdf-scan-more-backdrop .forge-pdf-idle-card {
+        padding: 28px 20px !important;
+    }
+    #forge-pdf-idle-state {
+        padding: 32px 12px !important;
     }
 }
 
@@ -3790,8 +3877,10 @@
 .forge-import-wrap .button {
     border-radius: 0 3px 3px 0 !important;
     height: 24px !important;
+    min-height: 0 !important;
     line-height: 22px !important;
     padding: 0 8px !important;
+    margin: 0 !important;
 }
 
 .forge-select-all-wrap {
@@ -4102,7 +4191,7 @@
     flex-direction: column;
     gap: 16px;
     position: sticky;
-    top: 32px;
+    top: 32px; /* clears WP adminbar so the sticky panel doesn't slide under it */
     max-height: calc(100vh - 120px);
     overflow-y: auto;
     padding-right: 4px;
@@ -4113,7 +4202,7 @@
 /* A4 preview */
 .forge-pdf-preview-panel {
     position: sticky;
-    top: 32px;
+    top: 32px; /* clears WP adminbar, same as settings panel */
     height: calc(100vh - 120px);
     display: flex;
     flex-direction: column;
@@ -4247,7 +4336,7 @@
 
 .forge-group-children-list {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 4px;
     width: 100%;
 }
@@ -4485,8 +4574,10 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 }
 
 @media (max-width: 1440px) {
-    .forge-list-page .forge-list-wrap.wrap {
-        overflow-x: hidden !important;
+    /* Clip PDF editor overflow at its own grid wrapper — not the list-wrap,
+       because overflow on the list-wrap breaks position:sticky on the title pill */
+    .forge-pdf-editor-wrap {
+        overflow-x: hidden;
     }
 
     .forge-pdf-editor-wrap {
@@ -4726,6 +4817,7 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     text-align: center;
     -moz-appearance: textfield;
 }
+/* Re-show the spinner WebKit hides on very narrow number inputs by default */
 .forge-hb-tb-size::-webkit-inner-spin-button,
 .forge-hb-tb-size::-webkit-outer-spin-button { opacity: 1; }
 .forge-hb-tb-unit {
@@ -5069,6 +5161,8 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     border-color: var(--forge-admin-accent) !important;
     color: transparent !important;
 }
+/* Re-center the dashicon checkmark glyph WP core draws via ::before — its default
+   float/margin assumes the native 16px WP checkbox box, not this custom-styled one */
 .forge-access-cb:checked::before {
     float: none !important;
     display: block !important;
@@ -5225,6 +5319,8 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     letter-spacing: .5px;
     color: #a7aaad;
 }
+/* Targets header columns 2-4 (label/desc columns) only, skipping the drag-handle
+   and favourite/remove icon columns which have no matching input to align with */
 .forge-fsel-cols-header span:nth-child(n+2):nth-child(-n+4) {
     padding-left: 9px;
 }

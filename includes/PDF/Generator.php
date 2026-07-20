@@ -39,6 +39,10 @@ class Generator
      *
      * @return string|false Absolute path to the generated PDF, or false on failure.
      */
+    // Renders the PDF twice (see PASS 1 / PASS 2 below): the seal must be an HMAC of the
+    // final document content, but the seal itself also needs to be embedded IN that
+    // document — a chicken-and-egg problem solved by generating once to fix the content,
+    // computing the seal from it, then regenerating with the seal appended.
     public static function generate(array $mapped, int $form_id, string $form_title = ''): string|false
     {
         if (empty($mapped)) {
@@ -163,7 +167,7 @@ class Generator
                 ? trim((string) $layout['footer']())
                 : '';
             $pdf_opts  = (array) get_option('forge_forms_pdf_layout', []);
-            $sep_color = sanitize_hex_color($pdf_opts['separator_color'] ?? '')
+            $sep_color = sanitize_hex_color(\ForgeForms\Utils\Sanitize::str($pdf_opts['separator_color'] ?? ''))
                 ?: '#c9cdd4';
             /* Reserve enough vertical space: ~5mm per line of user footer text. */
             $footer_lines  = $user_footer_text !== '' ? max(1, substr_count($user_footer_text, "\n") + 1) : 0;
@@ -282,14 +286,66 @@ class Generator
             $final_path = $pdf_dir . "/Entry_{$form_name_clean}_{$date_time}.pdf";
             $mpdf->Output($final_path, \Mpdf\Output\Destination::FILE);
 
-            ini_set('pcre.backtrack_limit', (string)$prev_backtrack);
             return $final_path;
         } catch (MpdfException $e) {
+            error_log('ForgeForms Generator error: ' . $e->getMessage());
+            return false;
+        } finally {
+            // Any exit path (including a \Throwable not caught above, e.g. from
+            // HashSeal::generate()/wp_json_encode failure) must restore this
+            // process-wide ini setting, or it stays elevated for the rest of
+            // the PHP-FPM worker's lifetime.
             if (isset($prev_backtrack)) {
                 ini_set('pcre.backtrack_limit', (string)$prev_backtrack);
             }
-            error_log('ForgeForms Generator error: ' . $e->getMessage());
-            return false;
+        }
+    }
+
+    /**
+     * Maximum age (seconds) a generated/intermediate PDF may sit in the
+     * pdf/ or mpdf/ temp directories before the fallback sweep removes it.
+     *
+     * Both directories should normally be empty within seconds of a request
+     * finishing (the SL_*.pdf intermediate is unlinked right after use, and
+     * MailSender unlinks the final Entry_*.pdf via register_shutdown_function
+     * once it's sent) — this is only a safety net for the case where a fatal
+     * error/timeout/crash happens between creating one of those files and the
+     * code that would normally clean it up.
+     *
+     * @var int
+     */
+    private const SWEEP_MAX_AGE = 3600;
+
+    /**
+     * WP-Cron callback (hourly): sweeps the pdf/ and mpdf/ temp directories
+     * for any *.pdf file older than self::SWEEP_MAX_AGE — a fallback for the
+     * rare case a request dies before its own cleanup code runs. Only matches
+     * *.pdf so mPDF's own persistent font/cache files in mpdf/ are left alone.
+     *
+     * @return void
+     */
+    public static function cronSweepTmpDirs(): void
+    {
+        $upload_dir = wp_upload_dir();
+        $safe_dir   = $upload_dir['basedir'] . '/forge-secure-pdf';
+        $now        = time();
+
+        foreach (['/pdf', '/mpdf'] as $sub) {
+            $dir = $safe_dir . $sub;
+            if (!is_dir($dir)) {
+                continue;
+            }
+            foreach ((glob($dir . '/*.pdf') ?: []) as $file) {
+                if (!is_file($file)) {
+                    continue;
+                }
+                $mtime = @filemtime($file);
+                if ($mtime !== false && ($now - $mtime) > self::SWEEP_MAX_AGE) {
+                    if (!@unlink($file)) {
+                        \ForgeForms\forge_log("ForgeForms Generator: sweep failed to remove stale temp PDF {$file}");
+                    }
+                }
+            }
         }
     }
 

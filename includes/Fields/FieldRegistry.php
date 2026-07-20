@@ -144,9 +144,14 @@ class FieldRegistry
      */
     public static function paletteGroups(): array
     {
-        static $cache = null;
-        if ($cache !== null) {
-            return $cache;
+        // Keyed by locale: under a persistent-worker SAPI (RoadRunner, Swoole,
+        // FrankenPHP), a plain function-static would serve the first request's
+        // translated strings to every subsequent request in that worker,
+        // regardless of the current request's locale.
+        static $cache = [];
+        $locale = determine_locale();
+        if (isset($cache[$locale])) {
+            return $cache[$locale];
         }
 
         $order = [
@@ -188,8 +193,8 @@ class FieldRegistry
                 $groups[] = ['label' => $label, 'color' => $def['color'], 'items' => $items];
             }
         }
-        $cache = $groups;
-        return $cache;
+        $cache[$locale] = $groups;
+        return $cache[$locale];
     }
 
     /**

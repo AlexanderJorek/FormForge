@@ -124,7 +124,7 @@ class PhoneField extends BaseField
         if ($base !== true) {
             return $base;
         }
-        if (empty($value)) {
+        if ($value === null || $value === '') {
             return true;
         }
 

@@ -228,6 +228,23 @@ abstract class BaseField
     }
 
     /**
+     * Like extractFromRaw(), but also receives the sibling "{child_id}_other"
+     * raw value from the same group copy — needed by Checkbox/Radio/Select's
+     * "Other" free-text option, whose companion input isn't nested under the
+     * child's own key. Default ignores it and delegates to extractFromRaw();
+     * override in fields whose extractValue() attaches a '__other_text__' key.
+     *
+     * @param mixed $raw       The raw value from the group copy array.
+     * @param mixed $other_raw The raw "{child_id}_other" value from the same copy, if any.
+     *
+     * @return mixed
+     */
+    public function extractFromRawWithOther(mixed $raw, mixed $other_raw): mixed
+    {
+        return $this->extractFromRaw($raw);
+    }
+
+    /**
      * Extracts the submitted value for this field from $_POST or $_FILES.
      *
      * Called by FormProcessor before validate(). The default reads a single text value from

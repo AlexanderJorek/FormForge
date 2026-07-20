@@ -70,7 +70,15 @@ class FormModel
      */
     public static function save(array $data, int $form_id = 0): int|\WP_Error
     {
-        $title = sanitize_text_field($data['title'] ?? 'Untitled Form');
+        // Defense-in-depth: every current admin call site already gates on
+        // Plugin::userCan('edit_forms') before reaching here, but this model
+        // method should not rely solely on callers remembering to check —
+        // a single missed gate anywhere in the admin layer would otherwise be
+        // a full privilege-escalation/CSRF path with no second line of defense.
+        if (!\ForgeForms\Plugin::userCan('edit_forms')) {
+            return new \WP_Error('forbidden', __('Insufficient permissions.', 'form-forge'));
+        }
+        $title = sanitize_text_field(\ForgeForms\Utils\Sanitize::str($data['title'] ?? null, 'Untitled Form'));
 
         $post_data = [
             'post_title'  => $title,
@@ -133,6 +141,9 @@ class FormModel
      */
     public static function delete(int $form_id): bool
     {
+        if (!\ForgeForms\Plugin::userCan('edit_forms')) {
+            return false;
+        }
         return (bool)wp_delete_post($form_id, true);
     }
 

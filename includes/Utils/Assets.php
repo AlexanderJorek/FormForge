@@ -28,6 +28,16 @@ defined('ABSPATH') || exit;
  */
 class Assets
 {
+    // Subresource Integrity hash for the Font Awesome CDN stylesheet below, pinned to
+    // its exact version so a compromised/MITM'd CDN response is rejected by the browser
+    // instead of silently executing. Recompute if FONT_AWESOME_VERSION is ever bumped:
+    // curl -s <url> | openssl dgst -sha512 -binary | openssl base64 -A
+    // Public so other admin pages that also load Font Awesome directly (e.g.
+    // FormEditor::ajaxPreview()) can reference the same version/hash instead
+    // of keeping their own copy that could silently drift out of sync.
+    public const FONT_AWESOME_VERSION = '6.5.2';
+    public const FONT_AWESOME_SRI     = 'sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==';
+
     /**
      * Enqueues front-end CSS and JS for pages containing a forge form.
      *
@@ -35,6 +45,8 @@ class Assets
      */
     public static function enqueueFront(): void
     {
+        // Skip loading front-end CSS/JS entirely on pages that don't embed a form —
+        // keeps the plugin's footprint at zero on the rest of the site
         if (!self::pageHasForm()) {
             return;
         }
@@ -195,6 +207,39 @@ class Assets
     }
 
     /**
+     * Enqueues the Font Awesome stylesheet from the CDN with a Subresource Integrity
+     * hash, so a compromised/tampered CDN response is rejected by the browser instead
+     * of silently loading.
+     *
+     * @return void
+     */
+    private static function enqueueFontAwesome(): void
+    {
+        \wp_enqueue_style(
+            'font-awesome',
+            'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/'
+                . self::FONT_AWESOME_VERSION . '/css/all.min.css',
+            [],
+            self::FONT_AWESOME_VERSION
+        );
+        \add_filter(
+            'style_loader_tag',
+            static function (string $tag, string $handle): string {
+                if ($handle !== 'font-awesome' || str_contains($tag, 'integrity=')) {
+                    return $tag;
+                }
+                return str_replace(
+                    ' rel=',
+                    ' integrity="' . self::FONT_AWESOME_SRI . '" crossorigin="anonymous" rel=',
+                    $tag
+                );
+            },
+            10,
+            2
+        );
+    }
+
+    /**
      * Enqueues admin CSS and JS for FormForge admin pages.
      *
      * @param string $hook Current admin page hook suffix.
@@ -205,12 +250,7 @@ class Assets
     {
         /* Form editor page */
         if (str_contains($hook, 'forge-forms-editor')) {
-            \wp_enqueue_style(
-                'font-awesome',
-                'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css',
-                [],
-                '6.5.2'
-            );
+            self::enqueueFontAwesome();
 
             \wp_enqueue_style(
                 'forge-forms-admin',
@@ -235,12 +275,7 @@ class Assets
 
         /* General admin pages (non-editor) */
         } elseif (str_contains($hook, 'forge-forms')) {
-            \wp_enqueue_style(
-                'font-awesome',
-                'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css',
-                [],
-                '6.5.2'
-            );
+            self::enqueueFontAwesome();
             \wp_enqueue_style(
                 'forge-forms-admin',
                 FORGE_FORMS_URL . 'assets/css/admin.css',
@@ -296,6 +331,19 @@ class Assets
                 'ajaxUrl'     => \admin_url('admin-ajax.php'),
                 'nonce'       => \wp_create_nonce('forge_verifier_nonce'),
                 'pdfJsWorker' => FORGE_FORMS_URL . 'assets/vendor/pdfjs/pdf.worker.js',
+                'i18n'        => [
+                    'loading'          => __('Loading…', 'form-forge'),
+                    'pdf_loading'      => __('Loading PDF…', 'form-forge'),
+                    'page_reading'     => __('Reading page %1$d of %2$d…', 'form-forge'),
+                    'text_extracted'   => __('Text extracted — server analyzing…', 'form-forge'),
+                    'processing'       => __('Processing response…', 'form-forge'),
+                    'done'             => __('Done', 'form-forge'),
+                    'server_error'     => __('Server error (HTTP %d)', 'form-forge'),
+                    'network_error'    => __('Network error', 'form-forge'),
+                    'pdf_load_error'   => __('PDF load error: ', 'form-forge'),
+                    'error_prefix'     => __('Error: ', 'form-forge'),
+                    'unknown_error'    => __('Unknown server error', 'form-forge'),
+                ],
                 ]
             );
         }
@@ -351,6 +399,8 @@ class Assets
         if (!$post || !\is_a($post, 'WP_Post')) {
             return false;
         }
+        // NOTE: the unanchored '[forge_form' prefix also matches '[forge_form_select' —
+        // harmless here since a form-select page needs these front-end assets too
         return str_contains((string)$post->post_content, '[forge_form');
     }
 

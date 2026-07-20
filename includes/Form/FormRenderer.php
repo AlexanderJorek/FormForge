@@ -221,6 +221,9 @@ class FormRenderer
                     $next_handler = null;
                 }
 
+                // A field with its own visibility rule needs its own row wrapper so it can be
+                // shown/hidden independently — pairing it into a shared two-column row with its
+                // neighbor would hide or show both together regardless of each one's own rule
                 $either_cond = !empty($field_cfg['conditions']['rules'])
                     || !empty($next['conditions']['rules']);
 

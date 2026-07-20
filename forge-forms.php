@@ -36,11 +36,25 @@ if (file_exists($composer_autoload)) {
     );
 }
 
+// Plugin.php is loaded explicitly (not via the Composer PSR-4 autoloader, which only
+// covers vendor/ dependencies) since it's the class that wires up autoloading for the
+// rest of includes/ and must exist before anything else in this plugin can run.
 require_once FORGE_FORMS_PATH . 'includes/Plugin.php';
 
+// Deferred to plugins_loaded so translations/other plugins are ready before hooks register
 add_action(
     'plugins_loaded',
     static function (): void {
         \ForgeForms\Plugin::init();
+    }
+);
+
+// Prevent orphaned recurring cron events (the PDF-verifier and PDF-generator
+// temp-file sweeps) from continuing to fire after the plugin is deactivated.
+register_deactivation_hook(
+    __FILE__,
+    static function (): void {
+        wp_clear_scheduled_hook('forge_verifier_sweep_tmp_dirs');
+        wp_clear_scheduled_hook('forge_generator_sweep_tmp_dirs');
     }
 );

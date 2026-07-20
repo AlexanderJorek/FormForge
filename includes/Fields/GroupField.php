@@ -116,6 +116,18 @@ CSS;
         return false;
     }
 
+    /**
+     * Expands a group's (possibly repeated) child values into flat, individually
+     * labeled entries for the normalized submission map.
+     *
+     * @param string $field_id Group field id (unused; children get their own keys).
+     * @param string $label    Group label (unused; children use their own labels).
+     * @param mixed  $value    Per-copy child values, see inline comment below.
+     * @param array  $config   Group field configuration (includes 'children').
+     * @param array  $context  Normalization context passed through to child handlers.
+     *
+     * @return array Flat map of child_id (or child_id_copy_N) => ['label'=>, 'value'=>].
+     */
     public function mapNormalized(
         string $field_id,
         string $label,
@@ -130,6 +142,12 @@ CSS;
         }
 
         $children   = $config['children'] ?? [];
+        // Defense-in-depth cap, mirroring FormProcessor's group-copy limit —
+        // this method is the one that actually multiplies work by
+        // count(children) per copy.
+        if (count($value) > 100) {
+            $value = array_slice($value, 0, 100, true);
+        }
         $copy_count = count($value);
         $mapped     = [];
 
@@ -200,7 +218,8 @@ CSS;
     }
 
     /**
-     * Returns false because group fields have no settings panel in the builder.
+     * Returns true — group fields DO have a settings panel in the builder
+     * (used to configure the child field list and repeat behavior).
      *
      * @return bool
      */

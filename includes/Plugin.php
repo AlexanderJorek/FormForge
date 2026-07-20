@@ -107,6 +107,8 @@ class Plugin
             'PDF/Generator.php',
             'Form/MailSender.php',
             'Utils/Assets.php',
+            'Utils/ClientIp.php',
+            'Utils/Sanitize.php',
         ];
 
         foreach ($files as $file) {
@@ -118,6 +120,8 @@ class Plugin
                 'Admin/FormList.php', 'Admin/FormEditor.php', 'Admin/FormSettings.php',
                 'Admin/PDFLayoutEditor.php', 'Admin/Verificationpage.php',
             ];
+            // Dev-only test harness — never loaded (or registered as a menu page) on
+            // a production site where WP_DEBUG is off
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 $adminFiles[] = 'Admin/FieldTestPage.php';
             }
@@ -136,6 +140,7 @@ class Plugin
     {
         /* Register CPT */
         add_action('init', [self::class, 'registerCpt']);
+        add_filter('map_meta_cap', [self::class, 'mapCreateFormCap'], 10, 2);
 
         /* Register field types */
         add_action('init', [Fields\FieldRegistry::class, 'registerDefaults']);
@@ -160,6 +165,16 @@ class Plugin
             10,
             3
         );
+
+        /* Fallback sweep for temp PDFs the Generator creates — safety net for
+           when a request dies before its own SL_*.pdf/Entry_*.pdf cleanup runs.
+           Registered unconditionally (not inside is_admin()) since generation
+           happens on public form submissions and wp-cron.php requests aren't
+           admin requests either. */
+        add_action('forge_generator_sweep_tmp_dirs', [PDF\Generator::class, 'cronSweepTmpDirs']);
+        if (!wp_next_scheduled('forge_generator_sweep_tmp_dirs')) {
+            wp_schedule_event(time() + HOUR_IN_SECONDS, 'hourly', 'forge_generator_sweep_tmp_dirs');
+        }
 
         /* Remove deleted forms from all FormSelect lists */
         add_action('before_delete_post', [Form\FormSelectModel::class, 'removeFormId'], 10, 1);
@@ -190,7 +205,10 @@ class Plugin
      */
     public static function ajaxIbanBic(): void
     {
-        $ip  = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
+        // Proxied through this WP endpoint (rather than calling openiban.com from the
+        // browser) to avoid CORS issues and to rate-limit our own usage of their API.
+        // See includes/Utils/ClientIp.php for the trusted-proxy-aware IP resolution.
+        $ip  = Utils\ClientIp::resolve();
         $key = 'forge_rl_iban_' . md5($ip);
         $count = (int) get_transient($key);
         if ($count >= 20) {
@@ -199,6 +217,8 @@ class Plugin
         }
         set_transient($key, $count + 1, MINUTE_IN_SECONDS);
 
+        // 15 is the shortest valid IBAN length (Norway); the openiban.com call below
+        // rejects anything malformed regardless, this is just an early cheap reject
         $iban = preg_replace('/[^A-Z0-9]/', '', strtoupper(sanitize_text_field(wp_unslash($_POST['iban'] ?? ''))));
         if (strlen($iban) < 15) {
             wp_send_json_error();
@@ -243,16 +263,38 @@ class Plugin
                 'add_new_item'  => __('Add New Form', 'form-forge'),
                 'edit_item'     => __('Edit Form', 'form-forge'),
             ],
+            // public/show_ui/show_in_menu/show_in_rest are all false because forms are
+            // managed entirely through this plugin's own custom admin UI (Admin\FormEditor,
+            // Admin\FormList), not WordPress's default post-editing screens
             'public'              => false,
             'show_ui'             => false,
             'show_in_menu'        => false,
             'show_in_rest'        => false,
             'supports'            => ['title'],
             'capability_type'     => 'post',
-            'capabilities'        => ['create_posts' => 'manage_options'],
+            // create_posts uses a custom cap so it can be granted to users with the
+            // plugin's own 'edit_forms' permission, not just WP admins (see mapCreateFormCap())
+            'capabilities'        => ['create_posts' => 'create_forge_forms'],
             'map_meta_cap'        => true,
             ]
         );
+    }
+
+    /**
+     * Grants the create_forge_forms capability to users with the plugin's own
+     * edit_forms permission (Plugin::userCan() already lets admins through).
+     *
+     * @param string[] $caps    Required primitive capabilities.
+     * @param string   $cap     Requested meta capability.
+     *
+     * @return string[]
+     */
+    public static function mapCreateFormCap(array $caps, string $cap): array
+    {
+        if ($cap === 'create_forge_forms') {
+            return self::userCan('edit_forms') ? ['exist'] : ['do_not_allow'];
+        }
+        return $caps;
     }
 
     /**

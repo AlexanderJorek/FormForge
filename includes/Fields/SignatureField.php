@@ -257,7 +257,7 @@ CSS;
             . ' width="500" height="' . $height . '"'
             . ' style="height:' . $height . 'px"'
             . ' tabindex="0"'
-            . ' aria-label="' . esc_attr($config['label'] ?? esc_attr__('Signature', 'form-forge')) . '"></canvas>'
+            . ' aria-label="' . esc_attr($config['label'] ?? __('Signature', 'form-forge')) . '"></canvas>'
             . '<div class="forge-signature-toolbar">'
             . '<button type="button" class="forge-signature-clear"'
             . ' data-canvas="' . esc_attr($canvas_id) . '" title="' . esc_attr__('Clear', 'form-forge') . '" aria-label="' . esc_attr__('Clear signature', 'form-forge') . '">'
@@ -313,6 +313,12 @@ CSS;
                 $label = $config['label'] ?? __('Signature', 'form-forge');
                 return sprintf(__('%s is a required field.', 'form-forge'), esc_html($label));
             }
+        }
+        // A real canvas signature is a few KB; cap well above that so a
+        // crafted oversized data URI can't inflate memory/CPU use per
+        // submission (extractValue() has no upper bound of its own).
+        if (!empty($value) && strlen((string)$value) > 2 * 1024 * 1024) {
+            return __('Signature data is too large.', 'form-forge');
         }
         return true;
     }

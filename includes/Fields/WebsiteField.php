@@ -98,7 +98,7 @@ class WebsiteField extends BaseField
         if ($base !== true) {
             return $base;
         }
-        if (!empty($value) && !empty($config['validate_url'])) {
+        if ($value !== null && $value !== '' && !empty($config['validate_url'])) {
             if (!filter_var((string)$value, FILTER_VALIDATE_URL) || !preg_match('#^https?://#i', (string)$value)) {
                 return __('Please enter a valid URL (e.g. https://example.com).', 'form-forge');
             }

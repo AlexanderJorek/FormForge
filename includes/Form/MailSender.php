@@ -104,7 +104,7 @@ class MailSender
 
             $to = ($notif['recipient_mode'] ?? 'single') === 'routing'
                 ? self::resolveRoutedRecipient($notif, $mapped, $form)
-                : self::resolveRecipient($notif['to'] ?? '', $mapped, $form);
+                : self::resolveRecipient(\ForgeForms\Utils\Sanitize::str($notif['to'] ?? null), $mapped, $form);
             if (empty($to)) {
                 \ForgeForms\forge_log(
                     'ForgeForms MailSender: notification ' . ($notif['slug'] ?? '?')
@@ -119,23 +119,23 @@ class MailSender
             $should_attach_uploads = !empty($notif['attach_uploads']);
 
             $subject = self::replacePlaceholders(
-                $notif['subject'] ?? __('New Submission', 'form-forge'),
+                \ForgeForms\Utils\Sanitize::str($notif['subject'] ?? null, __('New Submission', 'form-forge')),
                 $mapped,
                 $form
             );
             $body    = self::buildEmailBody(
-                $notif['body'] ?? '',
+                \ForgeForms\Utils\Sanitize::str($notif['body'] ?? null),
                 $mapped,
                 $form
             );
 
             $notif_email = self::replacePlaceholders(
-                $notif['from_email'] ?? '',
+                \ForgeForms\Utils\Sanitize::str($notif['from_email'] ?? null),
                 $mapped,
                 $form
             );
             $notif_name  = self::replacePlaceholders(
-                $notif['from_name'] ?? '',
+                \ForgeForms\Utils\Sanitize::str($notif['from_name'] ?? null),
                 $mapped,
                 $form
             );
@@ -145,10 +145,13 @@ class MailSender
             $from_name  = '' !== $notif_name ? $notif_name : $global_from_name;
 
             /* from_name/subject may contain user-submitted placeholder values;
-               strip CR/LF so a submitter can't inject extra mail headers. */
-            $from_name = str_replace(["\r", "\n"], '', $from_name);
+               strip CR/LF so a submitter can't inject extra mail headers, then
+               run through sanitize_text_field() for the same reason the
+               recipient/reply-to paths do — it strips other control chars,
+               not just \r\n, that some MTAs also treat as line separators. */
+            $from_name = sanitize_text_field(str_replace(["\r", "\n"], '', $from_name));
             $from_email = str_replace(["\r", "\n"], '', sanitize_email($from_email));
-            $subject = str_replace(["\r", "\n"], '', $subject);
+            $subject = sanitize_text_field(str_replace(["\r", "\n"], '', $subject));
 
             $headers = [
                 'Content-Type: text/html; charset=UTF-8',
@@ -156,7 +159,7 @@ class MailSender
             ];
 
             $reply_to = self::resolveRecipient(
-                $notif['reply_to'] ?? '',
+                \ForgeForms\Utils\Sanitize::str($notif['reply_to'] ?? null),
                 $mapped,
                 $form
             );
@@ -245,6 +248,11 @@ class MailSender
     private static function materializeUploadAttachments(array $mapped): array
     {
         $result  = ['images' => [], 'others' => [], 'tmp_dir' => ''];
+
+        $has_files = (bool) array_filter($mapped, static fn($f) => !empty($f['materialized_files']));
+        if (!$has_files) {
+            return $result;
+        }
 
         /* Use a per-request unique directory so original filenames are
            preserved for mail clients and concurrent requests can never
@@ -439,16 +447,33 @@ class MailSender
         array $mapped,
         FormModel $form
     ): string {
-        $text = str_replace('{admin_email}', get_option('admin_email'), $text);
-        $text = str_replace('{form_title}', $form->title, $text);
-        $text = str_replace('{site_name}', get_bloginfo('name'), $text);
+        // Build the full token => replacement map first, then substitute in a
+        // single strtr() pass. Sequential str_replace() calls re-scan the
+        // *entire* string after every replacement, so if a submitted field
+        // value happens to contain literal text like "{all_fields}" or
+        // "{other_field_id}", an earlier replacement could insert that text
+        // and a later pass would then expand it — letting a submitter's own
+        // free-text input trigger placeholders the template author never
+        // referenced. strtr() replaces all tokens in one left-to-right scan
+        // of the original string, so already-substituted content is never
+        // rescanned.
+        $tokens = [
+            '{admin_email}' => get_option('admin_email'),
+            '{form_title}'  => $form->title,
+            '{site_name}'   => get_bloginfo('name'),
+        ];
 
         $needs_all_fields = str_contains($text, '{all_fields}');
         $inline           = get_option('forge_forms_field_layout', 'block') === 'inline';
         $all = '';
+        // Field IDs are admin-chosen when building the form — if one happens to
+        // equal a reserved token name (e.g. a field literally called
+        // "admin_email"), it must not silently shadow the built-in token for
+        // every notification on that form.
+        $reserved_tokens = array_merge(array_keys($tokens), ['{all_fields}']);
 
         foreach ($mapped as $key => $entry) {
-            /* Per-field placeholder substitution — always done in one pass. */
+            /* Per-field placeholder token. */
             $raw_val  = $entry['value'] ?? '';
             $safe_val = nl2br(esc_html(is_array($raw_val) ? implode(', ', $raw_val) : (string)$raw_val));
             $safe_lbl = esc_html((string)($entry['label'] ?? ''));
@@ -459,7 +484,29 @@ class MailSender
             } else {
                 $token = $safe_val;
             }
-            $text = str_replace('{' . $key . '}', $token, $text);
+            $token_key = '{' . $key . '}';
+            if (!in_array($token_key, $reserved_tokens, true) && !isset($tokens[$token_key])) {
+                $tokens[$token_key] = $token;
+            } else {
+                // Reserved collision (or a second field id colliding with the
+                // alias namespace itself, e.g. a field literally named
+                // "field_admin_email"): keep whatever already claimed this key
+                // intact, and expose this field's value under its own alias
+                // instead of silently overwriting/dropping it.
+                $alias_key = '{field_' . $key . '}';
+                if (isset($tokens[$alias_key])) {
+                    \ForgeForms\forge_log(
+                        "ForgeForms MailSender: field id '{$key}' collides with the "
+                        . 'placeholder alias namespace; its value was dropped.'
+                    );
+                } else {
+                    $tokens[$alias_key] = $token;
+                    \ForgeForms\forge_log(
+                        "ForgeForms MailSender: field id '{$key}' collides with a reserved "
+                        . "placeholder name; use {field_{$key}} in templates to reference it."
+                    );
+                }
+            }
 
             /* {all_fields} accumulation — reuse the same handler lookup. */
             if ($needs_all_fields) {
@@ -479,10 +526,10 @@ class MailSender
         }
 
         if ($needs_all_fields) {
-            $text = str_replace('{all_fields}', $all, $text);
+            $tokens['{all_fields}'] = $all;
         }
 
-        return $text;
+        return strtr($text, $tokens);
     }
 
     /**

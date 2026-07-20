@@ -30,6 +30,13 @@
      * To add validation to a new field type, define getClientValidation() in its
      * PHP class — no changes needed here.
      * Each entry: function(fieldEl) → error string | null
+     *
+     * These client-side rules are a UX convenience only — they intentionally
+     * mirror the authoritative checks in each field's PHP validate() method
+     * (includes/Fields/*.php), which runs again server-side and is what
+     * actually gates submission. If a validate() rule changes, update the
+     * matching getClientValidation() rule too or the two will silently drift
+     * (e.g. client accepts input that the server then rejects, or vice versa).
      */
     var VALIDATORS = window.ForgeValidators || {};
 

@@ -182,7 +182,7 @@ CSS;
         $custom_url = $custom ? esc_url($config['custom_icon_url']) : '';
 
         $inner = '<div class="forge-rating-group" role="group"'
-            . ' aria-label="' . esc_attr($config['label'] ?? esc_attr__('Rating', 'form-forge')) . '"'
+            . ' aria-label="' . esc_attr($config['label'] ?? __('Rating', 'form-forge')) . '"'
             . ' data-half="' . ($half ? '1' : '0') . '"'
             . $req . '>';
 
@@ -239,6 +239,41 @@ CSS;
     }
 
     /**
+     * Validates the submitted value.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return bool|string True on valid, error message string on invalid.
+     */
+    public function validate(mixed $value, array $config): bool|string
+    {
+        $base = parent::validate($value, $config);
+        if ($base !== true) {
+            return $base;
+        }
+        if ($value === null || $value === '') {
+            return true;
+        }
+        if (!is_numeric($value)) {
+            return __('Please select a valid rating.', 'form-forge');
+        }
+        $max  = (float)($config['max'] ?? 5);
+        $half = !empty($config['allow_half']);
+        $n    = (float)$value;
+        if ($n < 0 || $n > $max) {
+            return sprintf(__('Please select a rating between 0 and %s.', 'form-forge'), $max);
+        }
+        // Scale to whole steps (1 per icon, or 2 when half-icons are allowed) and reject
+        // anything off-grid, e.g. 2.3 when only whole or half values are selectable
+        $steps = $n * ($half ? 2 : 1);
+        if (abs($steps - round($steps)) > 0.0001) {
+            return __('Please select a valid rating.', 'form-forge');
+        }
+        return true;
+    }
+
+    /**
      * Maps the field value to a human-readable string for email and PDF output.
      *
      * @param mixed $value  Submitted value.
@@ -248,7 +283,7 @@ CSS;
      */
     public function map(mixed $value, array $config): string
     {
-        if (empty($value)) {
+        if ($value === null || $value === '') {
             return __('[No entry]', 'form-forge');
         }
         return $value . ' / ' . (int)($config['max'] ?? 5);

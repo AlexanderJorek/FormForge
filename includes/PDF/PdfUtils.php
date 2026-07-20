@@ -68,6 +68,9 @@ class PdfUtils
             imagesy($gd)
         );
         $pixels = '';
+        // Masking off the low 3 bits (& ~7) coarsens each channel to 32 levels, so tiny
+        // pixel-value jitter from GD re-encoding the same image between the seal's two
+        // render passes doesn't flip the hash — only a real visual change should
         for ($ty = 0; $ty < 8; $ty++) {
             for ($tx = 0; $tx < 8; $tx++) {
                 $c       = imagecolorat($thumb, $tx, $ty);

@@ -960,38 +960,46 @@ class FormSettings
         </div>
 
         <?php
-        /* Build access data inline so the modal opens instantly. */
-        global $wp_roles;
-        $access_option = get_option('forge_forms_access', ['roles' => [], 'users' => []]);
-        $access_role_names = [];
-        foreach ($wp_roles->roles as $_slug => $_data) {
-            $access_role_names[$_slug] = translate_user_role($_data['name']);
-        }
-        $access_all_users = get_users(['fields' => ['ID', 'display_name', 'user_login']]);
-        $access_user_list = [];
-        foreach ($access_all_users as $_u) {
-            $access_user_list[] = [
-                'id'   => (int) $_u->ID,
-                'name' => $_u->display_name ?: $_u->user_login,
+        /* Build access data inline so the modal opens instantly.
+           This includes the full site user list and every user's/role's
+           permission matrix — restricted to real WP admins, since the
+           access-management UI itself is admin-only by design (a user with
+           only the plugin's own 'settings' capability must not be able to
+           read other users' permission grants from page source). */
+        $access_inline_data = null;
+        if ($is_full_admin) {
+            global $wp_roles;
+            $access_option = get_option('forge_forms_access', ['roles' => [], 'users' => []]);
+            $access_role_names = [];
+            foreach ($wp_roles->roles as $_slug => $_data) {
+                $access_role_names[$_slug] = translate_user_role($_data['name']);
+            }
+            $access_all_users = get_users(['fields' => ['ID', 'display_name', 'user_login']]);
+            $access_user_list = [];
+            foreach ($access_all_users as $_u) {
+                $access_user_list[] = [
+                    'id'   => (int) $_u->ID,
+                    'name' => $_u->display_name ?: $_u->user_login,
+                ];
+            }
+            $access_user_overrides = [];
+            foreach (($access_option['users'] ?? []) as $_uid => $_perms) {
+                $_ud = get_userdata((int) $_uid);
+                $access_user_overrides[] = [
+                    'id'    => (int) $_uid,
+                    'name'  => $_ud
+                        ? ($_ud->display_name ?: $_ud->user_login)
+                        : 'Unknown (#' . (int) $_uid . ')',
+                    'perms' => is_array($_perms) ? $_perms : [],
+                ];
+            }
+            $access_inline_data = [
+                'roles'          => (object) ($access_option['roles'] ?? []),
+                'role_names'     => $access_role_names,
+                'user_overrides' => $access_user_overrides,
+                'user_list'      => $access_user_list,
             ];
         }
-        $access_user_overrides = [];
-        foreach (($access_option['users'] ?? []) as $_uid => $_perms) {
-            $_ud = get_userdata((int) $_uid);
-            $access_user_overrides[] = [
-                'id'    => (int) $_uid,
-                'name'  => $_ud
-                    ? ($_ud->display_name ?: $_ud->user_login)
-                    : 'Unknown (#' . (int) $_uid . ')',
-                'perms' => is_array($_perms) ? $_perms : [],
-            ];
-        }
-        $access_inline_data = [
-            'roles'          => (object) ($access_option['roles'] ?? []),
-            'role_names'     => $access_role_names,
-            'user_overrides' => $access_user_overrides,
-            'user_list'      => $access_user_list,
-        ];
         ?>
         <script>
         window._forgeIsFullAdmin       = <?php echo wp_json_encode($is_full_admin); ?>;
@@ -999,8 +1007,10 @@ class FormSettings
         window._forgeSetupDone         = <?php echo wp_json_encode($setup_done); ?>;
         window._forgeSetupNonce        = <?php echo wp_json_encode($setup_nonce); ?>;
         window._forgeLegacyKeyNonce    = <?php echo wp_json_encode(wp_create_nonce('forge_add_legacy_key')); ?>;
+        <?php if ($is_full_admin) : ?>
         window._forgeAccessNonce       = <?php echo wp_json_encode(wp_create_nonce('forge_access_settings')); ?>;
         window._forgeAccessData        = <?php echo wp_json_encode($access_inline_data); ?>;
+        <?php endif; ?>
         <?php
         // Determine which step the blocker should open on.
         // Use the raw DB option — isEncryptionEnabled() also requires the constant, which may not
@@ -2128,29 +2138,35 @@ $('.forge-iris-input').wpColorPicker({
      */
     private static function saveGeneralSettings(): void
     {
-        $from_email_input = sanitize_email(wp_unslash($_POST['forge_cfg_a'] ?? ''));
+        $from_email_input = sanitize_email(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['forge_cfg_a'] ?? '')));
         if ($from_email_input !== '') {
             update_option('forge_forms_from_email', $from_email_input);
         }
-        $from_name_input = sanitize_text_field(wp_unslash($_POST['forge_cfg_b'] ?? ''));
+        $from_name_input = sanitize_text_field(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['forge_cfg_b'] ?? '')));
         if ($from_name_input !== '') {
             update_option('forge_forms_from_name', $from_name_input);
         }
-        $site_key = sanitize_text_field(wp_unslash($_POST['recaptcha_site'] ?? ''));
-        update_option('forge_forms_recaptcha_site_key', $site_key);
-        $secret_key = sanitize_text_field(wp_unslash($_POST['recaptcha_secret'] ?? ''));
-        update_option('forge_forms_recaptcha_secret_key', $secret_key);
+        // reCAPTCHA keys are hidden from non-full-admins in the UI (the
+        // Security card only renders for $is_full_admin) — enforce the same
+        // boundary server-side so a user with only the plugin's 'settings'
+        // capability can't set them via a raw POST to this handler.
+        if (current_user_can('manage_options')) {
+            $site_key = sanitize_text_field(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['recaptcha_site'] ?? '')));
+            update_option('forge_forms_recaptcha_site_key', $site_key);
+            $secret_key = sanitize_text_field(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['recaptcha_secret'] ?? '')));
+            update_option('forge_forms_recaptcha_secret_key', $secret_key);
+        }
 
-        $hover        = sanitize_hex_color(wp_unslash($_POST['hover_color']    ?? '')) ?? '#1d2327';
-        $accent       = sanitize_hex_color(wp_unslash($_POST['accent_color']   ?? '')) ?? '#f59e0b';
-        $border       = sanitize_hex_color(wp_unslash($_POST['border_color']   ?? '')) ?? '#c9cdd4';
-        $admin_accent = sanitize_hex_color(wp_unslash($_POST['admin_accent']   ?? '')) ?? '#2271b1';
+        $hover        = sanitize_hex_color(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['hover_color']    ?? ''))) ?? '#1d2327';
+        $accent       = sanitize_hex_color(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['accent_color']   ?? ''))) ?? '#f59e0b';
+        $border       = sanitize_hex_color(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['border_color']   ?? ''))) ?? '#c9cdd4';
+        $admin_accent = sanitize_hex_color(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['admin_accent']   ?? ''))) ?? '#2271b1';
         update_option('forge_forms_hover_color', $hover);
         update_option('forge_forms_accent_color', $accent);
         update_option('forge_forms_border_color', $border);
         update_option('forge_forms_admin_accent', $admin_accent);
 
-        $layout_mode = wp_unslash($_POST['field_layout_mode'] ?? 'block');
+        $layout_mode = \ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['field_layout_mode'] ?? 'block'), 'block');
         update_option(
             'forge_forms_field_layout',
             $layout_mode === 'inline' ? 'inline' : 'block'
@@ -2218,7 +2234,7 @@ $('.forge-iris-input').wpColorPicker({
         }
         check_ajax_referer('forge_forms_admin_nonce', 'nonce');
 
-        $raw = json_decode(wp_unslash($_POST['settings'] ?? ''), true);
+        $raw = json_decode(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['settings'] ?? '')), true);
         if (!is_array($raw)) {
             wp_send_json_error(['message' => 'Invalid data'], 400);
         }
@@ -2228,6 +2244,8 @@ $('.forge-iris-input').wpColorPicker({
             $saved = [];
         }
 
+        // Key format "form_id|template_slug" mirrors the lookup key shouldAttachPdf() builds
+        // when deciding whether to attach a PDF for a given submission
         foreach ($raw as $key => $value) {
             if (preg_match('/^\d+\|[\w-]+$/', $key)) {
                 $saved[$key] = ((int)$value === 1) ? 1 : 0;
@@ -2363,8 +2381,19 @@ $('.forge-iris-input').wpColorPicker({
             return;
         }
 
+        // A missing/expired transient must be rejected, not silently skipped — otherwise
+        // this check would accept whatever FORGE_SEAL_MASTER_KEY currently is instead of
+        // requiring it to match the value this plugin itself issued during setup.
         $expected = get_transient('forge_setup_master_key_' . get_current_user_id());
-        if ($expected && !hash_equals($expected, strtolower((string) FORGE_SEAL_MASTER_KEY))) {
+        if (!$expected) {
+            wp_send_json_error(
+                [
+                'message' => __('Setup session expired. Please start again.', 'form-forge'),
+                ]
+            );
+            return;
+        }
+        if (!hash_equals($expected, strtolower((string) FORGE_SEAL_MASTER_KEY))) {
             wp_send_json_error(
                 [
                 'message' => __('The entered master key does not match the expected value. Please check wp-config.php.', 'form-forge'), // phpcs:ignore Generic.Files.LineLength
@@ -2428,8 +2457,8 @@ $('.forge-iris-input').wpColorPicker({
             return;
         }
 
-        $uuid = isset($parsed['uuid']) ? sanitize_text_field($parsed['uuid']) : '';
-        $key  = isset($parsed['key'])  ? sanitize_text_field($parsed['key'])  : '';
+        $uuid = sanitize_text_field(\ForgeForms\Utils\Sanitize::str($parsed['uuid'] ?? null));
+        $key  = sanitize_text_field(\ForgeForms\Utils\Sanitize::str($parsed['key']  ?? null));
 
         if ($uuid === '' || $key === '') {
             wp_send_json_error(['message' => __('Missing required fields: uuid and key.', 'form-forge')]);
@@ -2445,7 +2474,7 @@ $('.forge-iris-input').wpColorPicker({
         }
 
         // Guard: hard-reject only when the exact same payload already exists.
-        $incoming_created = sanitize_text_field($parsed['created_at'] ?? '');
+        $incoming_created = sanitize_text_field(\ForgeForms\Utils\Sanitize::str($parsed['created_at'] ?? null));
 
         $active_raw = get_option('forge_forms_seal_key');
         if ($active_raw) {
@@ -2500,7 +2529,7 @@ $('.forge-iris-input').wpColorPicker({
         \ForgeForms\PDF\HashSeal::addLegacyKey(
             $uuid,
             $key,
-            sanitize_text_field($parsed['created_at'] ?? ''),
+            $incoming_created,
             $key_status
         );
         wp_send_json_success(['message' => __('Legacy key added successfully.', 'form-forge')]);

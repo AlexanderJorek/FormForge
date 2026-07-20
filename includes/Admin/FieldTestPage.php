@@ -106,7 +106,9 @@ class FieldTestPage
                     . '<td class="ff-io">' . $in . '</td>'
                     . '<td class="ff-io ff-out">' . $out . '</td>'
                     . '<td>' . esc_html($msg) . '</td></tr>';
-                self::$failLines[] = '[' . self::$currentSection . '] ' . $name . ': ' . $msg;
+                self::$failLines[] = '[' . self::$currentSection . '] ' . $name
+                    . "\tinput: " . self::$lastIn
+                    . "\t" . $msg;
             }
         } catch (\Throwable $e) {
             self::$fail++;
@@ -116,7 +118,9 @@ class FieldTestPage
                 . '<td class="ff-io">' . $in . '</td>'
                 . '<td class="ff-io ff-out">' . $out . '</td>'
                 . '<td>Exception: ' . esc_html($e->getMessage()) . '</td></tr>';
-            self::$failLines[] = '[' . self::$currentSection . '] ' . $name . ': Exception: ' . $e->getMessage();
+            self::$failLines[] = '[' . self::$currentSection . '] ' . $name
+                . "\tinput: " . self::$lastIn
+                . "\tException: " . $e->getMessage();
         }
     }
 
@@ -248,6 +252,18 @@ class FieldTestPage
         self::run('validate word limit within', function () use ($h, $cfg) {
             return self::expectOk('one two three', array_merge($cfg, ['limit_type'=>'words','limit_max'=>'3']), $h);
         });
+        self::run('validate word limit exact at boundary (count===max)', function () use ($h, $cfg) {
+            return self::expectOk('alpha beta gamma delta', array_merge($cfg, ['limit_type'=>'words','limit_max'=>'4']), $h);
+        });
+        self::run('validate char limit exceeded (server-side)', function () use ($h, $cfg) {
+            return self::expectError('this value is far too long', array_merge($cfg, ['limit_type'=>'chars','limit_max'=>'5']), $h);
+        });
+        self::run('validate char limit within', function () use ($h, $cfg) {
+            return self::expectOk('short', array_merge($cfg, ['limit_type'=>'chars','limit_max'=>'10']), $h);
+        });
+        self::run('validate char limit exact at boundary (len===max)', function () use ($h, $cfg) {
+            return self::expectOk('abcde', array_merge($cfg, ['limit_type'=>'chars','limit_max'=>'5']), $h);
+        });
         self::run('map non-empty', fn() => self::expectMap('Hello', $cfg, $h, 'Hello'));
         self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
         self::run('sanitize strips <script>', function () use ($h) {
@@ -264,6 +280,7 @@ class FieldTestPage
         self::run('schema integrity', fn() => self::schemaIntegrity($h));
         self::run('render basic', fn() => self::renderBasic($h, $cfg));
         self::run('render <textarea', fn() => self::contains($h->render($cfg, 'f1'), '<textarea'));
+        self::run('render default rows=5 (no override)', fn() => self::contains($h->render($cfg, 'f1'), 'rows="5"'));
         self::run('render rows attr', fn() => self::contains($h->render(array_merge($cfg, ['rows'=>6]), 'f1'), 'rows="6"'));
         self::run('render char limit → maxlength', fn() => self::contains($h->render(array_merge($cfg, ['limit_type'=>'chars','limit_max'=>'200']), 'f1'), 'maxlength'));
         self::run('render word limit → data-word-limit', function () use ($h, $cfg) {
@@ -280,6 +297,9 @@ class FieldTestPage
         });
         self::run('map non-empty', fn() => self::expectMap('Hello', $cfg, $h, 'Hello'));
         self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
+        self::run('sanitize strips <script> (inherited from BaseField)', function () use ($h) {
+            return !str_contains($h->sanitizeConfigValue('description', '<p>ok</p><script>x</script>'), '<script') ? true : 'script not stripped';
+        });
     }
 
     private static function testEmail(): void
@@ -309,6 +329,13 @@ class FieldTestPage
         self::run('validate allowed domain fail', function () use ($h, $cfg) {
             $c = array_merge($cfg, ['filter_mode'=>'allow','filter_patterns'=>'*@example.com']);
             return self::expectError('user@other.com', $c, $h);
+        });
+        self::run('validate_format=false allows malformed string', function () use ($h, $cfg) {
+            return self::expectOk('notanemail', array_merge($cfg, ['validate_format'=>false]), $h);
+        });
+        self::run('validate multi-pattern allow list (; separated)', function () use ($h, $cfg) {
+            $c = array_merge($cfg, ['filter_mode'=>'allow','filter_patterns'=>'*@example.com;*@test.com']);
+            return self::expectOk('user@test.com', $c, $h);
         });
     }
 
@@ -343,6 +370,22 @@ class FieldTestPage
         self::run('map expanded has Vorname', fn() => self::expectMapContains(['fname'=>'Hans','lname'=>'Müller'], $exp, $h, 'Hans'));
         self::run('map expanded has Nachname', fn() => self::expectMapContains(['fname'=>'Hans','lname'=>'Müller'], $exp, $h, 'Müller'));
         self::run('map expanded empty → Kein Eintrag', fn() => self::expectMapContains(['fname'=>'','lname'=>''], $exp, $h, 'No entry'));
+        self::run('render middle name subfield', function () use ($h, $exp) {
+            $c = array_merge($exp, ['mname_enabled'=>true,'mname_label'=>'Zweiter Vorname']);
+            return self::contains($h->render($c, 'f1'), 'Zweiter Vorname');
+        });
+        self::run('validate middle name filled passes', function () use ($h, $exp) {
+            $c = array_merge($exp, ['mname_enabled'=>true,'mname_required'=>true]);
+            return self::expectOk(['fname'=>'Hans','lname'=>'Müller','mname'=>'Peter'], $c, $h);
+        });
+        self::run('map includes middle name', function () use ($h, $exp) {
+            $c = array_merge($exp, ['mname_enabled'=>true]);
+            return self::expectMapContains(['fname'=>'Hans','lname'=>'Müller','mname'=>'Peter'], $c, $h, 'Peter');
+        });
+        self::run('validate prefix_required=true is skipped (select subfield always has a value)', function () use ($h, $cfg) {
+            $c = array_merge($cfg, ['expanded'=>true,'prefix_enabled'=>true,'prefix_required'=>true,'fname_enabled'=>false,'lname_enabled'=>false,'mname_enabled'=>false]);
+            return self::expectOk([], $c, $h);
+        });
     }
 
     private static function testPhone(): void
@@ -384,6 +427,15 @@ class FieldTestPage
             $c = array_merge($cfg, ['phone_mode'=>'countries','phone_country_mode'=>'disallow','phone_country_list'=>['+49']]);
             return self::expectError('+4915123456789', $c, $h);
         });
+        self::run('validate mode=countries disallow non-matching passes', function () use ($h, $cfg) {
+            $c = array_merge($cfg, ['phone_mode'=>'countries','phone_country_mode'=>'disallow','phone_country_list'=>['+49']]);
+            return self::expectOk('+33123456789', $c, $h);
+        });
+        self::run('validate overlapping country prefix codes both match', function () use ($h, $cfg) {
+            // '+3' is a prefix of '+358' — matching should still succeed for a +358 number
+            $c = array_merge($cfg, ['phone_mode'=>'countries','phone_country_mode'=>'allow','phone_country_list'=>['+3','+358']]);
+            return self::expectOk('+358123456789', $c, $h);
+        });
         self::run('map non-empty', fn() => self::expectMap('+4915123456789', $cfg, $h, '+4915123456789'));
         self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
     }
@@ -413,6 +465,8 @@ class FieldTestPage
         self::run('validate above max', function () use ($h, $cfg) {
             return self::expectError('150', array_merge($cfg, ['max'=>'100']), $h);
         });
+        self::run('validate exact at min passes', fn() => self::expectOk('10', array_merge($cfg, ['min'=>'10']), $h));
+        self::run('validate exact at max passes', fn() => self::expectOk('100', array_merge($cfg, ['max'=>'100']), $h));
     }
 
     private static function testAddress(): void
@@ -442,6 +496,43 @@ class FieldTestPage
         self::run('map non-array → Kein Eintrag', fn() => self::expectMapContains('not-array', $cfg, $h, 'No entry'));
         self::run('map array has Straße', fn() => self::expectMapContains(['street'=>'Hauptstr. 1','city'=>'Berlin','zip'=>'10115'], $exp, $h, 'Hauptstr'));
         self::run('map array has Stadt', fn() => self::expectMapContains(['street'=>'Hauptstr. 1','city'=>'Berlin','zip'=>'10115'], $exp, $h, 'Berlin'));
+        $expFull = array_merge($exp, [
+            'street2_enabled'=>true,'street2_label'=>'Adresszusatz',
+            'state_enabled'=>true,'state_label'=>'Bundesland',
+            'country_enabled'=>true,'country_label'=>'Land',
+        ]);
+        self::run('render street2/state/country subfields', function () use ($h, $expFull) {
+            $html = $h->render($expFull, 'f1');
+            self::$lastIn  = 'expanded with street2/state/country enabled';
+            self::$lastOut = $html;
+            foreach (['Adresszusatz', 'Bundesland', 'Land'] as $needle) {
+                if (!str_contains($html, $needle)) {
+                    return $needle . ' not found in output';
+                }
+            }
+            return true;
+        });
+        self::run('map includes street2/state/country', function () use ($h, $expFull) {
+            return self::expectMapContains(
+                ['street'=>'Hauptstr. 1','street2'=>'3.OG','city'=>'Berlin','zip'=>'10115','state'=>'Bayern','country'=>'Deutschland'],
+                $expFull,
+                $h,
+                '3.OG',
+                'Bayern',
+                'Deutschland'
+            );
+        });
+        self::run('validate multiple required fields empty simultaneously', function () use ($h, $exp) {
+            $r = $h->validate(['street'=>'','city'=>'','zip'=>'10115'], $exp);
+            self::$lastIn  = 'street empty, city empty, zip filled';
+            self::$lastOut = is_string($r) ? $r : var_export($r, true);
+            if (!is_string($r) || $r === '') {
+                return 'expected error string, got ' . var_export($r, true);
+            }
+            return (str_contains($r, $exp['street_label']) && str_contains($r, $exp['city_label']))
+                ? true
+                : 'expected both missing labels in message: ' . $r;
+        });
     }
 
     private static function testDate(): void
@@ -458,6 +549,10 @@ class FieldTestPage
         self::run('render prefill_today attr', function () use ($h, $cfg) {
             return self::contains($h->render(array_merge($cfg, ['prefill_today'=>true]), 'f1'), 'data-prefill-today');
         });
+        self::run('render show_picker=false → no cal btn', function () use ($h, $cfg) {
+            return !str_contains($h->render(array_merge($cfg, ['show_picker'=>false]), 'f1'), 'forge-date-cal-btn')
+                ? true : 'calendar button present when show_picker=false';
+        });
         self::run('validate required empty', fn() => self::expectError('', array_merge($cfg, ['required'=>true]), $h));
         self::run('validate optional empty', fn() => self::expectOk('', $cfg, $h));
         self::run('validate valid DD.MM.YYYY', fn() => self::expectOk('10.07.2026', $cfg, $h));
@@ -466,6 +561,21 @@ class FieldTestPage
         self::run('validate invalid calendar date', fn() => self::expectError('31.02.2026', $cfg, $h));
         self::run('map non-empty returns value', fn() => self::expectMap('10.07.2026', $cfg, $h, '10.07.2026'));
         self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
+        self::run('validate before min_date → error', function () use ($h, $cfg) {
+            return self::expectError('10.07.2020', array_merge($cfg, ['min_date'=>'01.01.2025','max_date'=>'31.12.2025']), $h);
+        });
+        self::run('validate after max_date → error', function () use ($h, $cfg) {
+            return self::expectError('10.07.2030', array_merge($cfg, ['min_date'=>'01.01.2025','max_date'=>'31.12.2025']), $h);
+        });
+        self::run('validate within min_date/max_date range → ok', function () use ($h, $cfg) {
+            return self::expectOk('15.06.2025', array_merge($cfg, ['min_date'=>'01.01.2025','max_date'=>'31.12.2025']), $h);
+        });
+        self::run('validate exactly at min_date → ok', function () use ($h, $cfg) {
+            return self::expectOk('01.01.2025', array_merge($cfg, ['min_date'=>'01.01.2025']), $h);
+        });
+        self::run('validate exactly at max_date → ok', function () use ($h, $cfg) {
+            return self::expectOk('31.12.2025', array_merge($cfg, ['max_date'=>'31.12.2025']), $h);
+        });
     }
 
     private static function testTime(): void
@@ -482,6 +592,12 @@ class FieldTestPage
         });
         self::run('render prefill_now attr', function () use ($h, $cfg) {
             return self::contains($h->render(array_merge($cfg, ['prefill_now'=>true]), 'f1'), 'data-prefill-now');
+        });
+        self::run('render default has no data-time-format attr', function () use ($h, $cfg) {
+            return !str_contains($h->render($cfg, 'f1'), 'data-time-format') ? true : 'attr present by default';
+        });
+        self::run('render default has no data-prefill-now attr', function () use ($h, $cfg) {
+            return !str_contains($h->render($cfg, 'f1'), 'data-prefill-now') ? true : 'attr present by default';
         });
         self::run('validate required empty', fn() => self::expectError('', array_merge($cfg, ['required'=>true]), $h));
         self::run('validate optional empty', fn() => self::expectOk('', $cfg, $h));
@@ -503,6 +619,9 @@ class FieldTestPage
         self::run('render EUR symbol', fn() => self::contains($h->render($cfg, 'f1'), '€'));
         self::run('render USD symbol', fn() => self::contains($h->render(array_merge($cfg, ['currency'=>'USD']), 'f1'), '$'));
         self::run('render GBP symbol', fn() => self::contains($h->render(array_merge($cfg, ['currency'=>'GBP']), 'f1'), '£'));
+        self::run('render CHF symbol', fn() => self::contains($h->render(array_merge($cfg, ['currency'=>'CHF']), 'f1'), 'Fr.'));
+        self::run('render JPY symbol', fn() => self::contains($h->render(array_merge($cfg, ['currency'=>'JPY']), 'f1'), '¥'));
+        self::run('render CAD symbol', fn() => self::contains($h->render(array_merge($cfg, ['currency'=>'CAD']), 'f1'), 'CA$'));
         self::run('render min/max attrs', function () use ($h, $cfg) {
             $html = $h->render(array_merge($cfg, ['min_value'=>'5','max_value'=>'1000']), 'f1');
             return str_contains($html, 'min') && str_contains($html, 'max') ? true : 'attrs missing';
@@ -513,9 +632,12 @@ class FieldTestPage
         self::run('validate non-numeric', fn() => self::expectError('abc', array_merge($cfg, ['required'=>true]), $h));
         self::run('validate below min_value', fn() => self::expectError('5', array_merge($cfg, ['min_value'=>'10']), $h));
         self::run('validate above max_value', fn() => self::expectError('200', array_merge($cfg, ['max_value'=>'100']), $h));
+        self::run('validate exact at min_value passes', fn() => self::expectOk('10', array_merge($cfg, ['min_value'=>'10']), $h));
+        self::run('validate exact at max_value passes', fn() => self::expectOk('100', array_merge($cfg, ['max_value'=>'100']), $h));
         self::run('map has numeric value', fn() => self::expectMapContains('12.5', $cfg, $h, '12'));
         self::run('map has currency symbol', fn() => self::expectMapContains('12.5', $cfg, $h, '€'));
         self::run('map uses comma decimal', fn() => self::expectMapContains('12.5', $cfg, $h, ','));
+        self::run('map non-numeric string passes through unformatted', fn() => self::expectMap('N/A', $cfg, $h, 'N/A €'));
         self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
     }
 
@@ -531,6 +653,18 @@ class FieldTestPage
         self::run('render <select', fn() => self::contains($h->render($cfg, 'f1'), '<select'));
         self::run('render option labels', fn() => self::contains($h->render($cfg, 'f1'), 'Alpha'));
         self::run('render default selected', fn() => self::contains($h->render($cfg, 'f1'), 'selected'));
+        self::run('render explicit value overrides default option', function () use ($h, $cfg) {
+            $html = $h->render($cfg, 'f1', 'a');
+            self::$lastIn  = 'explicit value=a (option b has default:true)';
+            self::$lastOut = $html;
+            if (!str_contains($html, 'value="a" selected')) {
+                return 'explicit value "a" not selected';
+            }
+            if (str_contains($html, 'value="b" selected')) {
+                return 'default option "b" should not be selected when an explicit value is given';
+            }
+            return true;
+        });
         self::run('render other_option', function () use ($h, $cfg) {
             $html = $h->render(array_merge($cfg, ['other_option'=>true]), 'f1');
             return self::contains($html, '__other__');
@@ -560,6 +694,24 @@ class FieldTestPage
         self::run('render other_option does not crash', function () use ($h, $cfg) {
             return is_string($h->render(array_merge($cfg, ['other_option'=>true]), 'f1')) ? true : 'render threw';
         });
+        self::run('render layout=false → no horizontal class', function () use ($h, $cfg) {
+            return !str_contains($h->render(array_merge($cfg, ['layout'=>false]), 'f1'), 'forge-radio-group--horizontal')
+                ? true : 'horizontal class present when layout=false';
+        });
+        self::run('render layout=true → horizontal class', function () use ($h, $cfg) {
+            return self::contains($h->render(array_merge($cfg, ['layout'=>true]), 'f1'), 'forge-radio-group--horizontal');
+        });
+        self::run('render default-selected fallback (no value)', function () use ($h, $cfg) {
+            $optsD = [['value'=>'x','label'=>'X-Ray','default'=>false],['value'=>'y','label'=>'Yankee','default'=>true]];
+            $c     = array_merge($cfg, ['options'=>$optsD]);
+            $html  = $h->render($c, 'f1');
+            self::$lastIn  = 'no value, "y" has default:true';
+            self::$lastOut = $html;
+            if (!preg_match('/value="y"[^>]*>/', $html, $m)) {
+                return 'option "y" input not found';
+            }
+            return str_contains($m[0], "checked='checked'") ? true : 'default option "y" not checked';
+        });
         self::run('validate required empty', fn() => self::expectError('', array_merge($cfg, ['required'=>true]), $h));
         // RadioField has no server-side option-list validation — any value passes
         self::run('validate any value passes', fn() => self::expectOk('x', $cfg, $h));
@@ -586,11 +738,23 @@ class FieldTestPage
         self::run('render other_option', function () use ($h, $cfg) {
             return self::contains($h->render(array_merge($cfg, ['other_option'=>true]), 'f1'), '__other__');
         });
+        self::run('render layout=false → no horizontal class', function () use ($h, $cfg) {
+            return !str_contains($h->render(array_merge($cfg, ['layout'=>false]), 'f1'), 'forge-checkbox-group--horizontal')
+                ? true : 'horizontal class present when layout=false';
+        });
+        self::run('render default pre-checked options (no value)', function () use ($h, $cfg) {
+            $html = $h->render($cfg, 'f1');
+            self::$lastIn  = 'no value, "one" has default:true';
+            self::$lastOut = $html;
+            return str_contains($html, 'value="one" autocomplete="off" checked') ? true : 'default option "one" not checked';
+        });
         self::run('validate required empty []', fn() => self::expectError([], array_merge($cfg, ['required'=>true]), $h));
         self::run('validate optional empty []', fn() => self::expectOk([], $cfg, $h));
         self::run('validate valid selection', fn() => self::expectOk(['one'], $cfg, $h));
         self::run('validate below min_selections', fn() => self::expectError(['one'], array_merge($cfg, ['min_selections'=>2]), $h));
         self::run('validate above max_selections', fn() => self::expectError(['one','two'], array_merge($cfg, ['max_selections'=>1]), $h));
+        self::run('validate exact at min_selections passes', fn() => self::expectOk(['one','two'], array_merge($cfg, ['min_selections'=>2]), $h));
+        self::run('validate exact at max_selections passes', fn() => self::expectOk(['one','two'], array_merge($cfg, ['max_selections'=>2]), $h));
         self::run('map known values has Eins', fn() => self::expectMapContains(['one','two'], $cfg, $h, 'Eins'));
         self::run('map known values has Zwei', fn() => self::expectMapContains(['one','two'], $cfg, $h, 'Zwei'));
         self::run('map __other__ → [Other]', fn() => self::expectMapContains(['__other__'], $cfg, $h, '[Other]'));
@@ -608,6 +772,24 @@ class FieldTestPage
         self::run('render multiple attr', fn() => self::contains($h->render(array_merge($cfg, ['multiple'=>true]), 'f1'), 'multiple'));
         self::run('render max_size hint', fn() => self::contains($h->render(array_merge($cfg, ['max_size_mb'=>5]), 'f1'), '5 MB'));
         self::run('render custom allowed_types', fn() => self::contains($h->render(array_merge($cfg, ['allowed_types'=>'pdf,docx']), 'f1'), 'pdf'));
+        self::run('render allow_images=true includes image extensions', function () use ($h, $cfg) {
+            return self::contains($h->render(array_merge($cfg, ['allow_images'=>true,'allow_documents'=>false]), 'f1'), '.jpg');
+        });
+        self::run('render allow_images=false excludes image extensions', function () use ($h, $cfg) {
+            $html = $h->render(array_merge($cfg, ['allow_images'=>false,'allow_documents'=>false]), 'f1');
+            self::$lastIn  = 'allow_images=false, allow_documents=false';
+            self::$lastOut = $html;
+            return !str_contains($html, '.jpg') ? true : '.jpg present despite allow_images=false';
+        });
+        self::run('render blocked extension excluded even when in custom allowed_types', function () use ($h, $cfg) {
+            $html = $h->render(array_merge($cfg, ['allow_images'=>false,'allow_documents'=>false,'allowed_types'=>'php,pdf']), 'f1');
+            self::$lastIn  = 'allowed_types=php,pdf (.php is blocked)';
+            self::$lastOut = $html;
+            if (str_contains($html, '.php')) {
+                return '.php should be excluded from accept list (blocked type)';
+            }
+            return str_contains($html, '.pdf') ? true : '.pdf missing from accept list';
+        });
         self::run('needsMultipartEncoding=true', fn() => $h->needsMultipartEncoding() ? true : 'expected true');
         // validate: optional with no file → true
         self::run('validate optional no file', fn() => self::expectOk(null, $cfg, $h));
@@ -639,6 +821,9 @@ class FieldTestPage
         self::run('render data-format=jpeg', fn() => self::contains($h->render(array_merge($cfg, ['export_format'=>'jpeg']), 'f1'), 'data-format="jpeg"'));
         self::run('render data-required when req', fn() => self::contains($h->render(array_merge($cfg, ['required'=>true]), 'f1'), 'data-required="true"'));
         self::run('render canvas_height attr', fn() => self::contains($h->render(array_merge($cfg, ['canvas_height'=>300]), 'f1'), '300'));
+        self::run('render data-stroke attr', function () use ($h, $cfg) {
+            return self::contains($h->render(array_merge($cfg, ['stroke_width'=>4]), 'f1'), 'data-stroke="4"');
+        });
         self::run('validate required empty', fn() => self::expectError('', array_merge($cfg, ['required'=>true]), $h));
         self::run('validate optional empty', fn() => self::expectOk('', $cfg, $h));
         self::run('validate required valid png', fn() => self::expectOk($validPng, array_merge($cfg, ['required'=>true]), $h));
@@ -678,9 +863,21 @@ class FieldTestPage
                 return is_string($h->render(array_merge($cfg, ['icon_type'=>$icon]), 'f1')) ? true : "failed for $icon";
             });
         }
+        self::run('render custom icon_source uses image url', function () use ($h, $cfg) {
+            $c = array_merge($cfg, ['icon_source'=>true,'custom_icon_url'=>'https://example.com/star.png']);
+            return self::contains($h->render($c, 'f1'), 'star.png');
+        });
         self::run('validate required empty', fn() => self::expectError('', array_merge($cfg, ['required'=>true]), $h));
         self::run('validate optional empty', fn() => self::expectOk('', $cfg, $h));
         self::run('validate valid rating', fn() => self::expectOk('3', $cfg, $h));
+        self::run('validate above max → error', fn() => self::expectError('99', $cfg, $h));
+        self::run('validate negative → error', fn() => self::expectError('-1', $cfg, $h));
+        self::run('validate non-numeric → error', fn() => self::expectError('abc', $cfg, $h));
+        self::run('validate half-step rejected without allow_half', fn() => self::expectError('2.5', $cfg, $h));
+        self::run('validate half-step accepted with allow_half', function () use ($h, $cfg) {
+            return self::expectOk('2.5', array_merge($cfg, ['allow_half'=>true]), $h);
+        });
+        self::run('validate exactly at max → ok', fn() => self::expectOk('5', $cfg, $h));
         self::run('map value/max format', fn() => self::expectMap('3', $cfg, $h, '3 / 5'));
         self::run('map half value format', fn() => self::expectMap('2.5', $cfg, $h, '2.5 / 5'));
         self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
@@ -705,10 +902,15 @@ class FieldTestPage
         self::run('validate valid in range', fn() => self::expectOk('50', $cfg, $h));
         self::run('validate below min', fn() => self::expectError('-5', $cfg, $h));
         self::run('validate above max', fn() => self::expectError('150', $cfg, $h));
+        self::run('validate exact at min passes', fn() => self::expectOk('0', $cfg, $h));
+        self::run('validate exact at max passes', fn() => self::expectOk('100', $cfg, $h));
         self::run('validate non-numeric', fn() => self::expectError('abc', array_merge($cfg, ['required'=>true]), $h));
         self::run('validate ranged valid', fn() => self::expectOk(['from'=>'20','to'=>'80'], array_merge($cfg, ['ranged'=>true]), $h));
         self::run('validate ranged below min', fn() => self::expectError(['from'=>'-5','to'=>'50'], array_merge($cfg, ['ranged'=>true]), $h));
         self::run('validate ranged above max', fn() => self::expectError(['from'=>'50','to'=>'150'], array_merge($cfg, ['ranged'=>true]), $h));
+        self::run('validate ranged exact at min/max passes', function () use ($h, $cfg) {
+            return self::expectOk(['from'=>'0','to'=>'100'], array_merge($cfg, ['ranged'=>true]), $h);
+        });
         self::run('map scalar value', fn() => self::expectMap('50', $cfg, $h, '50'));
         self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
         self::run('map ranged has from', fn() => self::expectMapContains(['from'=>'20','to'=>'80'], array_merge($cfg, ['ranged'=>true]), $h, '20'));
@@ -741,6 +943,13 @@ class FieldTestPage
         self::run('render basic', fn() => self::renderBasic($h, $cfg));
         self::run('render consent text', fn() => self::contains($h->render($cfg, 'f1'), 'Ich stimme zu'));
         self::run('render type="checkbox"', fn() => self::contains($h->render($cfg, 'f1'), 'type="checkbox"'));
+        self::run('render checked attr for truthy value', fn() => self::contains($h->render($cfg, 'f1', '1'), 'checked'));
+        self::run('render default consent_text fallback when key omitted', function () use ($h) {
+            $c = $h->getDefaultConfig();
+            unset($c['consent_text']);
+            $c['type'] = 'consent';
+            return self::contains($h->render($c, 'f1'), 'I agree.');
+        });
         self::run('validate required empty', fn() => self::expectError('', array_merge($cfg, ['required'=>true]), $h));
         self::run('validate required checked', fn() => self::expectOk('1', array_merge($cfg, ['required'=>true]), $h));
         self::run('validate optional empty', fn() => self::expectOk('', $cfg, $h));
@@ -768,6 +977,18 @@ class FieldTestPage
         self::run('render policy URL in link', fn() => self::contains($h->render($cfg, 'f1'), 'example.com/privacy'));
         self::run('render policy text', fn() => self::contains($h->render($cfg, 'f1'), 'Datenschutz'));
         self::run('render always required attr', fn() => self::contains($h->render($cfg, 'f1'), 'required'));
+        self::run('render checked attr for truthy value', fn() => self::contains($h->render($cfg, 'f1', '1'), 'checked'));
+        self::run('render default privacy_policy_url falls back to get_privacy_policy_url()', function () use ($h) {
+            $c = $h->getDefaultConfig();
+            unset($c['privacy_policy_url']); // key merely defaults to '' otherwise, which ?? would NOT fall through on
+            $c['type']  = 'gdpr';
+            $c['label'] = 'DSGVO';
+            $html = $h->render($c, 'f1');
+            self::$lastIn  = 'privacy_policy_url omitted (default "")';
+            self::$lastOut = $html;
+            return !str_contains($html, 'example.com/privacy')
+                ? true : 'should not carry over the explicitly-configured URL when key is left at its default';
+        });
         self::run('validate checked → ok', fn() => self::expectOk('1', $cfg, $h));
         // GDPR always errors when unchecked, regardless of required config flag
         self::run('validate unchecked required=true → error', fn() => self::expectError('', array_merge($cfg, ['required'=>true]), $h));
@@ -809,6 +1030,37 @@ class FieldTestPage
         self::run('sanitize preserves <select>', function () use ($h) {
             return str_contains($h->sanitizeConfigValue('html_content', '<select><option value="a">A</option></select>'), '<select') ? true : 'select stripped';
         });
+        self::run('sanitize preserves <source>', function () use ($h) {
+            return str_contains($h->sanitizeConfigValue('html_content', '<source src="a.mp4" type="video/mp4">'), '<source') ? true : 'source stripped';
+        });
+        self::run('sanitize <use href="#frag"> kept, external href stripped', function () use ($h) {
+            $out = $h->sanitizeConfigValue('html_content', '<svg><use href="#frag"></use><use href="http://evil.com/x"></use></svg>');
+            self::$lastIn  = '<use href="#frag"> + <use href="http://evil.com/x">';
+            self::$lastOut = $out;
+            if (!str_contains($out, 'href="#frag"')) {
+                return 'in-document fragment href was stripped unexpectedly';
+            }
+            return !str_contains($out, 'evil.com') ? true : 'external href was not stripped';
+        });
+        self::run('sanitize other key uses plain wp_kses_post (strips <script>)', function () use ($h) {
+            return !str_contains($h->sanitizeConfigValue('label', '<p>ok</p><script>evil()</script>'), '<script')
+                ? true : 'script not stripped for non-html_content key';
+        });
+        self::run('mapNormalized empty html_content → []', function () use ($h) {
+            $c = array_merge($h->getDefaultConfig(), ['type'=>'html','label'=>'','html_content'=>'']);
+            $r = $h->mapNormalized('f1', '', '', $c, []);
+            self::$lastIn  = 'html_content=""';
+            self::$lastOut = var_export($r, true);
+            return $r === [] ? true : 'expected [], got: ' . var_export($r, true);
+        });
+        self::run('mapNormalized non-empty html_content → labeled entry', function () use ($h) {
+            $c = array_merge($h->getDefaultConfig(), ['type'=>'html','label'=>'Block','html_content'=>'<p>Hi</p>']);
+            $r = $h->mapNormalized('f1', 'Block', '', $c, []);
+            self::$lastIn  = 'html_content=<p>Hi</p>';
+            self::$lastOut = var_export($r, true);
+            return (isset($r['f1']) && $r['f1']['label'] === 'Block' && str_contains($r['f1']['value'], 'Hi'))
+                ? true : 'unexpected result: ' . var_export($r, true);
+        });
     }
 
     private static function testGroup(): void
@@ -827,6 +1079,31 @@ class FieldTestPage
         self::run('mapNormalized empty → []', function () use ($h, $cfg) {
             $r = $h->mapNormalized('f1', 'Group', [], $cfg, []);
             return $r === [] ? true : 'expected [], got: '.var_export($r, true);
+        });
+        self::run('mapNormalized populated single copy', function () use ($h) {
+            $children = [['id'=>'child_text','type'=>'text','label'=>'Kind']];
+            $c        = array_merge($h->getDefaultConfig(), ['type'=>'group','label'=>'Gruppe','children'=>$children]);
+            $value    = [0 => ['child_text' => 'Hallo']];
+            $r        = $h->mapNormalized('grp1', 'Gruppe', $value, $c, []);
+            self::$lastIn  = json_encode($value);
+            self::$lastOut = json_encode($r);
+            if (!isset($r['child_text'])) {
+                return 'expected key "child_text" (single copy, no suffix), got: ' . var_export($r, true);
+            }
+            return $r['child_text']['value'] === 'Hallo' ? true : 'unexpected value: ' . var_export($r['child_text'], true);
+        });
+        self::run('mapNormalized populated multiple copies suffixes keys', function () use ($h) {
+            $children = [['id'=>'child_text','type'=>'text','label'=>'Kind']];
+            $c        = array_merge($h->getDefaultConfig(), ['type'=>'group','label'=>'Gruppe','children'=>$children]);
+            $value    = [0 => ['child_text' => 'Erste'], 1 => ['child_text' => 'Zweite']];
+            $r        = $h->mapNormalized('grp1', 'Gruppe', $value, $c, []);
+            self::$lastIn  = json_encode($value);
+            self::$lastOut = json_encode($r);
+            if (!isset($r['child_text_copy_0']) || !isset($r['child_text_copy_1'])) {
+                return 'expected suffixed keys child_text_copy_0/1, got: ' . var_export($r, true);
+            }
+            return ($r['child_text_copy_0']['value'] === 'Erste' && $r['child_text_copy_1']['value'] === 'Zweite')
+                ? true : 'unexpected values: ' . var_export($r, true);
         });
     }
 
@@ -857,6 +1134,13 @@ class FieldTestPage
             $html = $h->renderBreak($cfg, 1);
             return str_contains($html, '<span></span>') ? true : 'expected <span></span> on page 1 bottom nav';
         });
+        self::run('renderBreak custom prev/next labels appear', function () use ($h, $cfg) {
+            $html = $h->renderBreak($cfg, 2);
+            self::$lastIn  = 'prev_btn=Zurück, next_btn=Weiter';
+            self::$lastOut = $html;
+            return (str_contains($html, 'Zurück') && str_contains($html, 'Weiter'))
+                ? true : 'custom button labels missing from renderBreak output';
+        });
     }
 
     private static function testPostData(): void
@@ -868,7 +1152,24 @@ class FieldTestPage
         self::run('schema integrity', fn() => self::schemaIntegrity($h));
         self::run('render returns string', fn() => is_string($h->render($cfg, 'f1')) ? true : 'render failed');
         self::run('hasRequired=false', fn() => !$h->hasRequired() ? true : 'expected false');
+        self::run('render produces hidden input with correct name', function () use ($h, $cfg) {
+            $html = $h->render($cfg, 'f1');
+            self::$lastIn  = 'post_field=[post_title]';
+            self::$lastOut = $html;
+            return str_contains($html, '<input type="hidden" name="f1[post_title]"')
+                ? true : 'expected hidden input name f1[post_title], got: ' . $html;
+        });
         self::run('map array → imploded values', fn() => self::expectMapContains(['post_title'=>'My Page','post_id'=>'42'], $cfg, $h, 'My Page'));
+        self::run('map excludes fields not selected in post_field', function () use ($h, $cfg) {
+            $value = ['post_title'=>'My Page','post_id'=>'42','post_url'=>'https://example.com','post_author'=>'Admin'];
+            $r     = $h->map($value, $cfg);
+            self::$lastIn  = json_encode($value);
+            self::$lastOut = $r;
+            if (str_contains($r, '42') || str_contains($r, 'example.com') || str_contains($r, 'Admin')) {
+                return 'unselected post_field values leaked into output: ' . $r;
+            }
+            return str_contains($r, 'My Page') ? true : 'expected "My Page" in output';
+        });
         self::run('map empty array → Kein Eintrag', fn() => self::expectMapContains([], $cfg, $h, 'No entry'));
         self::run('map non-array → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
     }
@@ -958,6 +1259,13 @@ class FieldTestPage
         self::run('validate req invalid BIC', fn() => self::expectError(['iban'=>'DE89370400440532013000','bic'=>'TOO','holder'=>'Max','sig'=>''], array_merge($cfg, ['required'=>true]), $h));
         self::run('validate req empty holder', fn() => self::expectError(['iban'=>'DE89370400440532013000','bic'=>'COBADEFFXXX','holder'=>'','sig'=>''], array_merge($cfg, ['required'=>true]), $h));
         self::run('validate req all valid → true', fn() => self::expectOk($validData, array_merge($cfg, ['required'=>true]), $h));
+        self::run('validate lowercase BIC passes (case-insensitive regex)', function () use ($h, $cfg) {
+            return self::expectOk(['iban'=>'DE89370400440532013000','bic'=>'cobadeffxxx','holder'=>'Max','sig'=>''], array_merge($cfg, ['required'=>true]), $h);
+        });
+        self::run('validate lowercase country_filter_list entry matches (strtoupper normalized)', function () use ($h, $cfg) {
+            $c = array_merge($cfg, ['required'=>true,'country_filter_mode'=>'allow','country_filter_list'=>['de']]);
+            return self::expectOk(['iban'=>'DE89370400440532013000','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>''], $c, $h);
+        });
         self::run('map non-array → No entry', fn() => str_contains($h->map(null, $cfg), 'No entry') ? true : 'wrong map');
         self::run('map valid data contains IBAN', fn() => self::expectMapContains($validData, $cfg, $h, 'IBAN'));
         self::run('map valid data contains BIC', fn() => self::expectMapContains($validData, $cfg, $h, 'BIC'));
@@ -1669,6 +1977,52 @@ class FieldTestPage
                 ? ok('not-valid', JSON.stringify({ valid: r.valid, hasInvalid: r.hasInvalid }))
                 : ko('not-valid', JSON.stringify(r), 'expected hasInvalid=true');
         });
+
+        run('per-sub-input required check (composite field)', function () {
+            var el = document.createElement('div');
+            el.innerHTML = '<div class="forge-field forge-field--name">'
+                + '<input type="text" value="Hans">'
+                + '<input type="text" required value="">'
+                + '<span class="forge-field-error"></span></div>';
+            var r = vp(el);
+            return (!r.valid && r.hasRequired)
+                ? ok('one sub-input required+empty', JSON.stringify({ valid: r.valid, hasRequired: r.hasRequired }))
+                : ko('one sub-input required+empty', JSON.stringify(r), 'expected hasRequired=true');
+        });
+
+        run('per-sub-input required check all filled → valid', function () {
+            var el = document.createElement('div');
+            el.innerHTML = '<div class="forge-field forge-field--name">'
+                + '<input type="text" required value="Hans">'
+                + '<input type="text" required value="Müller">'
+                + '<span class="forge-field-error"></span></div>';
+            var r = vp(el);
+            return r.valid
+                ? ok('all sub-inputs filled', JSON.stringify({ valid: r.valid }))
+                : ko('all sub-inputs filled', JSON.stringify(r), 'expected valid=true');
+        });
+
+        run('unregistered validation rule is silently skipped', function () {
+            var el = document.createElement('div');
+            el.innerHTML = '<div class="forge-field forge-field--text" data-validate=\'["not-a-real-rule"]\'>'
+                + '<input type="text" value="anything"><span class="forge-field-error"></span></div>';
+            var r = vp(el);
+            return r.valid
+                ? ok('unknown rule "not-a-real-rule"', JSON.stringify({ valid: r.valid }))
+                : ko('unknown rule', JSON.stringify(r), 'expected valid=true (rule silently ignored)');
+        });
+
+        run('multiple validation rules — second rule catches error', function () {
+            var fn = validators['email'];
+            if (!fn) { return ok('(skipped — email validator not registered)', ''); }
+            var el = document.createElement('div');
+            el.innerHTML = '<div class="forge-field forge-field--email" data-validate=\'["not-a-real-rule","email"]\'>'
+                + '<input type="email" value="not-valid"><span class="forge-field-error"></span></div>';
+            var r = vp(el);
+            return (!r.valid && r.hasInvalid)
+                ? ok('rules: [unknown, email]', JSON.stringify({ valid: r.valid, hasInvalid: r.hasInvalid }))
+                : ko('rules: [unknown, email]', JSON.stringify(r), 'expected hasInvalid=true from second rule');
+        });
     }
 
     /* ── Condition operators (via initConditions DOM) ─────────────────────── */
@@ -1724,6 +2078,202 @@ class FieldTestPage
         run('greater: 3 > 5 → hide',                  condTest('greater fail',   '3',  'greater', '5', false));
         run('less: 3 < 5 → show',                     condTest('less pass',      '3',  'less',    '5', true));
         run('less: 10 < 5 → hide',                    condTest('less fail',      '10', 'less',    '5', false));
+
+        run('action=hide: matching value → hidden', function () {
+            var wrap = document.createElement('div');
+            var cond = JSON.stringify({
+                action: 'hide', match: 'all',
+                rules: [{ field_id: 'ctrl', operator: 'equals', value: 'hello' }]
+            });
+            wrap.innerHTML = '<form class="forge-form">'
+                + '<input name="ctrl" type="text">'
+                + '<div class="forge-field" data-conditions=\'' + cond + '\'>'
+                + '<span>target</span></div></form>';
+            document.body.appendChild(wrap);
+            ic(wrap);
+            var ctrl = wrap.querySelector('input[name="ctrl"]');
+            ctrl.value = 'hello';
+            ctrl.dispatchEvent(new Event('change', { bubbles: true }));
+            var visible = wrap.querySelector('[data-conditions]').style.display !== 'none';
+            document.body.removeChild(wrap);
+            return !visible
+                ? ok('action=hide, ctrl="hello" matches', 'hidden')
+                : ko('action=hide, ctrl="hello" matches', 'visible', 'expected hidden when hide-rule matches');
+        });
+
+        run('match=any: one of two rules passes → show', function () {
+            var wrap = document.createElement('div');
+            var cond = JSON.stringify({
+                action: 'show', match: 'any',
+                rules: [
+                    { field_id: 'ctrl', operator: 'equals', value: 'nomatch' },
+                    { field_id: 'ctrl', operator: 'equals', value: 'hello' },
+                ]
+            });
+            wrap.innerHTML = '<form class="forge-form">'
+                + '<input name="ctrl" type="text">'
+                + '<div class="forge-field" data-conditions=\'' + cond + '\'>'
+                + '<span>target</span></div></form>';
+            document.body.appendChild(wrap);
+            ic(wrap);
+            var ctrl = wrap.querySelector('input[name="ctrl"]');
+            ctrl.value = 'hello';
+            ctrl.dispatchEvent(new Event('change', { bubbles: true }));
+            var visible = wrap.querySelector('[data-conditions]').style.display !== 'none';
+            document.body.removeChild(wrap);
+            return visible
+                ? ok('match=any, second rule matches', 'visible')
+                : ko('match=any, second rule matches', 'hidden', 'expected visible (any rule matching is enough)');
+        });
+
+        run('match=all: one of two rules fails → hide', function () {
+            var wrap = document.createElement('div');
+            var cond = JSON.stringify({
+                action: 'show', match: 'all',
+                rules: [
+                    { field_id: 'ctrl', operator: 'equals', value: 'nomatch' },
+                    { field_id: 'ctrl', operator: 'equals', value: 'hello' },
+                ]
+            });
+            wrap.innerHTML = '<form class="forge-form">'
+                + '<input name="ctrl" type="text">'
+                + '<div class="forge-field" data-conditions=\'' + cond + '\'>'
+                + '<span>target</span></div></form>';
+            document.body.appendChild(wrap);
+            ic(wrap);
+            var ctrl = wrap.querySelector('input[name="ctrl"]');
+            ctrl.value = 'hello';
+            ctrl.dispatchEvent(new Event('change', { bubbles: true }));
+            var visible = wrap.querySelector('[data-conditions]').style.display !== 'none';
+            document.body.removeChild(wrap);
+            return !visible
+                ? ok('match=all, one rule fails', 'hidden')
+                : ko('match=all, one rule fails', 'visible', 'expected hidden (all rules must match)');
+        });
+
+        run('checkbox group value: equals matches one checked box → show', function () {
+            var wrap = document.createElement('div');
+            var cond = JSON.stringify({
+                action: 'show', match: 'all',
+                rules: [{ field_id: 'ctrl', operator: 'equals', value: 'b' }]
+            });
+            wrap.innerHTML = '<form class="forge-form">'
+                + '<input name="ctrl" type="checkbox" value="a">'
+                + '<input name="ctrl" type="checkbox" value="b">'
+                + '<div class="forge-field" data-conditions=\'' + cond + '\'>'
+                + '<span>target</span></div></form>';
+            document.body.appendChild(wrap);
+            ic(wrap);
+            var boxes = wrap.querySelectorAll('input[name="ctrl"]');
+            boxes[1].checked = true;
+            boxes[1].dispatchEvent(new Event('change', { bubbles: true }));
+            var visible = wrap.querySelector('[data-conditions]').style.display !== 'none';
+            document.body.removeChild(wrap);
+            return visible
+                ? ok('checkbox "b" checked, cond=b', 'visible')
+                : ko('checkbox "b" checked, cond=b', 'hidden', 'expected visible — array value should match "equals"');
+        });
+
+        run('checkbox group value: contains checks any checked box → show', function () {
+            var wrap = document.createElement('div');
+            var cond = JSON.stringify({
+                action: 'show', match: 'all',
+                rules: [{ field_id: 'ctrl', operator: 'contains', value: 'b' }]
+            });
+            wrap.innerHTML = '<form class="forge-form">'
+                + '<input name="ctrl" type="checkbox" value="a">'
+                + '<input name="ctrl" type="checkbox" value="ab">'
+                + '<div class="forge-field" data-conditions=\'' + cond + '\'>'
+                + '<span>target</span></div></form>';
+            document.body.appendChild(wrap);
+            ic(wrap);
+            var boxes = wrap.querySelectorAll('input[name="ctrl"]');
+            boxes[1].checked = true;
+            boxes[1].dispatchEvent(new Event('change', { bubbles: true }));
+            var visible = wrap.querySelector('[data-conditions]').style.display !== 'none';
+            document.body.removeChild(wrap);
+            return visible
+                ? ok('checkbox "ab" checked, cond contains "b"', 'visible')
+                : ko('checkbox "ab" checked, cond contains "b"', 'hidden', 'expected visible');
+        });
+
+        run('checkbox group value: none checked → empty → show', function () {
+            var wrap = document.createElement('div');
+            var cond = JSON.stringify({
+                action: 'show', match: 'all',
+                rules: [{ field_id: 'ctrl', operator: 'empty', value: '' }]
+            });
+            wrap.innerHTML = '<form class="forge-form">'
+                + '<input name="ctrl" type="checkbox" value="a">'
+                + '<input name="ctrl" type="checkbox" value="b">'
+                + '<div class="forge-field" data-conditions=\'' + cond + '\'>'
+                + '<span>target</span></div></form>';
+            document.body.appendChild(wrap);
+            ic(wrap);
+            var boxes = wrap.querySelectorAll('input[name="ctrl"]');
+            boxes[0].dispatchEvent(new Event('change', { bubbles: true }));
+            var visible = wrap.querySelector('[data-conditions]').style.display !== 'none';
+            document.body.removeChild(wrap);
+            return visible
+                ? ok('no checkboxes checked, cond=empty', 'visible')
+                : ko('no checkboxes checked, cond=empty', 'hidden', 'expected visible — [] should count as empty');
+        });
+
+        run('select multiple value: equals matches one selected option → show', function () {
+            var wrap = document.createElement('div');
+            var cond = JSON.stringify({
+                action: 'show', match: 'all',
+                rules: [{ field_id: 'ctrl', operator: 'equals', value: 'y' }]
+            });
+            wrap.innerHTML = '<form class="forge-form">'
+                + '<select name="ctrl" multiple>'
+                + '<option value="x">X</option><option value="y">Y</option></select>'
+                + '<div class="forge-field" data-conditions=\'' + cond + '\'>'
+                + '<span>target</span></div></form>';
+            document.body.appendChild(wrap);
+            ic(wrap);
+            var sel = wrap.querySelector('select[name="ctrl"]');
+            sel.options[1].selected = true;
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+            var visible = wrap.querySelector('[data-conditions]').style.display !== 'none';
+            document.body.removeChild(wrap);
+            return visible
+                ? ok('multi-select "y" selected, cond=y', 'visible')
+                : ko('multi-select "y" selected, cond=y', 'hidden', 'expected visible');
+        });
+
+        run('input nested inside a hidden conditional ancestor counts as absent', function () {
+            var wrap = document.createElement('div');
+            /* Inner wrapper's own condition always evaluates false (gate field never
+               equals "impossible"), so initConditions genuinely computes it as hidden —
+               not a hardcoded inline style that init would immediately overwrite. */
+            var innerCond = JSON.stringify({
+                action: 'show', match: 'all',
+                rules: [{ field_id: 'gate', operator: 'equals', value: 'impossible' }]
+            });
+            var outerCond = JSON.stringify({
+                action: 'show', match: 'all',
+                rules: [{ field_id: 'ctrl', operator: 'not_empty', value: '' }]
+            });
+            wrap.innerHTML = '<form class="forge-form">'
+                + '<input name="gate" type="text" value="">'
+                + '<div data-conditions=\'' + innerCond + '\'>'
+                + '<input name="ctrl" type="text" value="hello"></div>'
+                + '<div class="forge-field" data-conditions=\'' + outerCond + '\'>'
+                + '<span>target</span></div></form>';
+            document.body.appendChild(wrap);
+            ic(wrap);
+            var innerWrap = wrap.querySelector('div[data-conditions]:not(.forge-field)');
+            if (innerWrap.style.display !== 'none') {
+                document.body.removeChild(wrap);
+                return ko('setup', 'inner wrap visible', 'test setup broken: inner wrapper should already be hidden');
+            }
+            var visible = wrap.querySelector('.forge-field[data-conditions]').style.display !== 'none';
+            document.body.removeChild(wrap);
+            return !visible
+                ? ok('ctrl hidden inside hidden ancestor, cond=not_empty', 'hidden')
+                : ko('ctrl hidden inside hidden ancestor, cond=not_empty', 'visible', 'expected hidden — hidden-ancestor input should count as absent (empty)');
+        });
     }
 
     /* ── Render results ──────────────────────────────────────────────────── */
@@ -1815,6 +2365,13 @@ JS;
 
     // ── page output ──────────────────────────────────────────────────────────
 
+    /**
+     * Runs every PHP test suite, then outputs the tabbed PHP/JS results page.
+     * The JS panel embeds the same field-handler validators/inits used on the
+     * live front end (see generateFrontGlobals()) and runs its own suite client-side.
+     *
+     * @return void
+     */
     public static function render(): void
     {
         if (!current_user_can('manage_options')) {

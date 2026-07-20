@@ -705,6 +705,72 @@ msgstr "Netzwerkfehler."
 msgid "FormForge Verification"
 msgstr "FormForge Verifizierung"
 
+msgid "The document contains multiple seal blocks — possibly tampered."
+msgstr "Das Dokument enthält mehrere Siegelblöcke — möglicherweise manipuliert."
+
+msgid "No FormForge seal found. Please only upload original documents."
+msgstr "Kein FormForge-Siegel gefunden. Bitte nur Originaldokumente hochladen."
+
+msgid "The seal in the document is corrupted and cannot be read."
+msgstr "Das Siegel im Dokument ist beschädigt und kann nicht gelesen werden."
+
+msgid "The seal in the document is unusually large — file rejected."
+msgstr "Das Siegel im Dokument ist ungewöhnlich groß — Datei abgelehnt."
+
+msgid "The PDF structure is invalid or the document is encrypted."
+msgstr "Die PDF-Struktur ist ungültig oder das Dokument ist verschlüsselt."
+
+msgid "The file is not a valid PDF document."
+msgstr "Die Datei ist kein gültiges PDF-Dokument."
+
+msgid "The document could not be processed."
+msgstr "Das Dokument konnte nicht verarbeitet werden."
+
+msgid "Error"
+msgstr "Fehler"
+
+msgid "Modified"
+msgstr "Verändert"
+
+msgid "Compromised Key"
+msgstr "Kompromittierter Schlüssel"
+
+msgid "Rotated Key"
+msgstr "Rotierter Schlüssel"
+
+msgid "Authentic"
+msgstr "Authentisch"
+
+msgid "Loading PDF…"
+msgstr "PDF wird geladen…"
+
+msgid "Reading page %1$d of %2$d…"
+msgstr "Seite %1$d von %2$d wird gelesen…"
+
+msgid "Text extracted — server analyzing…"
+msgstr "Text extrahiert — Server analysiert…"
+
+msgid "Processing response…"
+msgstr "Antwort wird verarbeitet…"
+
+msgid "Done"
+msgstr "Fertig"
+
+msgid "Server error (HTTP %d)"
+msgstr "Serverfehler (HTTP %d)"
+
+msgid "Network error"
+msgstr "Netzwerkfehler"
+
+msgid "PDF load error: "
+msgstr "PDF-Ladefehler: "
+
+msgid "Error: "
+msgstr "Fehler: "
+
+msgid "Unknown server error"
+msgstr "Unbekannter Serverfehler"
+
 msgid "Could not read PDF file: %s."
 msgstr "Konnte PDF-Datei nicht lesen: %s."
 

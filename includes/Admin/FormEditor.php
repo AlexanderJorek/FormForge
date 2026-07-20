@@ -118,6 +118,9 @@ class FormEditor
         }
 
         $nonce    = \wp_create_nonce('forge_forms_admin_nonce');
+        // JSON_HEX_APOS|JSON_HEX_QUOT escapes quotes inside the JSON itself, which is what
+        // makes it safe to echo raw into a single-quoted HTML attribute below (esc_attr()
+        // would double-escape/corrupt the JSON, so it's deliberately not used here)
         $data_form    = \wp_json_encode($form_data, JSON_HEX_APOS | JSON_HEX_QUOT);
         $data_palette = \wp_json_encode($palette, JSON_HEX_APOS | JSON_HEX_QUOT);
         $ajax_url     = \esc_attr(\admin_url('admin-ajax.php'));
@@ -140,6 +143,8 @@ class FormEditor
         ?>
         <canvas id="forge-particle-canvas"></canvas>
         <div class="wrap forge-editor-wrap" style="padding:0;margin:0;">
+        <!-- admin-builder.js reads these on load and keeps them updated as the source of
+             truth for the form/palette state; ajaxSave() below receives that state back -->
         <div id="forge-editor"
              data-form='<?php echo $data_form; ?>'
              data-palette='<?php echo $data_palette; ?>'
@@ -275,7 +280,7 @@ class FormEditor
 
         $settings_override = [];
         if (!empty($_POST['settings'])) {
-            $raw_s = json_decode(\wp_unslash($_POST['settings']), true);
+            $raw_s = json_decode(\ForgeForms\Utils\Sanitize::str(\wp_unslash($_POST['settings'])), true);
             if (is_array($raw_s)) {
                 $settings_override = self::sanitizeSettings($raw_s);
             }
@@ -284,7 +289,7 @@ class FormEditor
         /* Use live editor fields when posted; fall back to saved DB state. */
         $fields_override = null;
         if (!empty($_POST['fields'])) {
-            $raw_f = json_decode(\wp_unslash($_POST['fields']), true);
+            $raw_f = json_decode(\ForgeForms\Utils\Sanitize::str(\wp_unslash($_POST['fields'])), true);
             if (is_array($raw_f)) {
                 $fields_override = self::sanitizeFields($raw_f);
             }
@@ -458,8 +463,9 @@ window.fetch = function (url, opts) {
         $page = '<!DOCTYPE html><html lang="de"><head>'
             . '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             . '<title>Vorschau</title>'
-            . '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"'
-            . ' integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="'
+            . '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/'
+            . \ForgeForms\Utils\Assets::FONT_AWESOME_VERSION . '/css/all.min.css"'
+            . ' integrity="' . \ForgeForms\Utils\Assets::FONT_AWESOME_SRI . '"'
             . ' crossorigin="anonymous" referrerpolicy="no-referrer">'
             . '<link rel="stylesheet" href="' . \esc_url($css_url) . '">'
             . '<style>' . implode("\n", $field_css) . '</style>'
@@ -498,17 +504,20 @@ window.fetch = function (url, opts) {
         }
         \check_ajax_referer('forge_forms_admin_nonce', 'nonce');
 
-        $encoded = \wp_unslash($_POST['form_data'] ?? '');
+        // base64-wrapped so admin-builder.js can send the raw JSON as a plain string field
+        // without WP's magic-quotes slashing corrupting embedded quotes before we get here
+        $encoded = \ForgeForms\Utils\Sanitize::str(\wp_unslash($_POST['form_data'] ?? ''));
         $json    = base64_decode($encoded, true);
         $raw     = ($json !== false) ? json_decode($json, true) : null;
         if (!is_array($raw)) {
             \wp_send_json_error(['message' => 'Invalid form data'], 400);
         }
 
-        $form_id = (int)($raw['id'] ?? 0);
-        $result  = FormModel::save(
+        $form_id   = (int)($raw['id'] ?? 0);
+        $raw_title = $raw['title'] ?? '';
+        $result    = FormModel::save(
             [
-            'title'         => \sanitize_text_field($raw['title']              ?? ''),
+            'title'         => \sanitize_text_field(is_string($raw_title) ? $raw_title : ''),
             'fields'        => self::sanitizeFields($raw['fields']             ?? []),
             'notifications' => self::sanitizeNotifications($raw['notifications'] ?? []),
             'settings'      => self::sanitizeSettings($raw['settings']         ?? []),
@@ -545,13 +554,16 @@ window.fetch = function (url, opts) {
      *
      * @return array Sanitized fields array.
      */
-    private static function sanitizeFields(array $fields): array
+    public static function sanitizeFields(array $fields): array
     {
         $clean = [];
         foreach ($fields as $field) {
             if (!is_array($field) || empty($field['id']) || empty($field['type'])) {
                 continue;
             }
+            // These structural/label keys bypass each field type's sanitizeConfigValue()
+            // below — they're plain identifiers/labels, not rich config values, and every
+            // field type needs them handled the same way regardless of its own rules
             $plaintext_keys = ['id', 'type', 'label', 'placeholder', 'description', 'hint', 'name'];
             $handler = \ForgeForms\Fields\FieldRegistry::get((string)($field['type'] ?? ''));
             $f = [];
@@ -594,7 +606,7 @@ window.fetch = function (url, opts) {
      *
      * @return array Sanitized notifications array.
      */
-    private static function sanitizeNotifications(array $notifications): array
+    public static function sanitizeNotifications(array $notifications): array
     {
         $clean = [];
         foreach ($notifications as $n) {
@@ -607,32 +619,32 @@ window.fetch = function (url, opts) {
                     continue;
                 }
                 $routing_rules[] = [
-                    'field_id' => \sanitize_key($rule['field_id'] ?? ''),
-                    'operator' => \sanitize_key($rule['operator'] ?? 'equals'),
-                    'value'    => \sanitize_text_field($rule['value'] ?? ''),
+                    'field_id' => \sanitize_key(\ForgeForms\Utils\Sanitize::str($rule['field_id'] ?? '')),
+                    'operator' => \sanitize_key(\ForgeForms\Utils\Sanitize::str($rule['operator'] ?? 'equals', 'equals')),
+                    'value'    => \sanitize_text_field(\ForgeForms\Utils\Sanitize::str($rule['value'] ?? '')),
                     /* May be a literal address or a {field_id}/{admin_email}
                        placeholder resolved at send time — sanitize_email()
                        would strip the braces, so keep it as plain text. */
-                    'email'    => \sanitize_text_field($rule['email'] ?? ''),
+                    'email'    => \sanitize_text_field(\ForgeForms\Utils\Sanitize::str($rule['email'] ?? '')),
                 ];
             }
             $clean[] = [
-                'slug'             => \sanitize_key($n['slug'] ?? ('notification-' . \wp_generate_uuid4())),
-                'name'             => \sanitize_text_field($n['name']       ?? ''),
+                'slug'             => \sanitize_key(\ForgeForms\Utils\Sanitize::str($n['slug'] ?? '', 'notification-' . \wp_generate_uuid4())),
+                'name'             => \sanitize_text_field(\ForgeForms\Utils\Sanitize::str($n['name']       ?? '')),
                 'recipient_mode'   => in_array($n['recipient_mode'] ?? '', ['single', 'routing'], true)
                     ? $n['recipient_mode'] : 'single',
-                'to'               => \sanitize_text_field($n['to']         ?? ''),
+                'to'               => \sanitize_text_field(\ForgeForms\Utils\Sanitize::str($n['to']         ?? '')),
                 'routing_rules'    => $routing_rules,
                 'routing_fallback' =>
-                    \sanitize_text_field($n['routing_fallback'] ?? ''),
-                'reply_to'         => \sanitize_text_field($n['reply_to']   ?? ''),
-                'subject'          => \sanitize_text_field($n['subject']    ?? ''),
+                    \sanitize_text_field(\ForgeForms\Utils\Sanitize::str($n['routing_fallback'] ?? '')),
+                'reply_to'         => \sanitize_text_field(\ForgeForms\Utils\Sanitize::str($n['reply_to']   ?? '')),
+                'subject'          => \sanitize_text_field(\ForgeForms\Utils\Sanitize::str($n['subject']    ?? '')),
                 /* Body is always HTML, authored via the Visual or Code view. */
-                'body'             => self::sanitizeEmailBody($n['body'] ?? ''),
-                'from_name'        => \sanitize_text_field($n['from_name']  ?? ''),
-                'from_email'       => \sanitize_email($n['from_email']      ?? ''),
-                'cc'               => \sanitize_text_field($n['cc']         ?? ''),
-                'bcc'              => \sanitize_text_field($n['bcc']        ?? ''),
+                'body'             => self::sanitizeEmailBody(\ForgeForms\Utils\Sanitize::str($n['body'] ?? '')),
+                'from_name'        => \sanitize_text_field(\ForgeForms\Utils\Sanitize::str($n['from_name']  ?? '')),
+                'from_email'       => \sanitize_email(\ForgeForms\Utils\Sanitize::str($n['from_email']      ?? '')),
+                'cc'               => \sanitize_text_field(\ForgeForms\Utils\Sanitize::str($n['cc']         ?? '')),
+                'bcc'              => \sanitize_text_field(\ForgeForms\Utils\Sanitize::str($n['bcc']        ?? '')),
                 'attach_pdf'       => !empty($n['attach_pdf']),
                 'attach_uploads'   => !empty($n['attach_uploads']),
                 'enabled'          => !isset($n['enabled']) || !empty($n['enabled']),
@@ -648,7 +660,7 @@ window.fetch = function (url, opts) {
      *
      * @return array Sanitized settings array.
      */
-    private static function sanitizeSettings(array $settings): array
+    public static function sanitizeSettings(array $settings): array
     {
         $rules = [];
         foreach ((array)($settings['submit_conditions']['rules'] ?? []) as $rule) {
@@ -656,17 +668,17 @@ window.fetch = function (url, opts) {
                 continue;
             }
             $rules[] = [
-                'field_id'   => \sanitize_key($rule['field_id']   ?? ''),
-                'operator'   => \sanitize_key($rule['operator']   ?? 'equals'),
-                'value'      => \sanitize_text_field($rule['value'] ?? ''),
+                'field_id'   => \sanitize_key(\ForgeForms\Utils\Sanitize::str($rule['field_id']   ?? '')),
+                'operator'   => \sanitize_key(\ForgeForms\Utils\Sanitize::str($rule['operator']   ?? 'equals', 'equals')),
+                'value'      => \sanitize_text_field(\ForgeForms\Utils\Sanitize::str($rule['value'] ?? '')),
                 'use_option' => !empty($rule['use_option']),
             ];
         }
 
         return [
-            'submit_label'      => \sanitize_text_field($settings['submit_label']    ?? __('Submit', 'form-forge')),
-            'submit_working'    => \sanitize_text_field($settings['submit_working']   ?? __('Sending…', 'form-forge')),
-            'success_message'   => \wp_kses_post($settings['success_message']         ?? __('Thank you!', 'form-forge')),
+            'submit_label'      => \sanitize_text_field(\ForgeForms\Utils\Sanitize::str($settings['submit_label']    ?? '', __('Submit', 'form-forge'))),
+            'submit_working'    => \sanitize_text_field(\ForgeForms\Utils\Sanitize::str($settings['submit_working']   ?? '', __('Sending…', 'form-forge'))),
+            'success_message'   => \wp_kses_post(\ForgeForms\Utils\Sanitize::str($settings['success_message']         ?? '', __('Thank you!', 'form-forge'))),
             'submit_conditions' => [
                 'enabled' => !empty($settings['submit_conditions']['enabled']),
                 'match'   => in_array($settings['submit_conditions']['match'] ?? '', ['all', 'any'], true)
@@ -697,18 +709,31 @@ window.fetch = function (url, opts) {
             'script-open'   => '/<script\b[^>]*>/i',
             'script-close'  => '/<\/script\s*>/i',
             'script-tags'   => '/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/is',
+            // HTML5 allows "/" as an attribute boundary (e.g. <img/onerror=...>),
+            // not just whitespace — match both so this can't be sidestepped.
             'event-handlers' =>
-                '/\s+on[a-z]+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i',
+                '/[\s\/]+on[a-z]+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i',
             'js-uris'
                 => '/\b(href|src|action)\s*=\s*(["\'])\s*'
                 . '(?:javascript|vbscript)\s*:[^"\']*\2/i',
+            // Unquoted attribute values are valid HTML (<a href=javascript:...>)
+            // and aren't matched by the quoted pattern above at all.
+            'js-uris-unquoted'
+                => '/\b(href|src|action)\s*=\s*(?!["\'])'
+                . '(?:javascript|vbscript)\s*:[^\s>]*/i',
+            // style="...url('javascript:...')..." is a CSS-vector XSS the
+            // href/src/action pass above doesn't cover.
+            'css-js-uris'
+                => '/(\bstyle\s*=\s*)(["\'])((?:(?!\2).)*(?:javascript|vbscript)\s*:(?:(?!\2).)*)\2/i',
         ];
 
         $replacements = [
-            'script-open'    => '',
-            'script-close'   => '',
-            'script-tags'    => '',
-            'event-handlers' => '',
+            'script-open'       => '',
+            'script-close'      => '',
+            'script-tags'       => '',
+            'event-handlers'    => '',
+            'js-uris-unquoted'  => '$1=""',
+            'css-js-uris'       => '$1$2$2',
         ];
         $replacements['js-uris'] = '$1=$2#$2';
 
@@ -724,6 +749,39 @@ window.fetch = function (url, opts) {
             }
             $html = $after;
         }
+
+        // The js-uris/css-js-uris passes above match the raw attribute string.
+        // A payload can dodge that by HTML-entity-encoding the "javascript:"
+        // keyword (a browser/mail client decodes entities before evaluating a
+        // URI) or by splitting it with a CSS comment (url(java/**/script:...),
+        // which CSS strips before the URL is evaluated). Decode + strip
+        // comments in a working copy of each href/src/action/style value and
+        // drop the whole value if the decoded form is still dangerous.
+        $html = preg_replace_callback(
+            '/\b(href|src|action|style)\s*=\s*(?:(["\'])((?:(?!\2).)*)\2|([^\s>]+))/is',
+            static function (array $m): string {
+                $attr    = $m[1];
+                $quoted  = $m[2] !== '';
+                $q       = $quoted ? $m[2] : '';
+                $val     = $quoted ? $m[3] : ($m[4] ?? '');
+                $decoded = html_entity_decode($val, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $decoded = preg_replace('#/\*.*?\*/#s', '', $decoded);
+                // Browsers strip ASCII tab/CR/LF from a URL before parsing its
+                // scheme, so "jav\tascript:" still executes as javascript: even
+                // though the keyword itself isn't contiguous — strip these
+                // before the keyword check, not just via \s* around the colon.
+                $decoded = str_replace(["\t", "\n", "\r"], '', (string) $decoded);
+                if (preg_match('/javascript\s*:|vbscript\s*:/i', $decoded)) {
+                    \ForgeForms\forge_log(
+                        'ForgeForms sanitizeEmailBody [encoded-js-uri] stripped '
+                        . $attr . ' value: ' . substr($val, 0, 200)
+                    );
+                    return $quoted ? ($attr . '=' . $q . $q) : ($attr . '=""');
+                }
+                return $m[0];
+            },
+            $html
+        ) ?? $html;
 
         // If the body is a full HTML document and the user appended content
         // after </html> (e.g. {all_fields} tacked on at the end), that content

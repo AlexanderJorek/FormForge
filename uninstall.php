@@ -19,6 +19,8 @@
  * of the License, or (at your option) any later version.
  */
 
+// WP_UNINSTALL_PLUGIN is only ever defined by WordPress core immediately before it
+// requires this file during a plugin deletion — this guard blocks direct execution
 defined('WP_UNINSTALL_PLUGIN') || exit;
 
 /*
@@ -26,6 +28,12 @@ defined('WP_UNINSTALL_PLUGIN') || exit;
  * ALL plugin data — including PDF seal keys and key history — will be permanently
  * removed. There is no recovery. Back up your seal keys before uninstalling.
  */
+
+/* Belt-and-braces: deactivation already clears these, but uninstall can be
+   triggered without a preceding deactivate (e.g. WP-CLI --skip-plugins force
+   delete), so clear the recurring temp-file sweeps here too. */
+wp_clear_scheduled_hook('forge_verifier_sweep_tmp_dirs');
+wp_clear_scheduled_hook('forge_generator_sweep_tmp_dirs');
 
 /* Remove all stored forms (CPT posts + meta) */
 $forms = get_posts(

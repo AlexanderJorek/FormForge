@@ -123,7 +123,7 @@ class EmailField extends BaseField
         if ($base !== true) {
             return $base;
         }
-        if (empty($value)) {
+        if ($value === null || $value === '') {
             return true;
         }
         $v = strtolower(trim((string)$value));

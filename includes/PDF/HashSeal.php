@@ -28,6 +28,10 @@ defined('ABSPATH') || exit;
  */
 class HashSeal
 {
+    // Intentionally a public, hardcoded domain-separation string (not a secret) — it just
+    // scopes the KDF to this plugin/version so the same admin password can't be replayed
+    // against a different PBKDF2 use elsewhere. Actual entropy comes from the admin
+    // password plus the random per-key salt, not from this constant.
     private const PEPPER     = 'forge_seal_kdf_v1';
     private const KDF_ROUNDS = 200000;
     private const KDF_LEN    = 32;
@@ -283,7 +287,8 @@ class HashSeal
     }
 
     /**
-     * Validates a password against the active seal key.
+     * Validates a password against the seal key's strength requirements
+     * (length, upper/lowercase, digit, special character).
      *
      * @param string $password The password to validate.
      *
@@ -320,6 +325,11 @@ class HashSeal
      */
     public static function rotateKey(string $password, bool $compromised): array
     {
+        $errors = self::validatePassword($password);
+        if (!empty($errors)) {
+            throw new \InvalidArgumentException(implode(' ', $errors));
+        }
+
         $user       = wp_get_current_user();
         $user_id    = (int) $user->ID;
         $user_login = (string) $user->user_login;

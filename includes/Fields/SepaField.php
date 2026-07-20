@@ -607,15 +607,31 @@ CSS;
     }
 
     /**
-     * Validates the submitted value.
+     * Country code => canonical IBAN length. Mirrors the IBAN_LEN table in
+     * this field's client-side JS (used there for input masking/placeholder).
      *
-     * @param mixed $value  Submitted value.
-     * @param array $config Field configuration.
-     *
-     * @return bool|string True on valid, error message string on invalid.
+     * @var array<string, int>
      */
+    private const IBAN_LEN = [
+        'AD' => 24, 'AE' => 23, 'AL' => 28, 'AT' => 20, 'AZ' => 28, 'BA' => 20, 'BE' => 16,
+        'BG' => 22, 'BH' => 22, 'BI' => 27, 'BR' => 29, 'BY' => 28, 'CH' => 21, 'CR' => 22,
+        'CY' => 28, 'CZ' => 24, 'DE' => 22, 'DJ' => 27, 'DK' => 18, 'DO' => 28, 'EE' => 20,
+        'EG' => 29, 'ES' => 24, 'FI' => 18, 'FK' => 18, 'FO' => 18, 'FR' => 27, 'GB' => 22,
+        'GE' => 22, 'GI' => 23, 'GL' => 18, 'GR' => 27, 'GT' => 28, 'HR' => 21, 'HU' => 28,
+        'IE' => 22, 'IL' => 23, 'IQ' => 23, 'IS' => 26, 'IT' => 27, 'JO' => 30, 'KW' => 30,
+        'KZ' => 20, 'LB' => 28, 'LC' => 32, 'LI' => 21, 'LT' => 20, 'LU' => 20, 'LV' => 21,
+        'LY' => 25, 'MC' => 27, 'MD' => 24, 'ME' => 22, 'MK' => 19, 'MN' => 20, 'MR' => 27,
+        'MT' => 31, 'MU' => 30, 'NI' => 28, 'NL' => 18, 'NO' => 15, 'OM' => 23, 'PK' => 24,
+        'PL' => 28, 'PS' => 29, 'PT' => 25, 'QA' => 29, 'RO' => 24, 'RS' => 22, 'RU' => 33,
+        'SA' => 24, 'SC' => 31, 'SD' => 18, 'SE' => 24, 'SI' => 19, 'SK' => 24, 'SM' => 27,
+        'SO' => 23, 'ST' => 25, 'SV' => 28, 'TL' => 23, 'TN' => 24, 'TR' => 26, 'UA' => 29,
+        'VA' => 22, 'VG' => 24, 'XK' => 20, 'YE' => 30,
+    ];
+
     /**
      * Verifies the ISO 7064 mod-97 checksum of a cleaned (no-space, uppercase) IBAN.
+     * Moves the country+check-digits to the end, converts letters to numbers
+     * (A=10..Z=35), then requires the result mod 97 == 1.
      *
      * @param string $iban Cleaned IBAN string.
      *
@@ -628,9 +644,24 @@ CSS;
         foreach (str_split($rearranged) as $ch) {
             $numeric .= ctype_alpha($ch) ? (string)(ord($ch) - 55) : $ch;
         }
-        return bcmod($numeric, '97') === '1';
+        // Mod-97 over a (potentially 30+ digit) numeric string without bcmath —
+        // process in chunks so we never rely on an optional PHP extension for
+        // a check that runs on every SEPA form submission.
+        $remainder = 0;
+        foreach (str_split($numeric, 7) as $chunk) {
+            $remainder = (int) (($remainder . $chunk) % 97);
+        }
+        return $remainder === 1;
     }
 
+    /**
+     * Validates the submitted value.
+     *
+     * @param mixed $value  Submitted value.
+     * @param array $config Field configuration.
+     *
+     * @return bool|string True on valid, error message string on invalid.
+     */
     public function validate(mixed $value, array $config): bool|string
     {
         if (empty($config['required'])) {
@@ -652,10 +683,17 @@ CSS;
         if (!preg_match('/^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/', $iban_clean)) {
             return __('Please enter a valid IBAN.', 'form-forge');
         }
+        $iban_cc = substr($iban_clean, 0, 2);
+        if (isset(self::IBAN_LEN[$iban_cc]) && strlen($iban_clean) !== self::IBAN_LEN[$iban_cc]) {
+            return __('Please enter a valid IBAN.', 'form-forge');
+        }
         if (!self::ibanChecksumValid($iban_clean)) {
             return __('Please enter a valid IBAN.', 'form-forge');
         }
 
+        // Re-checks the country allow/disallow list server-side even though front.js
+        // does the same check for instant feedback — the client check alone could be
+        // bypassed by a direct POST
         $filter_mode = $config['country_filter_mode'] ?? 'off';
         $filter_list = is_array($config['country_filter_list'] ?? null)
             ? array_map('strtoupper', $config['country_filter_list'])

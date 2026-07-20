@@ -71,8 +71,14 @@ class FormSelectModel
      */
     public static function save(array $data, int $id = 0): int
     {
+        // Defense-in-depth: both current call sites already gate on
+        // Plugin::userCan('edit_forms') before reaching here — this model
+        // method shouldn't rely solely on callers remembering to check.
+        if (!\ForgeForms\Plugin::userCan('edit_forms')) {
+            return 0;
+        }
         $all   = self::getRaw();
-        $title = sanitize_text_field($data['title'] ?? '');
+        $title = sanitize_text_field(\ForgeForms\Utils\Sanitize::str($data['title'] ?? null));
         if ($title === '') {
             $title = 'Formular-Auswahl';
         }
@@ -85,8 +91,8 @@ class FormSelectModel
             }
             $items[] = [
                 'form_id'     => $form_id,
-                'label'       => sanitize_text_field($item['label'] ?? ''),
-                'description' => sanitize_text_field($item['description'] ?? ''),
+                'label'       => sanitize_text_field(\ForgeForms\Utils\Sanitize::str($item['label'] ?? null)),
+                'description' => sanitize_text_field(\ForgeForms\Utils\Sanitize::str($item['description'] ?? null)),
                 'favorite'    => !empty($item['favorite']),
             ];
         }
@@ -151,6 +157,9 @@ class FormSelectModel
      */
     public static function delete(int $id): void
     {
+        if (!\ForgeForms\Plugin::userCan('edit_forms')) {
+            return;
+        }
         $all = array_values(
             array_filter(
                 self::getRaw(),

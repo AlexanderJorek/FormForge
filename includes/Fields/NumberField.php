@@ -104,7 +104,10 @@ CSS;
         if ($base !== true) {
             return $base;
         }
-        if ($value !== '' && $value !== null && !is_numeric($value)) {
+        if ($value === '' || $value === null) {
+            return true;
+        }
+        if (!is_numeric($value)) {
             return __('Please enter a valid number.', 'form-forge');
         }
         $num = (float)$value;

@@ -1,0 +1,53 @@
+<?php
+
+/**
+ * Shared input-shape guard for strictly-typed sanitizer calls.
+ *
+ * PHP Version 8.1
+ *
+ * @category  FormForge
+ * @package   FormForge
+ * @author    Alexander Jorek
+ * @copyright 2026 Alexander Jorek
+ * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @version   1.0.0
+ * @link      https://github.com/AlexanderJorek/FormForge
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ */
+
+namespace ForgeForms\Utils;
+
+defined('ABSPATH') || exit;
+
+/**
+ * Guards scalar values pulled from untrusted arrays ($_POST, decoded JSON)
+ * before they reach a strictly-typed WP sanitizer.
+ */
+class Sanitize
+{
+    /**
+     * Returns $value if it's a string, or $default otherwise.
+     *
+     * $_POST keys can be turned into arrays by an attacker via bracketed
+     * field names (e.g. "title[]=x"), and decoded client JSON can put any
+     * type under a key that's normally a string. Passing that straight into
+     * a strictly-typed WP sanitizer (sanitize_text_field, sanitize_email,
+     * sanitize_key, sanitize_hex_color, wp_kses_post, etc.) throws an
+     * uncaught TypeError instead of failing gracefully. Every scalar pulled
+     * from untrusted input into a sanitizer call should go through this
+     * first.
+     *
+     * @param mixed  $value   Raw value that is expected to be a string.
+     * @param string $default Fallback when $value isn't actually a string.
+     *
+     * @return string
+     */
+    public static function str(mixed $value, string $default = ''): string
+    {
+        return is_string($value) ? $value : $default;
+    }
+}

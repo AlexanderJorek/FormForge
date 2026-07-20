@@ -172,7 +172,8 @@ CSS;
     public function validate(mixed $value, array $config): bool|string
     {
         if (empty($config['expanded'])) {
-            if (!empty($config['required']) && trim((string)($value ?? '')) === '') {
+            $scalar = is_array($value) ? '' : trim((string)($value ?? ''));
+            if (!empty($config['required']) && $scalar === '') {
                 $label = $config['label'] ?? __('Address', 'form-forge');
                 return sprintf(__('%s: Required field.', 'form-forge'), esc_html($label));
             }

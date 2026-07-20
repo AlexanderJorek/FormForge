@@ -44,7 +44,6 @@ class FormList
         add_action('wp_ajax_forge_forms_bulk_duplicate', [self::class, 'ajaxBulkDuplicate']);
         add_action('wp_ajax_forge_forms_export', [self::class, 'ajaxExport']);
         add_action('wp_ajax_forge_forms_import', [self::class, 'ajaxImport']);
-        add_action('wp_ajax_forge_forms_render_row', [self::class, 'ajaxRenderRow']);
         add_filter('admin_body_class', [self::class, 'bodyClass']);
     }
 
@@ -219,7 +218,7 @@ class FormList
                             <div class="forge-form-row-actions">
                                 <a href="<?php echo esc_url($edit_url); ?>"
                                    class="button forge-btn-edit">
-                                    <?php esc_html_e('Bearbeiten', 'form-forge'); ?>
+                                    <?php esc_html_e('Edit', 'form-forge'); ?>
                                 </a>
                                 <div class="forge-row-menu-wrap">
                                     <button class="button forge-row-menu-btn" title="<?php echo esc_attr__('Weitere Aktionen', 'form-forge'); ?>">&#8942;</button>
@@ -838,6 +837,8 @@ class FormList
      */
     public static function ajaxDelete(): void
     {
+        // wp_send_json_error() terminates the request via wp_die(), so execution
+        // never falls through past a failed check below (no explicit return needed).
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
@@ -923,25 +924,6 @@ class FormList
     }
 
     /**
-     * AJAX handler that returns the rendered HTML for a single form row.
-     *
-     * @return void
-     */
-    public static function ajaxRenderRow(): void
-    {
-        if (!\ForgeForms\Plugin::userCan('edit_forms')) {
-            wp_send_json_error(['message' => 'Forbidden'], 403);
-        }
-        $form_id = (int) ($_POST['form_id'] ?? 0);
-        check_ajax_referer('forge_forms_render_row_' . $form_id, 'nonce');
-        $form = \ForgeForms\Form\FormModel::get($form_id);
-        if (!$form) {
-            wp_send_json_error(['message' => 'Form not found.'], 404);
-        }
-        wp_send_json_success(['html' => self::renderRow($form)]);
-    }
-
-    /**
      * AJAX handler to duplicate a single form.
      *
      * @return void
@@ -976,12 +958,14 @@ class FormList
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
-        $ids    = json_decode(wp_unslash($_POST['ids']    ?? '[]'), true);
-        $nonces = json_decode(wp_unslash($_POST['nonces'] ?? '[]'), true);
+        $ids    = json_decode(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['ids']    ?? '[]'), '[]'), true);
+        $nonces = json_decode(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['nonces'] ?? '[]'), '[]'), true);
         if (!is_array($ids) || !is_array($nonces)) {
             wp_send_json_error(['message' => 'Invalid data.'], 400);
         }
         $deleted = [];
+        // $ids and $nonces are positionally paired (same index = same form) rather
+        // than keyed by id, since each row has its own per-id delete nonce.
         foreach ($ids as $i => $raw_id) {
             $form_id = (int)$raw_id;
             $nonce   = sanitize_key($nonces[$i] ?? '');
@@ -1004,8 +988,8 @@ class FormList
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
-        $ids    = json_decode(wp_unslash($_POST['ids']    ?? '[]'), true);
-        $nonces = json_decode(wp_unslash($_POST['nonces'] ?? '[]'), true);
+        $ids    = json_decode(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['ids']    ?? '[]'), '[]'), true);
+        $nonces = json_decode(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['nonces'] ?? '[]'), '[]'), true);
         if (!is_array($ids) || !is_array($nonces)) {
             wp_send_json_error(['message' => 'Invalid data.'], 400);
         }
@@ -1081,13 +1065,19 @@ class FormList
             wp_send_json_error(['message' => __('Invalid import string.', 'form-forge')], 400);
         }
         // Support both v2 (gzdeflate) and v1 (gzencode) strings.
-        $json = @gzinflate($decoded);
+        // Bound the inflated size so a small crafted payload can't expand into a
+        // multi-gigabyte decompression bomb (CERT MEM10-C / resource exhaustion).
+        $max_inflated_size = 5 * 1024 * 1024; // 5 MB is generous for a form export
+        $json = @gzinflate($decoded, $max_inflated_size);
         if ($json === false) {
-            $json = @gzdecode($decoded);
+            $json = @gzdecode($decoded, $max_inflated_size);
         }
         if ($json === false) {
             wp_send_json_error(['message' => __('Decompression failed.', 'form-forge')], 400);
         }
+        // Import always creates a NEW form (FormModel::save() with no id) rather than
+        // overwriting an existing one, even if the exported payload originated from a
+        // form that still exists — avoids clobbering forms via a shared/pasted export string.
         $payload = json_decode($json, true);
         if (!is_array($payload)
             || !isset($payload['v'], $payload['t'], $payload['f'])
@@ -1099,12 +1089,22 @@ class FormList
         if ((int)$payload['v'] === 2) {
             $fields = self::restoreFieldDefaults($fields);
         }
+        // Route imported content through the same sanitizers ajaxSave() applies
+        // to admin-authored fields/notifications/settings — an import string
+        // is untrusted input (it may be pasted from anywhere) and must not
+        // bypass the HTML/config sanitization pipeline just because it arrives
+        // via a different admin action.
+        $payload_title = $payload['t'];
         $result = FormModel::save(
             [
-            'title'         => sanitize_text_field($payload['t']),
-            'fields'        => $fields,
-            'notifications' => is_array($payload['n'] ?? null) ? $payload['n'] : [],
-            'settings'      => is_array($payload['s'] ?? null) ? $payload['s'] : [],
+            'title'         => sanitize_text_field(is_string($payload_title) ? $payload_title : ''),
+            'fields'        => \ForgeForms\Admin\FormEditor::sanitizeFields($fields),
+            'notifications' => \ForgeForms\Admin\FormEditor::sanitizeNotifications(
+                is_array($payload['n'] ?? null) ? $payload['n'] : []
+            ),
+            'settings'      => \ForgeForms\Admin\FormEditor::sanitizeSettings(
+                is_array($payload['s'] ?? null) ? $payload['s'] : []
+            ),
             ]
         );
         if (is_wp_error($result)) {
@@ -1135,7 +1135,9 @@ class FormList
             $defaults = $instance->getDefaultConfig();
             $compact  = [];
             foreach ($field as $k => $v) {
-                // Always keep structural keys; drop keys whose value equals the default.
+                // Always keep structural keys ('type'/'id'/'col' are needed to reconstruct
+                // the field even if their value happens to match the type's default);
+                // drop any other key whose value equals the default to shrink the export string.
                 if ($k === 'type' || $k === 'id' || $k === 'col') {
                     $compact[$k] = $v;
                 } elseif (!array_key_exists($k, $defaults) || $defaults[$k] !== $v) {
