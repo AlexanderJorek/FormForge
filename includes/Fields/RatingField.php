@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -258,10 +258,17 @@ CSS;
         if (!is_numeric($value)) {
             return __('Please select a valid rating.', 'form-forge');
         }
-        $max  = (float)($config['max'] ?? 5);
+        $max = (float)($config['max'] ?? 5);
+        if ($max <= 0) {
+            // A blank/zero admin-set "Number of symbols" value would otherwise
+            // collapse the valid range to n === 0, making the field impossible
+            // to satisfy for any real rating.
+            $max = 5;
+        }
         $half = !empty($config['allow_half']);
         $n    = (float)$value;
         if ($n < 0 || $n > $max) {
+            // translators: %s: maximum allowed rating value.
             return sprintf(__('Please select a rating between 0 and %s.', 'form-forge'), $max);
         }
         // Scale to whole steps (1 per icon, or 2 when half-icons are allowed) and reject
@@ -329,10 +336,10 @@ CSS;
                 'half_key' => 'allow_half',
                 'rebuild'  => true,
                 'options'  => [
-                    ['value' => 'star',    'label' => '★ Stern'],
-                    ['value' => 'heart',   'label' => '♥ Herz'],
-                    ['value' => 'circle',  'label' => '● Kreis'],
-                    ['value' => 'diamond', 'label' => '◆ Raute'],
+                    ['value' => 'star',    'label' => '★ ' . __('Star', 'form-forge')],
+                    ['value' => 'heart',   'label' => '♥ ' . __('Heart', 'form-forge')],
+                    ['value' => 'circle',  'label' => '● ' . __('Circle', 'form-forge')],
+                    ['value' => 'diamond', 'label' => '◆ ' . __('Diamond', 'form-forge')],
                 ],
             ],
             [

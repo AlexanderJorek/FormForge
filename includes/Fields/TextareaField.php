@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -83,6 +83,7 @@ class TextareaField extends BaseField
      */
     public function extractValue(string $field_id): mixed
     {
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
         return isset($_POST[$field_id]) ? sanitize_textarea_field(wp_unslash($_POST[$field_id])) : '';
     }
 
@@ -117,6 +118,7 @@ class TextareaField extends BaseField
         if ($max > 0 && $type === 'words' && $value !== null && $value !== '') {
             $count = count(preg_split('/\s+/', trim((string)$value), -1, PREG_SPLIT_NO_EMPTY));
             if ($count > $max) {
+                // translators: %1$d: maximum word count allowed, %2$d: current word count.
                 return sprintf(__('Please enter at most %1$d words (currently: %2$d).', 'form-forge'), $max, $count);
             }
         }
@@ -125,6 +127,7 @@ class TextareaField extends BaseField
         if ($max > 0 && $type === 'chars' && $value !== null && $value !== '') {
             $length = function_exists('mb_strlen') ? mb_strlen((string)$value) : strlen((string)$value);
             if ($length > $max) {
+                // translators: %1$d: maximum character count allowed, %2$d: current character count.
                 return sprintf(__('Please enter at most %1$d characters (currently: %2$d).', 'form-forge'), $max, $length);
             }
         }

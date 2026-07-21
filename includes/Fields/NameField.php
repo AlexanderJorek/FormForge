@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -88,6 +88,24 @@ CSS;
     ];
 
     /**
+     * Translated default label for a sub-field, keyed by its literal SUBFIELDS label.
+     *
+     * @param string $default_label One of the literal 'label' values from SUBFIELDS.
+     *
+     * @return string Translated label.
+     */
+    private static function subfieldLabel(string $default_label): string
+    {
+        return match ($default_label) {
+            'Salutation'  => __('Salutation', 'form-forge'),
+            'First name'  => __('First name', 'form-forge'),
+            'Middle name' => __('Middle name', 'form-forge'),
+            'Last name'   => __('Last name', 'form-forge'),
+            default      => $default_label,
+        };
+    }
+
+    /**
      * Renders the field HTML.
      *
      * @param array  $config   Field configuration.
@@ -112,7 +130,7 @@ CSS;
             if (empty($config[$k . '_enabled'])) {
                 continue;
             }
-            $label_raw = $config[$k . '_label'] ?? $sf['label'];
+            $label_raw = $config[$k . '_label'] ?? self::subfieldLabel($sf['label']);
             $label = esc_html($label_raw);
             $ph    = esc_attr($config[$k . '_placeholder'] ?? '');
             $req   = !empty($config[$k . '_required']) ? ' required aria-required="true"' : '';
@@ -154,11 +172,12 @@ CSS;
      */
     public function extractValue(string $field_id): mixed
     {
-        $raw = $_POST[$field_id] ?? '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
+        $raw = isset($_POST[$field_id]) ? map_deep(wp_unslash($_POST[$field_id]), 'sanitize_text_field') : '';
         if (is_array($raw)) {
-            return array_map(static fn($v) => sanitize_text_field(wp_unslash($v)), $raw);
+            return $raw;
         }
-        return sanitize_text_field(wp_unslash((string) $raw));
+        return (string) $raw;
     }
 
     /**
@@ -175,6 +194,7 @@ CSS;
             $scalar = is_array($value) ? '' : trim((string)($value ?? ''));
             if (!empty($config['required']) && $scalar === '') {
                 $label = $config['label'] ?? __('Name', 'form-forge');
+                // translators: %s: field label.
                 return sprintf(__('%s: Required field.', 'form-forge'), esc_html($label));
             }
             return true;
@@ -190,11 +210,12 @@ CSS;
             }
             if (!empty($config[$k . '_required'])) {
                 if (trim((string)(is_array($value) ? ($value[$k] ?? '') : '')) === '') {
-                    $errors[] = $config[$k . '_label'] ?? __($sf['label'], 'form-forge');
+                    $errors[] = $config[$k . '_label'] ?? self::subfieldLabel($sf['label']);
                 }
             }
         }
         return $errors
+            // translators: %s: comma-separated list of missing sub-field labels.
             ? sprintf(__('%s: Required field.', 'form-forge'), implode(', ', $errors))
             : true;
     }

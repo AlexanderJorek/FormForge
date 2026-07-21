@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
- * @link      https://github.com/AlexanderJorek/form-forge
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -58,6 +58,7 @@ class FormSettings
      */
     public static function bodyClass(string $classes): string
     {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only admin body-class check, no data written.
         if (isset($_GET['page']) && $_GET['page'] === 'forge-forms-settings') {
             $classes .= ' forge-list-page';
         }
@@ -91,7 +92,7 @@ class FormSettings
     public static function renderSettingsPage(): void
     {
         if (!\ForgeForms\Plugin::userCan('settings')) {
-            wp_die(__('Permission denied.', 'form-forge'));
+            wp_die(esc_html__('Permission denied.', 'form-forge'));
         }
 
         $saved = false;
@@ -167,11 +168,11 @@ class FormSettings
                 </p>
                 <p style="margin:0 0 16px;font-size:13px;color:#50575e;line-height:1.55;">
                     <?php
-                    printf(
+                    echo wp_kses_post(sprintf(
                         /* translators: %s: wp-config.php as inline code element */
                         __('In encrypted mode, the key in the database is worthless without the master key, which is stored separately on the server in %s. A database-only leak is therefore not sufficient.', 'form-forge'),
                         '<code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;padding:1px 5px;font-size:12px;color:#1d2327;">wp-config.php</code>'
-                    );
+                    ));
                     ?>
                 </p>
                 <p style="margin:0 0 10px;font-size:13px;color:#1d2327;font-weight:600;">
@@ -200,11 +201,11 @@ class FormSettings
                         </span>
                         <span style="font-size:12px;color:#50575e;line-height:1.4;">
                             <?php
-                            printf(
+                            echo wp_kses_post(sprintf(
                                 /* translators: %s: wp-config.php as inline code element */
                                 __('AES-256-GCM — requires a master key in %s.', 'form-forge'),
                                 '<code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;padding:1px 5px;font-size:11px;color:#1d2327;">wp-config.php</code>'
-                            );
+                            ));
                             ?>
                         </span>
                     </button>
@@ -221,11 +222,11 @@ class FormSettings
                     </h2>
                     <p style="margin:0 0 10px;font-size:13px;color:#50575e;line-height:1.55;">
                         <?php
-                        printf(
+                        echo wp_kses_post(sprintf(
                             /* translators: %s: wp-config.php as inline code element */
                             __('Copy the following line and add it to the %s on your server. Here\'s how:', 'form-forge'),
                             '<code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;padding:1px 5px;font-size:12px;color:#1d2327;">wp-config.php</code>'
-                        );
+                        ));
                         ?>
                     </p>
                     <ol style="margin:0 0 12px 18px;font-size:13px;color:#50575e;line-height:1.7;">
@@ -235,27 +236,27 @@ class FormSettings
                         <li><?php
                             $code_wplogin = '<code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;padding:1px 4px;font-size:11px;color:#1d2327;">wp-login.php</code>';
                             $code_wpconfig = '<code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;padding:1px 4px;font-size:11px;color:#1d2327;">wp-config.php</code>';
-                            printf(
+                            echo wp_kses_post(sprintf(
                                 /* translators: 1: wp-login.php as code element, 2: wp-config.php as code element */
                                 __('Navigate to the root directory of your WordPress installation (where %1$s and %2$s are also located).', 'form-forge'),
                                 $code_wplogin,
                                 $code_wpconfig
-                            );
+                            ));
                             ?></li>
                         <li><?php
-                            printf(
+                            echo wp_kses_post(sprintf(
                                 /* translators: %s: wp-config.php as inline code element */
                                 __('Open %s for editing.', 'form-forge'),
                                 '<code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;padding:1px 4px;font-size:11px;color:#1d2327;">wp-config.php</code>'
-                            );
+                            ));
                             ?></li>
                         <li><?php
-                            printf(
+                            echo wp_kses_post(sprintf(
                                 /* translators: 1: stop-editing comment as code element, 2: "direkt davor" as strong element */
                                 __('Find the line %1$s and insert the line below %2$s.', 'form-forge'),
                                 '<code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;padding:1px 4px;font-size:11px;color:#1d2327;">/* That\'s all, stop editing! */</code>',
                                 '<strong>' . esc_html__('directly before it', 'form-forge') . '</strong>'
-                            );
+                            ));
                             ?></li>
                         <li><?php echo esc_html__('Save the file and return here.', 'form-forge'); ?></li>
                     </ol>
@@ -287,12 +288,12 @@ class FormSettings
                         <?php
                         $code_master = '<code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;padding:1px 5px;font-size:12px;color:#1d2327;">FORGE_SEAL_MASTER_KEY</code>';
                         $code_wpcfg  = '<code style="background:#f0f0f1;border:1px solid #c3c4c7;border-radius:3px;padding:1px 5px;font-size:12px;color:#1d2327;">wp-config.php</code>';
-                        printf(
+                        echo wp_kses_post(sprintf(
                             /* translators: 1: FORGE_SEAL_MASTER_KEY constant as code element, 2: wp-config.php as code element */
                             __('A valid %1$s is entered in %2$s. Click "Complete setup" to generate the first seal key and finish the setup.', 'form-forge'),
                             $code_master,
                             $code_wpcfg
-                        );
+                        ));
                         ?>
                     </p>
                     <p id="forge-blocker-ready-error"
@@ -433,7 +434,7 @@ class FormSettings
                                 <?php
                                 printf(
                                     /* translators: %s: admin e-mail address */
-                                    __('Leave blank to use the WordPress admin email (%s).', 'form-forge'),
+                                    esc_html__('Leave blank to use the WordPress admin email (%s).', 'form-forge'),
                                     esc_html($wp_admin_email)
                                 );
                                 ?>
@@ -593,11 +594,11 @@ class FormSettings
                 </h2>
                 <p>
                     <?php
-                    printf(
+                    echo wp_kses_post(sprintf(
                         /* translators: %s: "rotiert" as an em element */
                         __('Derives a new key via PBKDF2. PDFs sealed with the previous key remain verifiable and are marked as %s.', 'form-forge'),
                         '<em>' . esc_html__('rotated', 'form-forge') . '</em>'
-                    );
+                    ));
                     ?>
                 </p>
 
@@ -629,11 +630,11 @@ class FormSettings
                         <input type="checkbox" id="forge_key_compromised" value="1">
                         <span><?php
                                 $strong_cmp = '<strong>' . esc_html__('compromised', 'form-forge') . '</strong>';
-                                printf(
+                                echo wp_kses_post(sprintf(
                                     /* translators: %s: "kompromittiert" as a strong element */
                                     __('Mark the previous key as %s', 'form-forge'),
                                     $strong_cmp
-                                );
+                                ));
                                 ?></span>
                     </label>
                     <p id="forge-key-compromised-hint" class="forge-settings-hint" hidden
@@ -708,6 +709,7 @@ class FormSettings
                         <tr class="forge-key-uuid-row">
                             <td colspan="4">
                                 <span class="forge-key-uuid-lbl"><?php echo esc_html__('UUID:', 'form-forge'); ?></span>
+                                <?php // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $uuid is already esc_html()'d at assignment above. ?>
                                 <code class="forge-key-uuid-code"><?php echo $uuid; ?></code>
                             </td>
                         </tr>
@@ -715,12 +717,16 @@ class FormSettings
                             <td><code class="forge-key-fp-cell"><?php echo esc_html($fp_mid); ?></code></td>
                             <td>
                                 <span class="forge-key-card-badges">
+                                    <?php // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $badge_cls is one of the hardcoded literals assigned above, no user input. ?>
                                     <span class="<?php echo $badge_cls; ?>"><?php echo esc_html($badge_lbl); ?></span>
                                     <?php
+                                    // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $extra_badge is hardcoded HTML built from esc_html__() literals above, no user input.
                                     echo $extra_badge; ?>
                                 </span>
                             </td>
+                            <?php // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $at is already esc_html()'d at assignment above. ?>
                             <td><?php echo $at; ?></td>
+                            <?php // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $by is already esc_html()'d at assignment above. ?>
                             <td><?php echo $by; ?></td>
                         </tr>
                     <?php endforeach; ?>
@@ -766,11 +772,11 @@ class FormSettings
                     <i class="fa-solid fa-key"></i>
                     <span><?php
                             $strong_nicht = '<strong>' . esc_html__('not', 'form-forge') . '</strong>';
-                            printf(
+                            echo wp_kses_post(sprintf(
                                 /* translators: %s: "nicht" as a strong element */
                                 __('PDF seal keys will %s be deleted.', 'form-forge'),
                                 $strong_nicht
-                            );
+                            ));
                             ?></span>
                 </div>
 
@@ -834,12 +840,12 @@ class FormSettings
                 </h2>
                 <p>
                     <?php
-                    printf(
+                    echo wp_kses_post(sprintf(
                         /* translators: 1: wp-config.php as code element, 2: "bevor" as strong element */
                         __('Add this line to your %1$s %2$s clicking "Continue". The key never leaves the server — it lives only in your configuration file.', 'form-forge'),
                         '<code>wp-config.php</code>',
                         '<strong>' . esc_html__('before', 'form-forge') . '</strong>'
-                    );
+                    ));
                     ?>
                 </p>
                 <div class="forge-key-dl-info" style="margin-bottom:14px;">
@@ -2138,11 +2144,21 @@ $('.forge-iris-input').wpColorPicker({
      */
     private static function saveGeneralSettings(): void
     {
-        $from_email_input = sanitize_email(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['forge_cfg_a'] ?? '')));
+        if (!\ForgeForms\Plugin::userCan('settings')) {
+            return;
+        }
+
+        if (!isset($_POST['forge_settings_nonce'])
+            || !wp_verify_nonce(sanitize_key(wp_unslash($_POST['forge_settings_nonce'])), 'forge_forms_settings')
+        ) {
+            return;
+        }
+
+        $from_email_input = \ForgeForms\Utils\Sanitize::str(sanitize_email(wp_unslash($_POST['forge_cfg_a'] ?? '')));
         if ($from_email_input !== '') {
             update_option('forge_forms_from_email', $from_email_input);
         }
-        $from_name_input = sanitize_text_field(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['forge_cfg_b'] ?? '')));
+        $from_name_input = \ForgeForms\Utils\Sanitize::str(sanitize_text_field(wp_unslash($_POST['forge_cfg_b'] ?? '')));
         if ($from_name_input !== '') {
             update_option('forge_forms_from_name', $from_name_input);
         }
@@ -2151,22 +2167,22 @@ $('.forge-iris-input').wpColorPicker({
         // boundary server-side so a user with only the plugin's 'settings'
         // capability can't set them via a raw POST to this handler.
         if (current_user_can('manage_options')) {
-            $site_key = sanitize_text_field(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['recaptcha_site'] ?? '')));
+            $site_key = \ForgeForms\Utils\Sanitize::str(sanitize_text_field(wp_unslash($_POST['recaptcha_site'] ?? '')));
             update_option('forge_forms_recaptcha_site_key', $site_key);
-            $secret_key = sanitize_text_field(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['recaptcha_secret'] ?? '')));
+            $secret_key = \ForgeForms\Utils\Sanitize::str(sanitize_text_field(wp_unslash($_POST['recaptcha_secret'] ?? '')));
             update_option('forge_forms_recaptcha_secret_key', $secret_key);
         }
 
-        $hover        = sanitize_hex_color(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['hover_color']    ?? ''))) ?? '#1d2327';
-        $accent       = sanitize_hex_color(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['accent_color']   ?? ''))) ?? '#f59e0b';
-        $border       = sanitize_hex_color(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['border_color']   ?? ''))) ?? '#c9cdd4';
-        $admin_accent = sanitize_hex_color(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['admin_accent']   ?? ''))) ?? '#2271b1';
+        $hover        = \ForgeForms\Utils\Sanitize::str(sanitize_hex_color(wp_unslash($_POST['hover_color']    ?? ''))) ?: '#1d2327';
+        $accent       = \ForgeForms\Utils\Sanitize::str(sanitize_hex_color(wp_unslash($_POST['accent_color']   ?? ''))) ?: '#f59e0b';
+        $border       = \ForgeForms\Utils\Sanitize::str(sanitize_hex_color(wp_unslash($_POST['border_color']   ?? ''))) ?: '#c9cdd4';
+        $admin_accent = \ForgeForms\Utils\Sanitize::str(sanitize_hex_color(wp_unslash($_POST['admin_accent']   ?? ''))) ?: '#2271b1';
         update_option('forge_forms_hover_color', $hover);
         update_option('forge_forms_accent_color', $accent);
         update_option('forge_forms_border_color', $border);
         update_option('forge_forms_admin_accent', $admin_accent);
 
-        $layout_mode = \ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['field_layout_mode'] ?? 'block'), 'block');
+        $layout_mode = sanitize_key(wp_unslash($_POST['field_layout_mode'] ?? 'block'));
         update_option(
             'forge_forms_field_layout',
             $layout_mode === 'inline' ? 'inline' : 'block'
@@ -2234,7 +2250,7 @@ $('.forge-iris-input').wpColorPicker({
         }
         check_ajax_referer('forge_forms_admin_nonce', 'nonce');
 
-        $raw = json_decode(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['settings'] ?? '')), true);
+        $raw = json_decode(\ForgeForms\Utils\Sanitize::str(sanitize_textarea_field(wp_unslash($_POST['settings'] ?? ''))), true);
         if (!is_array($raw)) {
             wp_send_json_error(['message' => 'Invalid data'], 400);
         }
@@ -2582,7 +2598,8 @@ $('.forge-iris-input').wpColorPicker({
         check_ajax_referer('forge_access_settings', 'nonce');
 
         global $wp_roles;
-        $raw_roles = $_POST['roles'] ?? [];
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- each key is sanitize_key()'d and each value passed through self::sanitizePerms() below before use.
+        $raw_roles = wp_unslash($_POST['roles'] ?? []);
         $roles = [];
         if (is_array($raw_roles)) {
             foreach ($raw_roles as $slug => $raw_perms) {
@@ -2596,7 +2613,8 @@ $('.forge-iris-input').wpColorPicker({
             }
         }
 
-        $raw_users = $_POST['users'] ?? [];
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- each key is (int)-cast and validated via get_userdata(), each value passed through self::sanitizePerms() below before use.
+        $raw_users = wp_unslash($_POST['users'] ?? []);
         $users = [];
         if (is_array($raw_users)) {
             foreach ($raw_users as $uid => $raw_perms) {

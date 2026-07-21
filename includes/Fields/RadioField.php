@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -209,11 +209,14 @@ CSS;
      */
     public function extractValue(string $field_id): mixed
     {
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
         $selected = isset($_POST[$field_id]) ? sanitize_text_field(wp_unslash($_POST[$field_id])) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
         if ($selected === '__other__' && isset($_POST[$field_id . '_other'])) {
             return [
                 'value'          => $selected,
-                '__other_text__' => sanitize_text_field(wp_unslash($_POST[$field_id . '_other'])),
+                // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
+                '__other_text__' => mb_substr(sanitize_text_field(wp_unslash($_POST[$field_id . '_other'])), 0, 500),
             ];
         }
         return $selected;
@@ -336,15 +339,15 @@ CSS;
             [
                 'key'         => 'layout',
                 'type'        => 'bool_seg',
-                'label'       => __('Anordnung', 'form-forge'),
-                'false_label' => __('Vertikal', 'form-forge'),
+                'label'       => __('Layout', 'form-forge'),
+                'false_label' => __('Vertical', 'form-forge'),
                 'true_label'  => __('Horizontal', 'form-forge'),
                 'swap'        => true,
             ],
             [
                 'key'   => 'description',
                 'type'  => 'text',
-                'label' => __('Hinweistext', 'form-forge'),
+                'label' => __('Description', 'form-forge'),
             ],
             [
                 'key'   => 'other_option',
@@ -354,7 +357,7 @@ CSS;
             [
                 'key'   => 'options',
                 'type'  => 'options_list',
-                'label' => __('Optionen', 'form-forge'),
+                'label' => __('Options', 'form-forge'),
             ],
         ];
     }

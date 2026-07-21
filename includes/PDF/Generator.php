@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
- * @link      https://github.com/AlexanderJorek/form-forge
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -143,7 +143,10 @@ class Generator
                 }
                 $htaccess = $safe_dir . '/.htaccess';
                 if (!file_exists($htaccess)) {
-                    file_put_contents($htaccess, "Options -Indexes\nDeny from all\n");
+                    file_put_contents(
+                        $htaccess,
+                        "Options -Indexes\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n"
+                    );
                     chmod($htaccess, 0640);
                 }
                 set_transient('forge_pdf_dirs_ready', true, DAY_IN_SECONDS);
@@ -153,7 +156,7 @@ class Generator
             $mpdf_temp = $safe_dir . '/mpdf';
             $grid_svg  = FORGE_FORMS_PATH . 'pdf-templates/construction-grid.svg';
 
-            $form_name_clean = preg_replace('/[^a-zA-Z0-9_-]/', '_', $title);
+            $form_name_clean = substr(preg_replace('/[^a-zA-Z0-9_-]/', '_', $title), 0, 80);
             $date_time       = wp_date('D_d_m_Y_T_H_i');
 
             $margin_top    = (int) ($layout['margin_top_mm']    ?? 30);
@@ -288,7 +291,7 @@ class Generator
 
             return $final_path;
         } catch (MpdfException $e) {
-            error_log('ForgeForms Generator error: ' . $e->getMessage());
+            \ForgeForms\forge_log('ForgeForms Generator error: ' . $e->getMessage());
             return false;
         } finally {
             // Any exit path (including a \Throwable not caught above, e.g. from
@@ -360,6 +363,7 @@ class Generator
     {
         $pageno = '<span style="font-size:0.1px;line-height:0.1px;color:#fff;">'
             . '[FORGE_PDF_PAGENO_START]</span>'
+            // translators: %1$s: current page number placeholder, %2$s: total page count placeholder (both substituted by mPDF at render time).
             . sprintf(__('Page %1$s of %2$s', 'form-forge'), '{PAGENO}', '{nbpg}')
             . '<span style="font-size:0.1px;line-height:0.1px;color:#fff;">'
             . '[FORGE_PDF_PAGENO_END]</span>';

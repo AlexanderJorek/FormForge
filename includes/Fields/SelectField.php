@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -275,7 +275,7 @@ CSS;
         }
         if (!empty($config['other_option'])) {
             $other_val = is_array($value) ? '' : (string)($value ?? '');
-            $inner .= '<option value="__other__"' . selected($other_val, '__other__', false) . '>Other…</option>';
+            $inner .= '<option value="__other__"' . selected($other_val, '__other__', false) . '>' . esc_html__('Other…', 'form-forge') . '</option>';
         }
         $inner .= '</select>';
         if (!empty($config['other_option'])) {
@@ -363,11 +363,14 @@ CSS;
      */
     public function extractValue(string $field_id): mixed
     {
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
         $selected = isset($_POST[$field_id]) ? sanitize_text_field(wp_unslash($_POST[$field_id])) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
         if ($selected === '__other__' && isset($_POST[$field_id . '_other'])) {
             return [
                 'value'           => $selected,
-                '__other_text__'  => sanitize_text_field(wp_unslash($_POST[$field_id . '_other'])),
+                // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
+                '__other_text__'  => mb_substr(sanitize_text_field(wp_unslash($_POST[$field_id . '_other'])), 0, 500),
             ];
         }
         return $selected;
@@ -388,7 +391,7 @@ CSS;
         if ($selected === '__other__' && $other_raw !== null) {
             return [
                 'value'          => $selected,
-                '__other_text__' => sanitize_text_field(wp_unslash($other_raw)),
+                '__other_text__' => mb_substr(sanitize_text_field(wp_unslash($other_raw)), 0, 500),
             ];
         }
         return $selected;
@@ -424,7 +427,7 @@ CSS;
             [
                 'key'   => 'description',
                 'type'  => 'text',
-                'label' => __('Beschreibung', 'form-forge'),
+                'label' => __('Description', 'form-forge'),
             ],
             [
                 'key'   => 'other_option',
@@ -434,7 +437,7 @@ CSS;
             [
                 'key'   => 'options',
                 'type'  => 'options_list',
-                'label' => __('Optionen', 'form-forge'),
+                'label' => __('Options', 'form-forge'),
             ],
         ];
     }

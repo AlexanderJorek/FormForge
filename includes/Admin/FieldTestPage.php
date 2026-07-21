@@ -10,13 +10,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -49,6 +49,7 @@ class FieldTestPage
      */
     public static function bodyClass(string $classes): string
     {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only admin body-class check, no data written.
         if (isset($_GET['page']) && $_GET['page'] === 'forge-field-tests') {
             $classes .= ' forge-list-page';
         }
@@ -2308,7 +2309,9 @@ JS;
         $frontUrl = esc_url(FORGE_FORMS_URL . 'assets/js/front.js');
 
         echo '<div id="forge-js-tests" style="color:#555;font-style:italic;">Running JS tests…</div>';
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $globals is generated JS built from internal field-handler code, not user input; HTML-escaping would corrupt it.
         echo '<script>' . $globals . '</script>';
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $frontUrl is already esc_url()'d above.
         echo '<script src="' . $frontUrl . '"></script>';
         /* Collapse helper must be defined BEFORE the harness script that calls it */
         echo <<<'JS'
@@ -2360,6 +2363,7 @@ window.forgeCollapseSections = function (table) {
 window.forgeCollapseSections(document.getElementById('forge-php-tests'));
 </script>
 JS;
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- jsTestHarness() returns static, hardcoded JS with no user input.
         echo '<script>' . self::jsTestHarness() . '</script>';
     }
 
@@ -2497,6 +2501,7 @@ JS;
         echo '<div class="forge-test-topbar">';
         echo '<h1 class="forge-test-title">Field Tests</h1>';
         echo '<div class="forge-test-tabs">';
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $phpBadge is built from a boolean and internal integer counts only, no user input.
         echo '<div class="forge-test-tab active" data-panel="forge-panel-php">PHP' . $phpBadge . '</div>';
         echo '<div class="forge-test-tab" data-panel="forge-panel-js">JS <span id="forge-js-tab-badge" class="forge-tab-badge forge-tab-badge--loading">…</span></div>';
         echo '</div>';
@@ -2507,6 +2512,7 @@ JS;
         if (!$allOk) {
             $copyText = esc_js(implode("\n", self::$failLines));
             echo '<div style="margin-bottom:10px;">';
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $copyText is already esc_js()'d above; this is a JS string literal context, not HTML.
             echo '<button onclick="navigator.clipboard.writeText(\'' . $copyText . '\').then(function(){this.textContent=\'Copied!\';}.bind(this))" style="cursor:pointer;padding:6px 14px;font-size:13px;">📋 Copy failures</button>';
             echo '</div>';
         }
@@ -2526,6 +2532,7 @@ JS;
             . '<th>Note</th>'
             . '</tr></thead>';
         echo '<tbody>';
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- each self::$log entry already escapes its dynamic parts with esc_html() when appended.
         echo implode('', self::$log);
         echo '</tbody></table>';
         echo '</div>';

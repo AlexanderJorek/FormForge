@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -206,6 +206,7 @@ CSS;
         if (empty($value) || trim((string)$value) === '') {
             if (!empty($config['required'])) {
                 $label = $config['label'] ?? __('Date', 'form-forge');
+                // translators: %s: field label.
                 return sprintf(__('%s: Required field.', 'form-forge'), esc_html($label));
             }
             return true;
@@ -226,6 +227,7 @@ CSS;
             [$minD, $minM, $minY] = explode('.', $minDate);
             $minYmd = sprintf('%04d%02d%02d', (int)$minY, (int)$minM, (int)$minD);
             if ($ymd < $minYmd) {
+                // translators: %s: minimum allowed date.
                 return sprintf(__('Please enter a date on or after %s.', 'form-forge'), $minDate);
             }
         }
@@ -235,6 +237,7 @@ CSS;
             [$maxD, $maxM, $maxY] = explode('.', $maxDate);
             $maxYmd = sprintf('%04d%02d%02d', (int)$maxY, (int)$maxM, (int)$maxD);
             if ($ymd > $maxYmd) {
+                // translators: %s: maximum allowed date.
                 return sprintf(__('Please enter a date on or before %s.', 'form-forge'), $maxDate);
             }
         }

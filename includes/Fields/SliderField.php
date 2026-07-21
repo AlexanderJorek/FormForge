@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -314,14 +314,16 @@ CSS;
      */
     public function extractValue(string $field_id): mixed
     {
-        $raw = $_POST[$field_id] ?? null;
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
+        $raw = isset($_POST[$field_id]) ? map_deep(wp_unslash($_POST[$field_id]), 'sanitize_text_field') : null;
         if (is_array($raw)) {
             return [
-                'from' => sanitize_text_field(wp_unslash((string)($raw['from'] ?? ''))),
-                'to'   => sanitize_text_field(wp_unslash((string)($raw['to']   ?? ''))),
+                'from' => sanitize_text_field((string)($raw['from'] ?? '')),
+                'to'   => sanitize_text_field((string)($raw['to']   ?? '')),
             ];
         }
-        return isset($_POST[$field_id]) ? sanitize_text_field(wp_unslash((string)$raw)) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
+        return isset($_POST[$field_id]) ? sanitize_text_field((string)$raw) : '';
     }
 
     /**
@@ -350,9 +352,11 @@ CSS;
                 }
                 $n = (float)$v;
                 if ($n < $min) {
+                    // translators: %s: minimum allowed value.
                     return sprintf(__('Minimum value: %s', 'form-forge'), $min);
                 }
                 if ($n > $max) {
+                    // translators: %s: maximum allowed value.
                     return sprintf(__('Maximum value: %s', 'form-forge'), $max);
                 }
             }
@@ -367,9 +371,11 @@ CSS;
             }
             $n = (float)$value;
             if ($n < $min) {
+                // translators: %s: minimum allowed value.
                 return sprintf(__('Minimum value: %s', 'form-forge'), $min);
             }
             if ($n > $max) {
+                // translators: %s: maximum allowed value.
                 return sprintf(__('Maximum value: %s', 'form-forge'), $max);
             }
         }

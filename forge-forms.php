@@ -5,12 +5,12 @@
  * Plugin URI:        https://github.com/AlexanderJorek/FormForge
  * Description:       Custom drag-and-drop form builder with PDF generation and email delivery.
  * Version:           1.0.0
- * Requires at least: 6.4
+ * Requires at least: 7.0.0
  * Requires PHP:      8.1
  * Author:            Alexander Jorek
  * Author URI:        https://github.com/AlexanderJorek
- * License:           GPL-2.0-or-later
- * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
+ * License:           GPL-3.0-or-later
+ * License URI:       https://www.gnu.org/licenses/gpl-3.0.html
  * Text Domain:       form-forge
  */
 
@@ -30,7 +30,7 @@ if (file_exists($composer_autoload)) {
         static function (): void {
             echo '<div class="notice notice-error"><p>'
             . '<strong>FormForge:</strong> '
-            . __('Composer autoloader not found. Run <code>composer install</code> in the plugin directory.', 'form-forge')
+            . esc_html__('Composer autoloader not found. Run <code>composer install</code> in the plugin directory.', 'form-forge')
             . '</p></div>';
         }
     );

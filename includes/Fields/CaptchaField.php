@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -89,9 +89,10 @@ class CaptchaField extends BaseField
      */
     public function extractValue(string $field_id): mixed
     {
-        return isset($_POST['g-recaptcha-response'])
-            ? sanitize_text_field(wp_unslash($_POST['g-recaptcha-response']))
-            : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
+        $has_response = isset($_POST['g-recaptcha-response']);
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
+        return $has_response ? sanitize_text_field(wp_unslash($_POST['g-recaptcha-response'])) : '';
     }
 
     /**
@@ -109,7 +110,13 @@ class CaptchaField extends BaseField
             return __('Please confirm the CAPTCHA.', 'form-forge');
         }
 
-        $response = wp_remote_post('https://www.google.com/recaptcha/api/siteverify', ['body' => ['secret' => $secret, 'response' => sanitize_text_field((string)$value)]]);
+        $response = wp_remote_post(
+            'https://www.google.com/recaptcha/api/siteverify',
+            [
+            'timeout' => 5,
+            'body'    => ['secret' => $secret, 'response' => sanitize_text_field((string)$value)],
+            ]
+        );
 
         if (is_wp_error($response)) {
             return __('CAPTCHA verification failed.', 'form-forge');
@@ -143,7 +150,7 @@ class CaptchaField extends BaseField
     public function getDefaultConfig(): array
     {
         return [
-            'label'       => 'CAPTCHA',
+            'label'       => __('CAPTCHA', 'form-forge'),
             'required'    => true,
             'description' => '',
         ];

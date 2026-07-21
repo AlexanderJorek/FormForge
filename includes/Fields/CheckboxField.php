@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -199,7 +199,7 @@ CSS;
             $other_chk = in_array('__other__', array_map('strval', $selected), true) ? ' checked' : '';
             $inner .= '<label class="forge-checkbox-label">'
                 . '<input type="checkbox" id="' . esc_attr($other_id) . '" name="' . esc_attr($field_id) . '[]"'
-                . ' value="__other__"' . $other_chk . '> Other…</label>';
+                . ' value="__other__"' . $other_chk . '> ' . esc_html__('Other…', 'form-forge') . '</label>';
             $show  = $other_chk ? '' : ' style="display:none"';
             $inner .= '<input type="text" name="' . esc_attr($field_id) . '_other"'
                 . ' class="forge-input forge-other-input" value="' . esc_attr($other_text) . '"'
@@ -219,12 +219,13 @@ CSS;
      */
     public function extractValue(string $field_id): mixed
     {
-        $vals = $_POST[$field_id] ?? [];
-        $out  = is_array($vals)
-            ? array_map(static fn($v) => sanitize_text_field(wp_unslash($v)), $vals)
-            : [];
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
+        $vals = isset($_POST[$field_id]) ? map_deep(wp_unslash($_POST[$field_id]), 'sanitize_text_field') : [];
+        $out  = is_array($vals) ? $vals : [];
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
         if (in_array('__other__', $out, true) && isset($_POST[$field_id . '_other'])) {
-            $out['__other_text__'] = sanitize_text_field(wp_unslash($_POST[$field_id . '_other']));
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
+            $out['__other_text__'] = mb_substr(sanitize_text_field(wp_unslash($_POST[$field_id . '_other'])), 0, 500);
         }
         return $out;
     }
@@ -258,7 +259,7 @@ CSS;
     {
         $out = $this->extractFromRaw($raw);
         if (in_array('__other__', $out, true) && $other_raw !== null) {
-            $out['__other_text__'] = sanitize_text_field(wp_unslash($other_raw));
+            $out['__other_text__'] = mb_substr(sanitize_text_field(wp_unslash($other_raw)), 0, 500);
         }
         return $out;
     }
@@ -292,6 +293,7 @@ CSS;
             $vals = is_array($value) ? self::selectedOptions($value) : [];
             if (empty($vals)) {
                 $label = $config['label'] ?? __('Field', 'form-forge');
+                // translators: %s: field label.
                 return sprintf(__('%s: Please select at least one option.', 'form-forge'), esc_html($label));
             }
         }
@@ -300,9 +302,11 @@ CSS;
         $min      = (int)($config['min_selections'] ?? 0);
         $max      = (int)($config['max_selections'] ?? 0);
         if ($min > 0 && $cnt < $min) {
+            // translators: %d: minimum number of options that must be selected.
             return sprintf(__('Please select at least %d option(s).', 'form-forge'), $min);
         }
         if ($max > 0 && $cnt > $max) {
+            // translators: %d: maximum number of options that may be selected.
             return sprintf(__('Please select at most %d option(s).', 'form-forge'), $max);
         }
         $allowed = array_map(

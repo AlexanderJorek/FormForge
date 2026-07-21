@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -41,8 +41,8 @@ class FormProcessor
     public static function handle(): void
     {
         /* ---- Nonce ---- */
-        $nonce   = sanitize_key(\ForgeForms\Utils\Sanitize::str($_POST['forge_nonce'] ?? null));
-        $form_id = (int)($_POST['form_id'] ?? 0);
+        $nonce   = sanitize_key(wp_unslash($_POST['forge_nonce'] ?? ''));
+        $form_id = absint(wp_unslash($_POST['form_id'] ?? 0));
 
         if (!$form_id || !wp_verify_nonce($nonce, 'forge_forms_submit_' . $form_id)) {
             wp_send_json_error(['message' => __('Security check failed.', 'form-forge')], 403);
@@ -89,8 +89,8 @@ class FormProcessor
 
             if ($handler->isGroupContainer()) {
                 $children   = $field_cfg['children'] ?? [];
-                $group_post = isset($_POST[$field_id]) && is_array($_POST[$field_id])
-                    ? $_POST[$field_id] : [];
+                // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- each leaf value is sanitized per-field below via extractFromRaw()/extractFromRawWithOther() before use.
+                $group_post = isset($_POST[$field_id]) && is_array($_POST[$field_id]) ? wp_unslash($_POST[$field_id]) : [];
                 $sanitized  = [];
                 // Cap the number of repeatable-group copies processed per field —
                 // otherwise a POST with an arbitrarily large number of copy
@@ -234,6 +234,7 @@ class FormProcessor
                             : $child_id;
 
                         if (!empty($child_cfg['required']) && $val === '') {
+                            // translators: %s: field label.
                             $errors[$ekey] = sprintf(__('%s is a required field.', 'form-forge'), esc_html($child_cfg['label'] ?? $child_id));
                         } else {
                             $child_cfg['field_id'] = $child_id;

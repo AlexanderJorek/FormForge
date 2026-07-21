@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -282,6 +282,7 @@ CSS;
      */
     public function extractValue(string $field_id): mixed
     {
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
         return isset($_POST[$field_id]) ? sanitize_text_field(wp_unslash($_POST[$field_id])) : null;
     }
 
@@ -311,6 +312,7 @@ CSS;
                 : 'data:image/png;base64,';
             if (empty($value) || !str_starts_with((string)$value, $prefix)) {
                 $label = $config['label'] ?? __('Signature', 'form-forge');
+                // translators: %s: field label.
                 return sprintf(__('%s is a required field.', 'form-forge'), esc_html($label));
             }
         }

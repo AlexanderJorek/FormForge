@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -393,9 +393,11 @@ CSS;
 
         if ($accept !== '') {
             $inner .= '<p class="forge-field-hint">'
+                // translators: %s: comma-separated list of allowed file extensions.
                 . sprintf(__('Allowed file types: %s', 'form-forge'), esc_html($accept)) . '</p>';
         }
         $inner .= '<p class="forge-field-hint">'
+            // translators: %s: maximum file size in megabytes.
             . sprintf(__('Maximum file size: %s MB', 'form-forge'), $max) . '</p>';
 
         return $this->wrap($field_id, $config, $inner);
@@ -460,7 +462,15 @@ CSS;
      */
     public function extractValue(string $field_id): mixed
     {
-        return $_FILES[$field_id] ?? null;
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- nonce is verified once in FormProcessor::handle() before field extraction runs; 'name' is sanitized below, other keys (tmp_name/size/error) are PHP-generated, not attacker text.
+        $file = isset($_FILES[$field_id]) ? wp_unslash($_FILES[$field_id]) : null;
+        if (!is_array($file) || !isset($file['name'])) {
+            return $file;
+        }
+        $file['name'] = is_array($file['name'])
+            ? map_deep($file['name'], 'sanitize_file_name')
+            : sanitize_file_name($file['name']);
+        return $file;
     }
 
     /**
@@ -500,6 +510,7 @@ CSS;
         if (!empty($config['required'])) {
             if (!$file || !self::hasFileName($file['name'] ?? null)) {
                 $label = $config['label'] ?? __('File', 'form-forge');
+                // translators: %s: field label.
                 return sprintf(__('%s: Please upload a file.', 'form-forge'), esc_html($label));
             }
         }
@@ -513,10 +524,12 @@ CSS;
             foreach ($names as $i => $name) {
                 $ext = strtolower(pathinfo((string)$name, PATHINFO_EXTENSION));
                 if (in_array($ext, self::BLOCKED_TYPES, true)) {
+                    // translators: %s: rejected file extension.
                     return sprintf(__('File type ".%s" is not allowed for security reasons.', 'form-forge'), esc_html($ext));
                 }
                 if ((int)($sizes[$i] ?? 0) > $max_bytes) {
                     return sprintf(
+                        // translators: %1$s: file name, %2$d: maximum allowed file size in megabytes.
                         __('"%1$s" exceeds the maximum file size of %2$d MB.', 'form-forge'),
                         esc_html((string)$name),
                         (int)($config['max_size_mb'] ?? 10)
@@ -533,6 +546,7 @@ CSS;
                     }
                     $real_mime = $finfo->file($tmp) ?: '';
                     if (in_array($real_mime, self::BLOCKED_MIME_TYPES, true)) {
+                        // translators: %s: rejected file extension.
                         return sprintf(__('File type ".%s" is not allowed for security reasons.', 'form-forge'), esc_html($ext));
                     }
                 }
@@ -590,12 +604,12 @@ CSS;
         $files_list = [];
         if (isset($file_data['name']) && is_array($file_data['name'])) {
             foreach ($file_data['name'] as $i => $name) {
-                if ($file_data['error'][$i] === UPLOAD_ERR_OK) {
+                if (($file_data['error'][$i] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
                     $files_list[] = [
                         'name'     => $name,
-                        'tmp_name' => $file_data['tmp_name'][$i],
-                        'type'     => $file_data['type'][$i],
-                        'size'     => $file_data['size'][$i],
+                        'tmp_name' => $file_data['tmp_name'][$i] ?? '',
+                        'type'     => $file_data['type'][$i] ?? '',
+                        'size'     => $file_data['size'][$i] ?? 0,
                         'error'    => UPLOAD_ERR_OK,
                     ];
                 }
@@ -735,6 +749,7 @@ CSS;
     {
         $blocked = implode(', .', self::BLOCKED_TYPES);
         $notice  = sprintf(
+            // translators: %s: comma-separated list of blocked file extensions.
             __('Blocked for security reasons: .%s. These types cannot be allowed.', 'form-forge'),
             $blocked
         );

@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -128,6 +128,7 @@ CSS;
         $policy_text = esc_html($config['privacy_policy_text'] ?? __('Privacy policy', 'form-forge'));
 
         $text = sprintf(
+            // translators: %1$s: privacy policy URL, %2$s: privacy policy link text.
             __('I have read the <a href="%1$s" target="_blank" rel="noopener">%2$s</a> and accept it.', 'form-forge'),
             $policy_url,
             $policy_text

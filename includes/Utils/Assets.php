@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -92,13 +92,18 @@ class Assets
                 'error_server'            => __('Server error. Please try again.', 'form-forge'),
                 // Upload field
                 'upload_remove_prefix'    => __('Remove: ', 'form-forge'),
+                // translators: %d: maximum number of files allowed (substituted client-side).
                 'upload_too_many'         => __('Too many files. Maximum %d allowed.', 'form-forge'),
                 'upload_no_types'         => __('No allowed file types in selection.', 'form-forge'),
                 'upload_skipped_one'      => __('1 file was skipped due to file type.', 'form-forge'),
+                // translators: %d: number of files skipped due to file type (substituted client-side).
                 'upload_skipped_many'     => __('%d files were skipped due to file type.', 'form-forge'),
+                // translators: %1$d: total number of files submitted, %2$d: maximum allowed per submission (both substituted client-side).
                 'upload_overflow'         => __('Too many files total (%1$d). Max. %2$d per submission.', 'form-forge'),
                 // Checkbox field
+                // translators: %d: minimum number of options that must be selected (substituted client-side).
                 'checkbox_min'            => __('Please select at least %d option(s).', 'form-forge'),
+                // translators: %d: maximum number of options that may be selected (substituted client-side).
                 'checkbox_max'            => __('Please select at most %d option(s).', 'form-forge'),
                 // SEPA field
                 'sepa_iban_invalid'       => __('Invalid IBAN (check digit incorrect).', 'form-forge'),
@@ -312,7 +317,7 @@ class Assets
             self::addAdminCssVars();
             \wp_enqueue_script(
                 'forge-pdfjs',
-                FORGE_FORMS_URL . 'assets/vendor/pdfjs/pdf.js',
+                FORGE_FORMS_URL . 'vendor/pdfjs/pdf.js',
                 [],
                 FORGE_FORMS_VERSION,
                 true
@@ -330,14 +335,16 @@ class Assets
                 [
                 'ajaxUrl'     => \admin_url('admin-ajax.php'),
                 'nonce'       => \wp_create_nonce('forge_verifier_nonce'),
-                'pdfJsWorker' => FORGE_FORMS_URL . 'assets/vendor/pdfjs/pdf.worker.js',
+                'pdfJsWorker' => FORGE_FORMS_URL . 'vendor/pdfjs/pdf.worker.js',
                 'i18n'        => [
                     'loading'          => __('Loading…', 'form-forge'),
                     'pdf_loading'      => __('Loading PDF…', 'form-forge'),
+                    // translators: %1$d: current page number, %2$d: total page count (both substituted client-side).
                     'page_reading'     => __('Reading page %1$d of %2$d…', 'form-forge'),
                     'text_extracted'   => __('Text extracted — server analyzing…', 'form-forge'),
                     'processing'       => __('Processing response…', 'form-forge'),
                     'done'             => __('Done', 'form-forge'),
+                    // translators: %d: HTTP status code (substituted client-side).
                     'server_error'     => __('Server error (HTTP %d)', 'form-forge'),
                     'network_error'    => __('Network error', 'form-forge'),
                     'pdf_load_error'   => __('PDF load error: ', 'form-forge'),

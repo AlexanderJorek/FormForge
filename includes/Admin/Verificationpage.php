@@ -9,7 +9,7 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  */
@@ -43,7 +43,7 @@ add_action(
         /* ---- Input ---- */
         $pdf_token   = sanitize_key($_POST['pdf_token'] ?? '');
         $visualLines = isset($_POST['visualLines'])
-        ? json_decode(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['visualLines']), '[]'), true)
+        ? json_decode(\ForgeForms\Utils\Sanitize::str(sanitize_textarea_field(wp_unslash($_POST['visualLines'])), '[]'), true)
         : [];
 
         if (!$pdf_token) {
@@ -117,13 +117,13 @@ add_action(
         try {
             Verificationpage::handleUpload($file, $visualLines, $pdf_token);
         } catch (\Throwable $ajax_err) {
-            error_log('ForgeForms forge_verify_push_lines: handleUpload threw: ' . $ajax_err->getMessage());
+            \ForgeForms\forge_log('ForgeForms forge_verify_push_lines: handleUpload threw: ' . $ajax_err->getMessage());
             echo '<p style="color:red">' . esc_html__('Internal error while processing this PDF. See server log for details.', 'form-forge') . '</p>';
         }
         $raw_html = ob_get_clean();
 
         if ($raw_html === false || $raw_html === '') {
-            error_log(
+            \ForgeForms\forge_log(
                 'ForgeForms forge_verify_push_lines: raw_html is empty after handleUpload — ob level was '
                 . ob_get_level()
             );
@@ -135,13 +135,13 @@ add_action(
         try {
             $safe_html = forge_sanitize_verifier_html($raw_html);
         } catch (\Throwable $san_err) {
-            error_log('ForgeForms forge_verify_push_lines: forge_sanitize_verifier_html threw: ' . $san_err->getMessage());
+            \ForgeForms\forge_log('ForgeForms forge_verify_push_lines: forge_sanitize_verifier_html threw: ' . $san_err->getMessage());
             wp_send_json_error(['message' => 'Output sanitization failed. See server log for details.'], 500);
             return;
         }
 
         if ($safe_html === '') {
-            error_log(
+            \ForgeForms\forge_log(
                 'ForgeForms forge_verify_push_lines: safe_html is empty after wp_kses (raw len='
                 . strlen($raw_html) . ')'
             );
@@ -421,7 +421,8 @@ final class Verificationpage
      */
     public static function bodyClass(string $classes): string
     {
-        if (isset($_GET['page']) && $_GET['page'] === 'forge-pdf-verification') {
+        $page_slug = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        if ($page_slug === 'forge-pdf-verification') {
             $classes .= ' forge-verification-page';
         }
         return $classes;
@@ -459,14 +460,14 @@ final class Verificationpage
         // disk, so it checks again explicitly rather than depending solely on
         // admin_menu registration semantics holding across future refactors.
         if (!\ForgeForms\Plugin::userCan('use_verifier')) {
-            wp_die(__('Insufficient permissions.', 'form-forge'), '', ['response' => 403]);
+            wp_die(esc_html__('Insufficient permissions.', 'form-forge'), '', ['response' => 403]);
         }
         echo '<canvas id="forge-particle-canvas" aria-hidden="true"></canvas>';
         echo '<div class="wrap forge-verification-wrap">';
         echo '<div id="forge-verification-body">';
 
         // --- Handle POST uploads securely ---
-        $is_request_post = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) === 'POST';
+        $is_request_post = strtoupper(sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD'] ?? 'GET'))) === 'POST';
         if ($is_request_post) {
             // Nonce is the unconditional first gate — before touching any $_FILES.
             if (!isset($_POST['forge_verifier_nonce'])
@@ -494,7 +495,10 @@ final class Verificationpage
             // Block all direct HTTP access — .htaccess is the last line of defence.
             $htaccess = $safe_dir . '/.htaccess';
             if (!file_exists($htaccess)) {
-                file_put_contents($htaccess, "Options -Indexes\nDeny from all\n");
+                file_put_contents(
+                    $htaccess,
+                    "Options -Indexes\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n"
+                );
                 chmod($htaccess, 0640);
             }
 
@@ -502,18 +506,24 @@ final class Verificationpage
 
             $max_upload_bytes = 50 * 1024 * 1024; // 50 MB
 
-            foreach ($_FILES['pdfs']['tmp_name'] as $key => $tmpName) {
+            $uploaded_tmp_names = isset($_FILES['pdfs']['tmp_name']) && is_array($_FILES['pdfs']['tmp_name'])
+                ? array_map('sanitize_text_field', wp_unslash($_FILES['pdfs']['tmp_name']))
+                : [];
+
+            foreach ($uploaded_tmp_names as $key => $tmpName) {
                 if (!is_readable($tmpName) || !is_uploaded_file($tmpName)) {
                     continue;
                 }
 
                 // File size guard — use the actual file on disk, not the browser-reported size.
                 if (filesize($tmpName) > $max_upload_bytes) {
-                    echo self::noticeHtml(__('Upload skipped: file exceeds 50 MB limit.', 'form-forge'), 'warning');
+                    echo wp_kses_post(self::noticeHtml(esc_html__('Upload skipped: file exceeds 50 MB limit.', 'form-forge'), 'warning'));
                     continue;
                 }
 
-                $original_name = (string) ($_FILES['pdfs']['name'][$key] ?? '');
+                $original_name = isset($_FILES['pdfs']['name'][$key])
+                    ? sanitize_file_name(wp_unslash($_FILES['pdfs']['name'][$key]))
+                    : '';
                 $type_check = wp_check_filetype_and_ext(
                     $tmpName,
                     $original_name,
@@ -521,21 +531,21 @@ final class Verificationpage
                 );
 
                 if (($type_check['ext'] ?? '') !== 'pdf') {
-                    echo self::noticeHtml(__('Upload skipped: only PDF files are allowed.', 'form-forge'), 'warning');
+                    echo wp_kses_post(self::noticeHtml(__('Upload skipped: only PDF files are allowed.', 'form-forge'), 'warning'));
                     continue;
                 }
 
                 $finfo = new \finfo(FILEINFO_MIME_TYPE);
                 $detected_mime = $finfo->file($tmpName);
                 if (!in_array($detected_mime, ['application/pdf', 'application/x-pdf'], true)) {
-                    echo self::noticeHtml(__('Upload skipped: MIME validation failed.', 'form-forge'), 'warning');
+                    echo wp_kses_post(self::noticeHtml(__('Upload skipped: MIME validation failed.', 'form-forge'), 'warning'));
                     continue;
                 }
 
                 $safe_name = sanitize_file_name($original_name);
 
                 if ($safe_name === '' || !preg_match('/\.pdf$/i', $safe_name)) {
-                    echo self::noticeHtml(__('Upload skipped: invalid PDF filename.', 'form-forge'), 'warning');
+                    echo wp_kses_post(self::noticeHtml(__('Upload skipped: invalid PDF filename.', 'form-forge'), 'warning'));
                     continue;
                 }
 
@@ -565,9 +575,10 @@ final class Verificationpage
                         JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
                     );
                     if ($push_payload === false) {
-                        error_log('FF: wp_json_encode failed for push payload — skipping PDF.');
+                        \ForgeForms\forge_log('FF: wp_json_encode failed for push payload — skipping PDF.');
                         continue;
                     }
+                    // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $push_payload is wp_json_encode() output with JSON_HEX_* flags, safe for inline <script> context.
                     echo "<script>
                         console.log('PHP pushing PDF for verification');
                         window.FORGE_VERIFICATION_QUEUE = window.FORGE_VERIFICATION_QUEUE || [];
@@ -827,8 +838,9 @@ final class Verificationpage
 
         echo '<form id="pdf-upload-form" method="post" enctype="multipart/form-data">';
         wp_nonce_field('forge_verifier_upload', 'forge_verifier_nonce');
-        $idle_style   = $is_request_post ? ' style="display:none"' : '';
-        $scanmore_cls = $is_request_post ? ' class="forge-pdf-visible"' : '';
+        $idle_style   = $is_request_post ? ' style="' . esc_attr('display:none') . '"' : '';
+        $scanmore_cls = $is_request_post ? ' class="' . esc_attr('forge-pdf-visible') . '"' : '';
+        // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- $idle_style/$scanmore_cls are already esc_attr()'d at assignment above; other interpolated values are esc_html()/esc_attr()'d inline.
         echo '
         <div id="forge-pdf-idle-state"' . $idle_style . '>
             <div class="forge-pdf-idle-card">
@@ -867,6 +879,7 @@ final class Verificationpage
 
         <div id="forge-pdf-verification-results"></div>
         ';
+        // phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped
 
         // --- JS drag & drop + file queue with remove ---
         echo '<script>
@@ -1206,20 +1219,27 @@ final class Verificationpage
      */
     public static function handleUpload(array $file, array $visualLines = [], string $progressKey = ''): void
     {
+        // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- this method builds its HTML report from values that are already esc_html()/esc_attr()'d at assignment, int-cast, sha256 hashes, or drawn from fixed internal string enums (e.g. $colorspace); WPCS can't trace escaping through double-quoted string interpolation. Re-audit if new echo/interpolation is added below.
         self::$progressKey = $progressKey;
         $file_name = sanitize_file_name((string) ($file['name'] ?? 'document.pdf'));
         static $upload_id_counter = 0;
         $uid_prefix = 'forge-pdf-' . (++$upload_id_counter) . '-' . substr(md5($file_name), 0, 8);
 
         if ($file['error'] !== UPLOAD_ERR_OK) {
-            echo self::noticeHtml(sprintf(__('Upload failed for %s.', 'form-forge'), esc_html($file_name)), 'error');
+            // translators: %s: uploaded file name.
+            $msg = sprintf(__('Upload failed for %s.', 'form-forge'), esc_html($file_name));
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- noticeHtml() wp_kses_post()'s its $message argument internally.
+            echo self::noticeHtml($msg, 'error');
             return;
         }
 
         $finfo = new \finfo(FILEINFO_MIME_TYPE);
         $detected_mime = $finfo->file($file['tmp_name']);
         if (!in_array($detected_mime, ['application/pdf', 'application/x-pdf'], true)) {
-            echo self::noticeHtml(sprintf(__('Invalid file type for %s.', 'form-forge'), esc_html($file_name)), 'error');
+            // translators: %s: uploaded file name.
+            $msg = sprintf(__('Invalid file type for %s.', 'form-forge'), esc_html($file_name));
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- noticeHtml() wp_kses_post()'s its $message argument internally.
+            echo self::noticeHtml($msg, 'error');
             return;
         }
 
@@ -1240,7 +1260,10 @@ final class Verificationpage
 
         $htaccess = $safe_dir . '/.htaccess';
         if (!file_exists($htaccess)) {
-            file_put_contents($htaccess, "Options -Indexes\nDeny from all\n");
+            file_put_contents(
+                $htaccess,
+                "Options -Indexes\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n"
+            );
             chmod($htaccess, 0640);
         }
 
@@ -1254,7 +1277,10 @@ final class Verificationpage
         // technique to alter visible content while leaving the original seal intact.
         $raw_for_guard = @file_get_contents($file['tmp_name']);
         if ($raw_for_guard === false) {
-            echo self::noticeHtml(sprintf(__('Could not read PDF file: %s.', 'form-forge'), esc_html($file_name)), 'error');
+            // translators: %s: uploaded file name.
+            $msg = sprintf(__('Could not read PDF file: %s.', 'form-forge'), esc_html($file_name));
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- noticeHtml() wp_kses_post()'s its $message argument internally.
+            echo self::noticeHtml($msg, 'error');
             return;
         }
         $eof_count                    = substr_count($raw_for_guard, '%%EOF');
@@ -1270,10 +1296,10 @@ final class Verificationpage
         // loading the full PDF object graph. Avoids calling pdfparser (and its
         // memory overhead) entirely for PDFs that have no forge seal.
         if (!self::rawPdfHasSeal($file['tmp_name'])) {
-            echo self::noticeHtml(
-                sprintf(__('%s does not contain a forge-pdf seal and cannot be verified.', 'form-forge'), esc_html($file_name)), // phpcs:ignore Generic.Files.LineLength
-                'error'
-            );
+            // translators: %s: uploaded file name.
+            $msg = sprintf(__('%s does not contain a forge-pdf seal and cannot be verified.', 'form-forge'), esc_html($file_name)); // phpcs:ignore Generic.Files.LineLength
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- noticeHtml() wp_kses_post()'s its $message argument internally.
+            echo self::noticeHtml($msg, 'error');
             return;
         }
 
@@ -1704,7 +1730,7 @@ final class Verificationpage
                                     $vr    = HashSeal::verify($rp, (string)($sd['seal'] ?? ''));
                                     $is_ok = $vr['valid'];
                                 } catch (\Throwable $sve) {
-                                    error_log('ForgeForms Verificationpage: seal HMAC check threw: ' . $sve->getMessage());
+                                    \ForgeForms\forge_log('ForgeForms Verificationpage: seal HMAC check threw: ' . $sve->getMessage());
                                     $is_ok     = false;
                                     $parse_err = 'HMAC check failed';
                                 }
@@ -1916,7 +1942,10 @@ final class Verificationpage
 
             // --- RAW PDF ANNOTATION EXTRACTION & SEAL CHECK ---
             if ($pdf_raw === false) {
-                echo self::noticeHtml("Could not read PDF content for {$file_name}.", 'error');
+                // translators: %s: uploaded file name.
+                $msg = sprintf(__('Could not read PDF content for %s.', 'form-forge'), esc_html($file_name));
+                // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- noticeHtml() wp_kses_post()'s its $message argument internally.
+                echo self::noticeHtml($msg, 'error');
             } else {
                 $annotations = [];
 
@@ -2057,10 +2086,13 @@ final class Verificationpage
                         if ($content_to_match !== '') {
                             // --- Sealdata match first ---
                             foreach ($seal_data['fields'] ?? [] as $idx => $field) {
+                                if (!is_array($field)) {
+                                    continue;
+                                }
                                 if (in_array($idx, $matched_fields, true)) {
                                     continue;
                                 }
-                                $field_value = trim($field['value'] ?? '');
+                                $field_value = trim((string) ($field['value'] ?? ''));
                                 if ($field_value === '') {
                                     continue;
                                 }
@@ -2238,7 +2270,10 @@ final class Verificationpage
                         // Ensure the parent .htaccess exists (Generator may not have run yet).
                         $htaccess = $safe_dir . '/.htaccess';
                         if (!file_exists($htaccess)) {
-                            file_put_contents($htaccess, "Options -Indexes\nDeny from all\n");
+                            file_put_contents(
+                                $htaccess,
+                                "Options -Indexes\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n"
+                            );
                             chmod($htaccess, 0640);
                         }
 
@@ -2309,14 +2344,25 @@ final class Verificationpage
                                     // allocation or loop bound below — a crafted /Width, /Height in an
                                     // otherwise-tiny image object could otherwise trigger a multi-GB
                                     // str_repeat()/str_pad() or a CPU-burning pixel loop.
-                                    // Cap is set well above real-world camera output (an 8000×8000/64MP
-                                    // photo is ~64,000,000 px) so a legitimate high-resolution upload is
-                                    // never misclassified as tampered — 100MP still bounds worst-case
-                                    // allocation size to a sane multiple of real content.
+                                    // JPEG (DCTDecode) bytes are hashed raw and never run through the
+                                    // manual PNG-predictor/indexed-palette/GD-pixel loops below, so a
+                                    // real 8000×8000/64MP camera photo (which is virtually always a
+                                    // JPEG) is allowed up to 100MP. Any other filter DOES go through
+                                    // those unvectorized per-pixel loops, so it's capped at the original,
+                                    // safer 40MP to bound worst-case CPU/memory to a sane amount of
+                                    // per-pixel PHP work.
                             $dims_over_cap = false;
+                            // Require DCTDecode as the SOLE declared filter for the higher cap — a
+                            // crafted PDF could otherwise declare DCTDecode (to claim the 100MP
+                            // allowance) while ALSO setting a PNG /Predictor or an Indexed
+                            // colorspace that routes it into the unvectorized per-pixel loops below
+                            // regardless, defeating the point of the lower cap on those paths.
+                            $pixel_cap = (count($filters) === 1 && $filters[0] === 'DCTDecode')
+                                ? 100_000_000
+                                : 40_000_000;
                             if ($width !== null && $height !== null) {
                                 if ($width < 0 || $height < 0 || $width > 20000 || $height > 20000
-                                    || ($width * $height) > 100_000_000
+                                    || ($width * $height) > $pixel_cap
                                 ) {
                                     $dims_over_cap = true;
                                     $width = $height = null;
@@ -2458,8 +2504,9 @@ final class Verificationpage
                                     $failureReasons[] = 'Decoded stream is NULL';
                                 }
                                 if ($dims_over_cap) {
-                                    $failureReasons[] = 'Image exceeds the 100-megapixel verification size '
-                                        . 'limit and was skipped — this is a size cap, not evidence of tampering.';
+                                    $failureReasons[] = 'Image exceeds the ' . (int)($pixel_cap / 1_000_000)
+                                        . '-megapixel verification size limit for this image type and was '
+                                        . 'skipped — this is a size cap, not evidence of tampering.';
                                 } elseif (!$width || !$height) {
                                     $failureReasons[] = "Invalid dimensions ({$width}×{$height})";
                                 }
@@ -2520,7 +2567,13 @@ final class Verificationpage
                                 $colorspace = 'DeviceRGB'; // default
                                 if (preg_match('/\/ColorSpace\s*\[\s*\/Indexed\s*\/([A-Za-z0-9]+)/', $fullObj, $m)) {
                                     $colorspace = 'IndexedRGB';
-                                    $baseSpace = $m[1]; // usually DeviceRGB
+                                    $baseSpace  = $m[1]; // usually DeviceRGB
+                                    if ($baseSpace !== 'DeviceRGB') {
+                                        // The palette-lookup decoder below always reads 3-byte
+                                        // RGB triples; a DeviceGray/DeviceCMYK base would be
+                                        // silently misinterpreted rather than flagged.
+                                        $failureReasons[] = "Unsupported Indexed base colorspace: {$baseSpace}";
+                                    }
                                 } elseif (preg_match('/\/ColorSpace\s*\/([A-Za-z0-9]+)/', $fullObj, $m)) {
                                     $colorspace = $m[1];
                                 }
@@ -3435,7 +3488,7 @@ final class Verificationpage
                                 $pdf_meta_found[$slot] = $decode_pdf_str('(' . $vm[1] . ')');
                             } elseif (preg_match('/\/' . $key . '\s*<([^>]*)>/', $info_dict, $vm)) {
                                 $hex       = preg_replace('/\s+/', '', $vm[1]);
-                                $raw_bytes = hex2bin($hex);
+                                $raw_bytes = @hex2bin($hex);
                                 $pdf_meta_found[$slot] = $raw_bytes !== false
                                     ? $decode_pdf_str($raw_bytes) : '';
                             }
@@ -3568,7 +3621,7 @@ final class Verificationpage
                 ob_end_clean();
             }
             $raw_msg = $e->getMessage();
-            error_log('ForgeForms Verificationpage: ' . $raw_msg);
+            \ForgeForms\forge_log('ForgeForms Verificationpage: ' . $raw_msg);
             // Map technical exception messages to user-friendly German.
             $fn           = esc_html($file_name);
             $friendly_msg = match (true) {
@@ -3587,6 +3640,7 @@ final class Verificationpage
                 default
                     => $fn . ': ' . __('The document could not be processed.', 'form-forge'),
             };
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $friendly_msg is built from esc_html($file_name) and hardcoded translated strings; noticeHtml() also wp_kses_post()'s its argument.
             echo self::noticeHtml($friendly_msg, 'error');
         } finally {
             $pdf_content = ob_get_clean();
@@ -3668,6 +3722,7 @@ final class Verificationpage
         echo $pdf_content;
         echo "</div>";
         echo "</div>";
+        // phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped
     }
 
 
@@ -3853,6 +3908,7 @@ final class Verificationpage
         $rows .= $row(
             $fields_ok,
             __('Visual field content', 'form-forge'),
+            // translators: %d: number of visible form fields whose content no longer matches the seal.
             sprintf(__('%d field(s) do not match the seal', 'form-forge'), $d['field_mismatch_count']),
             'forge-pdf-content-fields-' . $uid
         );
@@ -3861,6 +3917,7 @@ final class Verificationpage
         $rows .= $row(
             $annots_ok,
             __('Annotations', 'form-forge'),
+            // translators: %d: number of PDF annotations that don't match the seal.
             sprintf(__('%d annotation(s) unmatched', 'form-forge'), $d['annotation_fail_count']),
             'forge-pdf-content-annots-' . $uid
         );
@@ -3972,14 +4029,20 @@ final class Verificationpage
             'all_stream_hashes' => array_values(
                 array_map('strval', (array) ($seal_data['all_stream_hashes'] ?? []))
             ),
-            'pdf_meta'          => [
-                'title'   => (string)($seal_data['pdf_meta']['title']   ?? ''),
-                'author'  => (string)($seal_data['pdf_meta']['author']  ?? ''),
-                'creator' => (string)($seal_data['pdf_meta']['creator'] ?? ''),
-            ],
+            'pdf_meta'          => (static function ($pdf_meta) {
+                $pdf_meta = is_array($pdf_meta) ? $pdf_meta : [];
+                return [
+                    'title'   => (string)($pdf_meta['title']   ?? ''),
+                    'author'  => (string)($pdf_meta['author']  ?? ''),
+                    'creator' => (string)($pdf_meta['creator'] ?? ''),
+                ];
+            })($seal_data['pdf_meta'] ?? null),
         ];
 
         foreach ((array) ($seal_data['fields'] ?? []) as $field) {
+            if (!is_array($field)) {
+                continue;
+            }
             $rebuilt['fields'][] = [
                 'label' => trim((string) ($field['label'] ?? '')),
                 'value' => self::normalizeValue($field['value'] ?? ''),
@@ -3988,6 +4051,9 @@ final class Verificationpage
 
         if (is_array($seal_data['uploads'] ?? null)) {
             foreach ($seal_data['uploads'] as $u) {
+                if (!is_array($u)) {
+                    continue;
+                }
                 $rebuilt['uploads'][] = [
                     'name'   => (string) ($u['name'] ?? ''),
                     'mime'   => (string) ($u['mime'] ?? ''),
@@ -3998,6 +4064,9 @@ final class Verificationpage
 
         if (is_array($seal_data['template'] ?? null)) {
             foreach ($seal_data['template'] as $t) {
+                if (!is_array($t)) {
+                    continue;
+                }
                 $rebuilt['template'][] = [
                     'name'   => (string) ($t['name'] ?? ''),
                     'mime'   => (string) ($t['mime'] ?? ''),
@@ -4181,6 +4250,11 @@ final class Verificationpage
 
             if (is_array($a[$key]) && is_array($b[$key])) {
                 $diffs = array_merge($diffs, self::diffArrays($a[$key], $b[$key], $currentPath));
+            } elseif (is_array($a[$key]) || is_array($b[$key])) {
+                // Type mismatch between the two payloads — report without casting an array to string.
+                $diffs[] = "Type mismatch at {$currentPath}\n"
+                    . 'A: ' . var_export($a[$key], true)
+                    . "\nB: " . var_export($b[$key], true);
             } else {
                 if ((string)$a[$key] !== (string)$b[$key]) {
                     $diffs[] = "Mismatch at {$currentPath}\n"
@@ -4382,7 +4456,7 @@ final class Verificationpage
     {
         // Defensive: never emit empty content
         if ($html === '') {
-            echo "<!-- FF: empty image slot content for {$uid} -->";
+            echo '<!-- FF: empty image slot content for ' . esc_html($uid) . ' -->';
             return;
         }
 
@@ -4390,6 +4464,7 @@ final class Verificationpage
         echo sprintf(
             '<div class="img-slot-content" data-slot="%s">%s</div>',
             esc_attr($uid),
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $html is pre-built, already-escaped HTML from handleUpload() (see the phpcs:disable block there for details).
             $html
         );
     }

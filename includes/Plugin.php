@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -219,6 +219,7 @@ class Plugin
 
         // 15 is the shortest valid IBAN length (Norway); the openiban.com call below
         // rejects anything malformed regardless, this is just an early cheap reject
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- anonymous read-only IBAN/BIC lookup proxied to openiban.com, rate-limited by IP above; no persisted state or form submission side effect.
         $iban = preg_replace('/[^A-Z0-9]/', '', strtoupper(sanitize_text_field(wp_unslash($_POST['iban'] ?? ''))));
         if (strlen($iban) < 15) {
             wp_send_json_error();
@@ -372,9 +373,10 @@ class Plugin
         if (get_option('forge_forms_seal_setup_done', false)) {
             return;
         }
-        if (wp_doing_ajax() || $_SERVER['REQUEST_METHOD'] !== 'GET') {
+        if (wp_doing_ajax() || !isset($_SERVER['REQUEST_METHOD']) || $_SERVER['REQUEST_METHOD'] !== 'GET') {
             return;
         }
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only routing decision (which admin page to redirect to); gated by manage_options above, no data written.
         $current_page = sanitize_text_field(wp_unslash($_GET['page'] ?? ''));
         // Only redirect within FormForge pages, not the whole WP admin.
         if (strncmp($current_page, 'forge-forms', 11) !== 0) {

@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -56,6 +56,7 @@ class FormList
      */
     public static function bodyClass(string $classes): string
     {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only admin body-class check, no data written.
         if (isset($_GET['page']) && $_GET['page'] === 'forge-forms') {
             $classes .= ' forge-list-page';
         }
@@ -115,7 +116,7 @@ class FormList
     public static function render(): void
     {
         if (!\ForgeForms\Plugin::userCan('view_forms')) {
-            wp_die(__('Permission denied.', 'form-forge'));
+            wp_die(esc_html__('Permission denied.', 'form-forge'));
         }
 
         $forms   = FormModel::getAll();
@@ -131,7 +132,7 @@ class FormList
             <div class="forge-list-toolbar" id="forge-list-toolbar">
                     <!-- Left: select-all + bulk actions -->
                     <?php $noForms = empty($forms) ? ' hidden' : ''; ?>
-                    <div class="forge-toolbar-left" id="forge-toolbar-left"<?php echo $noForms; ?>>
+                    <div class="forge-toolbar-left" id="forge-toolbar-left"<?php echo esc_attr($noForms); ?>>
                         <label class="forge-select-all-wrap">
                             <input type="checkbox" id="forge-select-all" title="<?php echo esc_attr__('Select all', 'form-forge'); ?>">
                         </label>
@@ -155,7 +156,7 @@ class FormList
                         </div>
                     </div>
                     <!-- Center: search -->
-                    <div class="forge-toolbar-center" id="forge-toolbar-center"<?php echo $noForms; ?>>
+                    <div class="forge-toolbar-center" id="forge-toolbar-center"<?php echo esc_attr($noForms); ?>>
                         <input type="search" id="forge-form-search"
                                placeholder="<?php echo esc_attr__('Search forms…', 'form-forge'); ?>" autocomplete="off">
                     </div>
@@ -197,7 +198,7 @@ class FormList
                         <div class="forge-form-row" data-title="<?php echo esc_attr(strtolower($form->title)); ?>">
                             <label class="forge-row-check-wrap">
                                 <input type="checkbox" class="forge-row-check"
-                                       value="<?php echo $form->id; ?>"
+                                       value="<?php echo esc_attr($form->id); ?>"
                                        data-del-nonce="<?php echo esc_attr($del_nonce); ?>"
                                        data-dup-nonce="<?php echo esc_attr($dup_nonce); ?>">
                             </label>
@@ -210,6 +211,7 @@ class FormList
                                     <?php echo esc_html($form->title); ?>
                                 </a>
                                 <div class="forge-form-row-meta">
+                                    <?php // translators: %d: number of fields in the form. ?>
                                     <span><?php echo esc_html(sprintf(_n('%d Field', '%d Fields', $count, 'form-forge'), $count)); ?></span>
                                     <span class="forge-meta-sep">&middot;</span>
                                     <code class="forge-form-row-code"><?php echo esc_html($shortcode); ?></code>
@@ -228,19 +230,19 @@ class FormList
                                             <i class="fa-solid fa-clipboard"></i> <?php esc_html_e('Copy shortcode', 'form-forge'); ?>
                                         </button>
                                         <button class="forge-dd-item forge-duplicate-form"
-                                                data-id="<?php echo $form->id; ?>"
+                                                data-id="<?php echo esc_attr($form->id); ?>"
                                                 data-nonce="<?php echo esc_attr($dup_nonce); ?>">
                                             <i class="fa-solid fa-copy"></i> <?php esc_html_e('Duplicate', 'form-forge'); ?>
                                         </button>
                                         <div class="forge-dd-sep"></div>
                                         <button class="forge-dd-item forge-export-form"
-                                                data-id="<?php echo $form->id; ?>"
+                                                data-id="<?php echo esc_attr($form->id); ?>"
                                                 data-nonce="<?php echo esc_attr($exp_nonce); ?>">
                                             <i class="fa-solid fa-file-export"></i> <?php esc_html_e('Export', 'form-forge'); ?>
                                         </button>
                                         <div class="forge-dd-sep"></div>
                                         <button class="forge-dd-item forge-dd-item--danger forge-delete-form"
-                                                data-id="<?php echo $form->id; ?>"
+                                                data-id="<?php echo esc_attr($form->id); ?>"
                                                 data-nonce="<?php echo esc_attr($del_nonce); ?>">
                                             <i class="fa-solid fa-trash"></i> <?php esc_html_e('Delete', 'form-forge'); ?>
                                         </button>
@@ -842,7 +844,7 @@ class FormList
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
-        $form_id = (int)($_POST['form_id'] ?? 0);
+        $form_id = isset($_POST['form_id']) ? absint(wp_unslash($_POST['form_id'])) : 0;
         if (!$form_id || !wp_verify_nonce(sanitize_key($_POST['nonce'] ?? ''), 'forge_forms_delete_' . $form_id)) {
             wp_send_json_error(['message' => 'Nonce verification failed.'], 403);
         }
@@ -870,7 +872,7 @@ class FormList
         <div class="forge-form-row" data-title="<?php echo esc_attr(strtolower($form->title)); ?>">
             <label class="forge-row-check-wrap">
                 <input type="checkbox" class="forge-row-check"
-                       value="<?php echo $form->id; ?>"
+                       value="<?php echo esc_attr($form->id); ?>"
                        data-del-nonce="<?php echo esc_attr($del_nonce); ?>"
                        data-dup-nonce="<?php echo esc_attr($dup_nonce); ?>">
             </label>
@@ -882,6 +884,7 @@ class FormList
                     <?php echo esc_html($form->title); ?>
                 </a>
                 <div class="forge-form-row-meta">
+                    <?php // translators: %d: number of fields in the form. ?>
                     <span><?php echo esc_html(sprintf(_n('%d Field', '%d Fields', $count, 'form-forge'), $count)); ?></span>
                     <span class="forge-meta-sep">&middot;</span>
                     <code class="forge-form-row-code"><?php echo esc_html($shortcode); ?></code>
@@ -899,19 +902,19 @@ class FormList
                             <i class="fa-solid fa-clipboard"></i> <?php esc_html_e('Copy shortcode', 'form-forge'); ?>
                         </button>
                         <button class="forge-dd-item forge-duplicate-form"
-                                data-id="<?php echo $form->id; ?>"
+                                data-id="<?php echo esc_attr($form->id); ?>"
                                 data-nonce="<?php echo esc_attr($dup_nonce); ?>">
                             <i class="fa-solid fa-copy"></i> <?php esc_html_e('Duplicate', 'form-forge'); ?>
                         </button>
                         <div class="forge-dd-sep"></div>
                         <button class="forge-dd-item forge-export-form"
-                                data-id="<?php echo $form->id; ?>"
+                                data-id="<?php echo esc_attr($form->id); ?>"
                                 data-nonce="<?php echo esc_attr($exp_nonce); ?>">
                             <i class="fa-solid fa-file-export"></i> <?php esc_html_e('Export', 'form-forge'); ?>
                         </button>
                         <div class="forge-dd-sep"></div>
                         <button class="forge-dd-item forge-dd-item--danger forge-delete-form"
-                                data-id="<?php echo $form->id; ?>"
+                                data-id="<?php echo esc_attr($form->id); ?>"
                                 data-nonce="<?php echo esc_attr($del_nonce); ?>">
                             <i class="fa-solid fa-trash"></i> <?php esc_html_e('Delete', 'form-forge'); ?>
                         </button>
@@ -933,7 +936,7 @@ class FormList
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
-        $form_id = (int)($_POST['form_id'] ?? 0);
+        $form_id = isset($_POST['form_id']) ? absint(wp_unslash($_POST['form_id'])) : 0;
         if (!$form_id || !wp_verify_nonce(sanitize_key($_POST['nonce'] ?? ''), 'forge_forms_duplicate_' . $form_id)) {
             wp_send_json_error(['message' => 'Nonce verification failed.'], 403);
         }
@@ -958,8 +961,8 @@ class FormList
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
-        $ids    = json_decode(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['ids']    ?? '[]'), '[]'), true);
-        $nonces = json_decode(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['nonces'] ?? '[]'), '[]'), true);
+        $ids    = json_decode(\ForgeForms\Utils\Sanitize::str(sanitize_text_field(wp_unslash($_POST['ids'] ?? '[]')), '[]'), true);
+        $nonces = json_decode(\ForgeForms\Utils\Sanitize::str(sanitize_text_field(wp_unslash($_POST['nonces'] ?? '[]')), '[]'), true);
         if (!is_array($ids) || !is_array($nonces)) {
             wp_send_json_error(['message' => 'Invalid data.'], 400);
         }
@@ -988,8 +991,8 @@ class FormList
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
-        $ids    = json_decode(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['ids']    ?? '[]'), '[]'), true);
-        $nonces = json_decode(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['nonces'] ?? '[]'), '[]'), true);
+        $ids    = json_decode(\ForgeForms\Utils\Sanitize::str(sanitize_text_field(wp_unslash($_POST['ids'] ?? '[]')), '[]'), true);
+        $nonces = json_decode(\ForgeForms\Utils\Sanitize::str(sanitize_text_field(wp_unslash($_POST['nonces'] ?? '[]')), '[]'), true);
         if (!is_array($ids) || !is_array($nonces)) {
             wp_send_json_error(['message' => 'Invalid data.'], 400);
         }
@@ -1018,7 +1021,7 @@ class FormList
         if (!\ForgeForms\Plugin::userCan('view_forms')) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
-        $form_id = (int)($_POST['form_id'] ?? 0);
+        $form_id = isset($_POST['form_id']) ? absint(wp_unslash($_POST['form_id'])) : 0;
         $nonce   = sanitize_key($_POST['nonce'] ?? '');
         if (!$form_id || !wp_verify_nonce($nonce, 'forge_forms_export_' . $form_id)) {
             wp_send_json_error(['message' => 'Nonce verification failed.'], 403);

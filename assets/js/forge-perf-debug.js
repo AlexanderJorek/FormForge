@@ -1,6 +1,9 @@
 /*!
  * FormForge — Performance Debugger
- * Toggle via the ⚡ button in the form editor header (WP_DEBUG + manage_options only).
+ * @copyright 2026 Alexander Jorek
+ * @license   GPL-3.0-or-later
+ *
+ * Toggle via the fa-gauge-high button (#forge-perf-btn) in the form editor header (WP_DEBUG + manage_options only).
  *
  * Loaded only by includes/Admin/FormEditor.php, and only when $perf_mode is
  * true (WP_DEBUG + manage_options). It is enqueued with $in_footer=false so

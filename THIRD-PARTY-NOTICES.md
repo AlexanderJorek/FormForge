@@ -1,0 +1,40 @@
+# Third-Party Notices
+
+FormForge is licensed under the GPL-3.0-or-later (see `LICENSE`). It bundles the
+following third-party libraries in `vendor/`, each under its own
+GPL-compatible license:
+
+| Library                          | License        | Purpose                          |
+|-----------------------------------|----------------|-----------------------------------|
+| mpdf/mpdf                        | GPL-2.0        | PDF generation                    |
+| setasign/fpdi                    | MIT            | PDF import (used by mPDF)         |
+| smalot/pdfparser                 | LGPL-3.0       | Reading/parsing uploaded PDFs      |
+| myclabs/deep-copy                | MIT            | Object cloning (mPDF dependency)  |
+| paragonie/random_compat          | MIT            | CSPRNG polyfill (mPDF dependency) |
+| psr/http-message                 | MIT            | HTTP message interfaces           |
+| psr/log                          | MIT            | Logging interfaces                |
+| symfony/polyfill-mbstring        | MIT            | mbstring polyfill                 |
+| mpdf/psr-http-message-shim       | MIT            | mPDF PSR-7 shim                   |
+| mpdf/psr-log-aware-trait         | MIT            | mPDF PSR-3 shim                   |
+
+Each library's full license text is included alongside it under
+`vendor/<vendor>/<package>/LICENSE`.
+
+FormForge also bundles the following JavaScript library under `vendor/pdfjs/`
+(placed there manually, not installed via Composer — pdf.js is an npm
+package, not a PHP one), used by the PDF Verification tool to read uploaded
+PDFs client-side before upload:
+
+| Library              | Version | License      | Purpose                        |
+|----------------------|---------|--------------|---------------------------------|
+| Mozilla PDF.js        | 3.11.174 | Apache-2.0  | Client-side PDF text extraction |
+
+PDF.js's license notice is embedded in the file headers of
+`vendor/pdfjs/pdf.js` and `vendor/pdfjs/pdf.worker.js`, with the full
+Apache-2.0 text in `vendor/pdfjs/LICENSE`. Apache-2.0 is GPL-compatible
+(one-way, per the FSF's license-compatibility list) and requires no
+relicensing to bundle here.
+
+Development-only tooling (PHP_CodeSniffer, WordPress Coding Standards, PHPStubs)
+is listed in `composer.json`'s `require-dev` and is **not** included in release
+builds — see `build.ps1`.

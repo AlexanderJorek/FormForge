@@ -14,13 +14,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
- * @link      https://github.com/AlexanderJorek/form-forge
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -43,9 +43,13 @@ $_font      = match ($o['font_family']) {
     default          => 'dejavusans',
 };
 
-$_logo_path = !empty($o['logo_url'])
-    ? (get_attached_file(attachment_url_to_postid($o['logo_url'])) ?: '')
-    : '';
+// Fail closed, not open: if the stored logo_url doesn't resolve to a local
+// media-library attachment (stale/deleted attachment, or an option value
+// written by anything other than PDFLayoutEditor::save()'s sideload-on-save
+// path), never fall back to fetching the raw URL — mPDF has no SSRF guard of
+// its own and would fetch an external URL directly.
+$_logo_post_id = !empty($o['logo_url']) ? attachment_url_to_postid($o['logo_url']) : 0;
+$_logo_path    = $_logo_post_id ? (get_attached_file($_logo_post_id) ?: '') : '';
 
 $_section_order  = is_array($o['section_order'])  ? $o['section_order']  : $_defaults['section_order'];
 $_section_hidden = is_array($o['section_hidden']) ? $o['section_hidden'] : [];
@@ -128,9 +132,18 @@ return [
                       . 'width:' . $el_w_mm . 'mm;height:' . $el_h_mm . 'mm;overflow:hidden;">';
 
                 if ($type === 'image' && !empty($el['src'])) {
+                    // Fail closed, not open: PDFLayoutEditor::save() only ever persists a
+                    // 'src' that already resolved to a local media-library attachment (via
+                    // resolveImageSrc()/media_sideload_image()'s SSRF-safe fetch). If this
+                    // value doesn't resolve to a real local file — a stale/deleted
+                    // attachment, or a header_layout option written by any other path —
+                    // never fall back to the raw value, since mPDF has no SSRF guard of
+                    // its own and would fetch an external URL directly.
                     $post_id  = attachment_url_to_postid($el['src']);
-                    $img_path = $post_id ? (get_attached_file($post_id) ?: $el['src']) : $el['src'];
-                    $out .= '<img src="' . esc_attr($img_path) . '" style="width:' . $el_w_mm . 'mm;height:auto;" />';
+                    $img_path = $post_id ? (get_attached_file($post_id) ?: '') : '';
+                    if ($img_path !== '') {
+                        $out .= '<img src="' . esc_attr($img_path) . '" style="width:' . $el_w_mm . 'mm;height:auto;" />';
+                    }
                 } elseif ($type === 'title') {
                     $fs    = max(6, (int) ($el['size'] ?? 18));
                     $color = esc_attr($el['color'] ?? '#1d2327');

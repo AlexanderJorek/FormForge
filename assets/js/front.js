@@ -1,7 +1,7 @@
 /*!
  * FormForge — Frontend interactions
  * @copyright 2026 Alexander Jorek
- * @license   GPL-2.0-or-later
+ * @license   GPL-3.0-or-later
  */
 (function () {
     'use strict';

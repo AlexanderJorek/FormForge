@@ -9,7 +9,7 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  */
@@ -49,6 +49,7 @@ class FormSelectList
      */
     public static function bodyClass(string $classes): string
     {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only admin body-class check, no data written.
         if (isset($_GET['page']) && $_GET['page'] === 'forge-forms-select') {
             $classes .= ' forge-list-page';
         }
@@ -86,7 +87,7 @@ class FormSelectList
     public static function render(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
-            wp_die(__('Permission denied.', 'form-forge'));
+            wp_die(esc_html__('Permission denied.', 'form-forge'));
         }
 
         $selects    = FormSelectModel::getAll();
@@ -102,7 +103,7 @@ class FormSelectList
             <?php $noSelects = empty($selects) ? ' hidden' : ''; ?>
             <div class="forge-list-toolbar" id="forge-fsel-toolbar">
                 <!-- Left: select-all + bulk actions -->
-                <div class="forge-toolbar-left" id="forge-fsel-toolbar-left"<?php echo $noSelects; ?>>
+                <div class="forge-toolbar-left" id="forge-fsel-toolbar-left"<?php echo esc_attr($noSelects); ?>>
                     <label class="forge-select-all-wrap">
                         <input type="checkbox" id="forge-fsel-select-all" title="<?php echo esc_attr__('Select all', 'form-forge'); ?>">
                     </label>
@@ -124,7 +125,7 @@ class FormSelectList
                     </div>
                 </div>
                 <!-- Center: search -->
-                <div class="forge-toolbar-center" id="forge-fsel-toolbar-center"<?php echo $noSelects; ?>>
+                <div class="forge-toolbar-center" id="forge-fsel-toolbar-center"<?php echo esc_attr($noSelects); ?>>
                     <input type="search" id="forge-fsel-form-search"
                            placeholder="<?php echo esc_attr__('Search selections…', 'form-forge'); ?>" autocomplete="off">
                 </div>
@@ -345,6 +346,7 @@ class FormSelectList
                     <?php echo esc_html($fsel->title); ?>
                 </span>
                 <div class="forge-form-row-meta">
+                    <?php // translators: %d: number of forms in the selection. ?>
                     <span><?php echo esc_html(sprintf(_n('%d Form', '%d Forms', $count, 'form-forge'), $count)); ?></span>
                     <span class="forge-meta-sep">&middot;</span>
                     <code class="forge-form-row-code"><?php echo esc_html($shortcode); ?></code>
@@ -391,9 +393,10 @@ class FormSelectList
         }
         check_ajax_referer('forge_fsel_save', 'nonce');
 
-        $id        = (int) ($_POST['id'] ?? 0);
+        $id        = isset($_POST['id']) ? absint(wp_unslash($_POST['id'])) : 0;
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized via the outer sanitize_text_field() call; WPCS loses track through the intermediate Sanitize::str() static call.
         $title     = sanitize_text_field(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['title'] ?? '')));
-        $items_raw = json_decode(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['items'] ?? '[]'), '[]'), true);
+        $items_raw = json_decode(\ForgeForms\Utils\Sanitize::str(sanitize_textarea_field(wp_unslash($_POST['items'] ?? '[]'))), true);
         if (!is_array($items_raw)) {
             wp_send_json_error(['message' => 'Ungültige Daten.']);
         }
@@ -425,7 +428,7 @@ class FormSelectList
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
-        $id = (int) ($_POST['id'] ?? 0);
+        $id = isset($_POST['id']) ? absint(wp_unslash($_POST['id'])) : 0;
         check_ajax_referer('forge_fsel_delete_' . $id, 'nonce');
 
         FormSelectModel::delete($id);
@@ -520,6 +523,7 @@ class FormSelectList
                     ?>
                     <div class="fsel-form<?php echo $i !== $fav_idx ? ' fsel-form--hidden' : ''; ?>"
                          data-idx="<?php echo esc_attr($i); ?>">
+                        <?php // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- FormRenderer::render() returns pre-escaped HTML; each field handler escapes its own output internally. ?>
                         <?php echo FormRenderer::render($item['form_id']); ?>
                     </div>
                 <?php endforeach; ?>

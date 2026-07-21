@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -68,10 +68,10 @@ class FormRenderer
         }
 
         $nonce        = wp_create_nonce('forge_forms_submit_' . $form_id);
-        $ajax_url     = esc_url(admin_url('admin-ajax.php'));
-        $submit_label   = esc_html($form->settings['submit_label']   ?? __('Submit', 'form-forge'));
-        $submit_working = esc_attr($form->settings['submit_working'] ?? __('Sending…', 'form-forge'));
-        $success_msg    = esc_attr($form->settings['success_message'] ?? __('Thank you!', 'form-forge'));
+        $ajax_url     = admin_url('admin-ajax.php');
+        $submit_label   = $form->settings['submit_label']   ?? __('Submit', 'form-forge');
+        $submit_working = $form->settings['submit_working'] ?? __('Sending…', 'form-forge');
+        $success_msg    = $form->settings['success_message'] ?? __('Thank you!', 'form-forge');
 
         /* Resolve one handler per unique field type; let each field enqueue its own scripts. */
         $seen_handlers = [];
@@ -96,26 +96,27 @@ class FormRenderer
                 class="forge-form"
                 id="forge-form-inner-<?php echo esc_attr($form_id); ?>"
                 method="post"
-                action="<?php echo $ajax_url; ?>"
+                action="<?php echo esc_url($ajax_url); ?>"
                 <?php echo $has_upload ? 'enctype="multipart/form-data"' : ''; ?>
                 novalidate
                 data-form-id="<?php echo esc_attr($form_id); ?>"
                 <?php echo $has_pages ? 'data-has-pages="true"' : ''; ?>
             >
                 <input type="hidden" name="action"     value="forge_forms_submit">
-                <input type="hidden" name="form_id"    value="<?php echo $form_id; ?>">
+                <input type="hidden" name="form_id"    value="<?php echo esc_attr($form_id); ?>">
                 <input type="hidden" name="forge_nonce" value="<?php echo esc_attr($nonce); ?>">
                 <!-- Honeypot -->
                 <input type="text" name="forge_hp_field"
                        style="display:none!important" tabindex="-1" autocomplete="off">
 
+                <?php // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- renderFields() returns pre-escaped HTML; each field handler escapes its own output internally. ?>
                 <?php echo self::renderFields($form->fields); ?>
 
                 <div class="forge-form-footer">
                     <button type="submit" class="forge-submit-btn"
-                            data-working="<?php echo $submit_working; ?>"
-                            data-success="<?php echo $success_msg; ?>">
-                        <span class="forge-submit-label"><?php echo $submit_label; ?></span>
+                            data-working="<?php echo esc_attr($submit_working); ?>"
+                            data-success="<?php echo esc_attr($success_msg); ?>">
+                        <span class="forge-submit-label"><?php echo esc_html($submit_label); ?></span>
                         <span class="forge-submit-spinner" aria-hidden="true" style="display:none;"></span>
                     </button>
                 </div>

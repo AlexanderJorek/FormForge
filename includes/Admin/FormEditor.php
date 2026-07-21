@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
- * @link      https://github.com/AlexanderJorek/form-forge
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -53,6 +53,7 @@ class FormEditor
      */
     public static function bodyClass(string $classes): string
     {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only admin body-class check, no data written.
         if (isset($_GET['page']) && $_GET['page'] === 'forge-forms-editor') {
             $classes .= ' forge-editor-page';
         }
@@ -86,13 +87,14 @@ class FormEditor
     public static function render(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
-            \wp_die(__('Permission denied.', 'form-forge'));
+            \wp_die(esc_html__('Permission denied.', 'form-forge'));
         }
 
         $perf_mode   = defined('WP_DEBUG') && WP_DEBUG && current_user_can('manage_options');
         $perf_start  = $perf_mode ? microtime(true) : 0.0;
 
-        $form_id = (int)($_GET['form_id'] ?? 0);
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only page load (which form to display), gated by edit_forms capability above, no data written.
+        $form_id = isset($_GET['form_id']) ? absint(wp_unslash($_GET['form_id'])) : 0;
         $form    = $form_id ? FormModel::get($form_id) : null;
         $palette = FieldRegistry::paletteGroups();
 
@@ -118,9 +120,6 @@ class FormEditor
         }
 
         $nonce    = \wp_create_nonce('forge_forms_admin_nonce');
-        // JSON_HEX_APOS|JSON_HEX_QUOT escapes quotes inside the JSON itself, which is what
-        // makes it safe to echo raw into a single-quoted HTML attribute below (esc_attr()
-        // would double-escape/corrupt the JSON, so it's deliberately not used here)
         $data_form    = \wp_json_encode($form_data, JSON_HEX_APOS | JSON_HEX_QUOT);
         $data_palette = \wp_json_encode($palette, JSON_HEX_APOS | JSON_HEX_QUOT);
         $ajax_url     = \esc_attr(\admin_url('admin-ajax.php'));
@@ -146,10 +145,10 @@ class FormEditor
         <!-- admin-builder.js reads these on load and keeps them updated as the source of
              truth for the form/palette state; ajaxSave() below receives that state back -->
         <div id="forge-editor"
-             data-form='<?php echo $data_form; ?>'
-             data-palette='<?php echo $data_palette; ?>'
+             data-form='<?php echo esc_attr($data_form); ?>'
+             data-palette='<?php echo esc_attr($data_palette); ?>'
              data-nonce="<?php echo \esc_attr($nonce); ?>"
-             data-ajax-url="<?php echo $ajax_url; ?>">
+             data-ajax-url="<?php echo esc_attr($ajax_url); ?>">
 
             <div id="forge-canvas">
                 <div id="forge-canvas-header">
@@ -273,14 +272,14 @@ class FormEditor
         }
         \check_ajax_referer('forge_forms_admin_nonce', 'nonce');
 
-        $form_id = (int)($_POST['form_id'] ?? 0);
+        $form_id = isset($_POST['form_id']) ? absint(wp_unslash($_POST['form_id'])) : 0;
         if (!$form_id) {
             \wp_send_json_error(['message' => 'No form ID'], 400);
         }
 
         $settings_override = [];
         if (!empty($_POST['settings'])) {
-            $raw_s = json_decode(\ForgeForms\Utils\Sanitize::str(\wp_unslash($_POST['settings'])), true);
+            $raw_s = json_decode(\ForgeForms\Utils\Sanitize::str(sanitize_textarea_field(\wp_unslash($_POST['settings']))), true);
             if (is_array($raw_s)) {
                 $settings_override = self::sanitizeSettings($raw_s);
             }
@@ -289,7 +288,7 @@ class FormEditor
         /* Use live editor fields when posted; fall back to saved DB state. */
         $fields_override = null;
         if (!empty($_POST['fields'])) {
-            $raw_f = json_decode(\ForgeForms\Utils\Sanitize::str(\wp_unslash($_POST['fields'])), true);
+            $raw_f = json_decode(\ForgeForms\Utils\Sanitize::str(sanitize_textarea_field(\wp_unslash($_POST['fields']))), true);
             if (is_array($raw_f)) {
                 $fields_override = self::sanitizeFields($raw_f);
             }
@@ -506,7 +505,7 @@ window.fetch = function (url, opts) {
 
         // base64-wrapped so admin-builder.js can send the raw JSON as a plain string field
         // without WP's magic-quotes slashing corrupting embedded quotes before we get here
-        $encoded = \ForgeForms\Utils\Sanitize::str(\wp_unslash($_POST['form_data'] ?? ''));
+        $encoded = \ForgeForms\Utils\Sanitize::str(sanitize_text_field(\wp_unslash($_POST['form_data'] ?? '')));
         $json    = base64_decode($encoded, true);
         $raw     = ($json !== false) ? json_decode($json, true) : null;
         if (!is_array($raw)) {

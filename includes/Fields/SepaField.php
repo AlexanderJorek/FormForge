@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SEPA direct debit mandate composite field (IBAN, BIC, dual signatures).
+ * SEPA direct debit mandate composite field (IBAN, BIC, signature).
  *
  * PHP Version 8.1
  *
@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -24,7 +24,7 @@ namespace ForgeForms\Fields;
 defined('ABSPATH') || exit;
 
 /**
- * SEPA direct debit mandate composite field with IBAN, BIC, and dual signature canvases.
+ * SEPA direct debit mandate composite field with IBAN, BIC, and a signature canvas.
  */
 class SepaField extends BaseField
 {
@@ -593,15 +593,17 @@ CSS;
      */
     public function extractValue(string $field_id): mixed
     {
-        $raw = $_POST[$field_id] ?? [];
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
+        $raw = isset($_POST[$field_id]) ? map_deep(wp_unslash($_POST[$field_id]), 'sanitize_text_field') : [];
         if (!is_array($raw)) {
             return null;
         }
-        $sig_raw = wp_unslash($_POST[$field_id . '-sig'] ?? '');
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
+        $sig_raw = sanitize_text_field(wp_unslash($_POST[$field_id . '-sig'] ?? ''));
         return [
-            'iban'   => sanitize_text_field(wp_unslash($raw['iban']   ?? '')),
-            'bic'    => sanitize_text_field(wp_unslash($raw['bic']    ?? '')),
-            'holder' => sanitize_text_field(wp_unslash($raw['holder'] ?? '')),
+            'iban'   => sanitize_text_field($raw['iban']   ?? ''),
+            'bic'    => sanitize_text_field($raw['bic']    ?? ''),
+            'holder' => sanitize_text_field($raw['holder'] ?? ''),
             'sig'    => sanitize_text_field((string)$sig_raw),
         ];
     }
@@ -664,6 +666,14 @@ CSS;
      */
     public function validate(mixed $value, array $config): bool|string
     {
+        // The signature size cap must apply regardless of whether the field is
+        // required, mirroring SignatureField::validate() — extractValue() has no
+        // upper bound of its own, so a crafted oversized data URI could otherwise
+        // inflate memory/CPU use even on an optional SEPA field.
+        if (is_array($value) && strlen((string)($value['sig'] ?? '')) > 2 * 1024 * 1024) {
+            return __('Signature data is too large.', 'form-forge');
+        }
+
         if (empty($config['required'])) {
             return true;
         }
@@ -702,10 +712,12 @@ CSS;
 
         if ($filter_mode === 'allow' && !empty($filter_list)) {
             if (!in_array($iban_country, $filter_list, true)) {
+                // translators: %s: two-letter IBAN country code.
                 return sprintf(__('IBANs from country "%s" are not allowed.', 'form-forge'), esc_html($iban_country));
             }
         } elseif ($filter_mode === 'disallow' && !empty($filter_list)) {
             if (in_array($iban_country, $filter_list, true)) {
+                // translators: %s: two-letter IBAN country code.
                 return sprintf(__('IBANs from country "%s" are not allowed.', 'form-forge'), esc_html($iban_country));
             }
         }
@@ -981,14 +993,11 @@ CSS;
     private function defaultMandateText(): string
     {
         return '<p>' . __(
-            'I hereby authorize the creditor to collect payments from my account by direct debit. '
-            . 'At the same time, I instruct my bank to honor the direct debits drawn by the creditor on my account.',
+            'I hereby authorize the creditor to collect payments from my account by direct debit. At the same time, I instruct my bank to honor the direct debits drawn by the creditor on my account.',
             'form-forge'
         ) . '</p>'
             . '<p>' . __(
-                'If my account does not have sufficient funds, my bank is under no obligation to honor the direct '
-                . 'debit. Partial payments will not be made under the direct debit scheme. I bear the costs of the '
-                . 'returned direct debit.',
+                'If my account does not have sufficient funds, my bank is under no obligation to honor the direct debit. Partial payments will not be made under the direct debit scheme. I bear the costs of the returned direct debit.',
                 'form-forge'
             ) . '</p>';
     }
@@ -1001,8 +1010,7 @@ CSS;
     private function defaultMandateNote(): string
     {
         return '<small>' . __(
-            'Note: I can request a refund of the debited amount within eight weeks, starting from the '
-            . 'debit date. The terms agreed with my bank apply.',
+            'Note: I can request a refund of the debited amount within eight weeks, starting from the debit date. The terms agreed with my bank apply.',
             'form-forge'
         ) . '</small>';
     }

@@ -9,13 +9,13 @@
  * @package   FormForge
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
- * @license   https://www.gnu.org/licenses/gpl-2.0.html GPL-2.0-or-later
+ * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
  * @version   1.0.0
- * @link      https://github.com/AlexanderJorek/form-forge
+ * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  */
 
@@ -105,7 +105,7 @@ class PDFLayoutEditor
         /* Use live settings from the request so the user doesn't have to save first */
         if (!empty($_POST['settings'])) {
             /* wp_unslash is required — WordPress's wp_magic_quotes() slashes all $_POST values */
-            $raw = json_decode(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['settings'] ?? '')), true);
+            $raw = json_decode(sanitize_textarea_field(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['settings'] ?? ''))), true);
             if (!is_array($raw)) {
                 \ForgeForms\forge_log('ajaxPreview: settings JSON decode failed — ' . json_last_error_msg());
             }
@@ -173,7 +173,9 @@ class PDFLayoutEditor
      */
     public static function bodyClass(string $classes): string
     {
-        if (isset($_GET['page']) && $_GET['page'] === 'forge-forms-pdf-layout') {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only admin body-class check, no data written.
+        $current_page = isset($_GET['page']) ? sanitize_text_field(wp_unslash($_GET['page'])) : '';
+        if ($current_page === 'forge-forms-pdf-layout') {
             $classes .= ' forge-list-page';
         }
         return $classes;
@@ -216,7 +218,7 @@ class PDFLayoutEditor
     public static function render(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_pdf_layout')) {
-            wp_die(__('Permission denied.', 'form-forge'));
+            wp_die(esc_html__('Permission denied.', 'form-forge'));
         }
 
         wp_enqueue_media();
@@ -244,8 +246,8 @@ class PDFLayoutEditor
         ];
 
 
-        $site_name         = esc_js(get_bloginfo('name'));
-        $site_url          = esc_js(get_bloginfo('url'));
+        $site_name         = get_bloginfo('name');
+        $site_url          = get_bloginfo('url');
         $field_layout_mode = get_option('forge_forms_field_layout', 'block');
 
         /* Same sample data as the server-rendered PDF preview, so both
@@ -308,9 +310,9 @@ class PDFLayoutEditor
                         $eid = esc_attr($id);
                         ?>
                     <div class="forge-settings-field">
-                        <label for="<?php echo $eid; ?>"><?php echo esc_html($lbl); ?></label>
-                        <input type="text" id="<?php echo $eid; ?>"
-                               name="<?php echo $eid; ?>"
+                        <label for="<?php echo esc_attr($eid); ?>"><?php echo esc_html($lbl); ?></label>
+                        <input type="text" id="<?php echo esc_attr($eid); ?>"
+                               name="<?php echo esc_attr($eid); ?>"
                                value="<?php echo esc_attr($opts[$id]); ?>"
                                class="forge-iris-input"
                                data-default-color="<?php echo esc_attr($default); ?>"
@@ -366,13 +368,15 @@ class PDFLayoutEditor
                         foreach ($margin_sides as $side => $lbl) :
                             ?>
                         <div class="forge-settings-field">
-                            <label for="margin_<?php echo $side; ?>"><?php echo esc_html($lbl); ?>:
-                                <span id="margin-<?php echo $side; ?>-val">
+                            <label for="margin_<?php echo esc_attr($side); ?>"><?php echo esc_html($lbl); ?>:
+                                <span id="margin-<?php echo esc_attr($side); ?>-val">
+                                    <?php // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $side only ever takes the literal values from $margin_sides above; output is (int)-cast regardless. ?>
                                     <?php echo (int) $opts['margin_' . $side]; ?>
                                 </span> mm
                             </label>
-                            <input type="range" id="margin_<?php echo $side; ?>"
-                                name="margin_<?php echo $side; ?>" min="5" max="40" step="1"
+                            <input type="range" id="margin_<?php echo esc_attr($side); ?>"
+                                name="margin_<?php echo esc_attr($side); ?>" min="5" max="40" step="1"
+                                <?php // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $side only ever takes the literal values from $margin_sides above; output is (int)-cast regardless. ?>
                                 value="<?php echo (int) $opts['margin_' . $side]; ?>">
                         </div>
                         <?php endforeach; ?>
@@ -787,8 +791,8 @@ class PDFLayoutEditor
 
         /* Pre-process footer template once — page number substituted per-page */
         var footerBase = (result.footerText||'')
-            .replace(/\{site_name\}/g, '<?php echo $site_name; ?>')
-            .replace(/\{site_url\}/g,  '<?php echo $site_url; ?>')
+            .replace(/\{site_name\}/g, '<?php echo esc_js($site_name); ?>')
+            .replace(/\{site_url\}/g,  '<?php echo esc_js($site_url); ?>')
             .replace(/\{date\}/g, new Date().toLocaleDateString('de-DE'))
             .replace(/\{nbpg\}/g, total);
 
@@ -1718,33 +1722,41 @@ class PDFLayoutEditor
      */
     private static function save(): void
     {
+        if (!isset($_POST['forge_pdf_layout_nonce'])
+            || !wp_verify_nonce(sanitize_key(wp_unslash($_POST['forge_pdf_layout_nonce'])), 'forge_pdf_layout')
+        ) {
+            return;
+        }
+
         $defs = self::defaults();
         $labels = self::sectionLabels();
 
         $hidden = array_values(
             array_filter(
-                array_map('sanitize_key', explode(',', \ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['section_hidden'] ?? '')))),
+                // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- each value is passed through sanitize_key() via array_map(); WPCS doesn't recognize the string-callback form.
+                array_map('sanitize_key', explode(',', (string) wp_unslash($_POST['section_hidden'] ?? ''))),
                 fn($s) => isset($labels[$s])
             )
         );
 
-        $header_layout_decoded = json_decode(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['header_layout_json'] ?? ''), '{}'), true);
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- decoded JSON is fully validated/sanitized below by self::sanitizeHeaderLayout() before use.
+        $header_layout_decoded = json_decode((string) wp_unslash($_POST['header_layout_json'] ?? '{}'), true);
 
         update_option(
             'forge_forms_pdf_layout',
             [
-            'logo_url'        => esc_url_raw(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['logo_url'] ?? ''))),
-            'logo_width'      => min(400, max(40, (int) ($_POST['logo_width'] ?? 180))),
-            'accent_color'    => sanitize_hex_color(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['accent_color']    ?? ''))) ?: $defs['accent_color'],
-            'separator_color' => sanitize_hex_color(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['separator_color'] ?? ''))) ?: $defs['separator_color'],
-            'font_family'     => sanitize_key(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['font_family'] ?? ''), 'dejavusans')),
-            'font_size_body'  => min(20, max(6, (int) ($_POST['font_size_body'] ?? 11))),
-            'title_size'      => min(36, max(10, (int) ($_POST['title_size']     ?? 18))),
-            'footer_text'     => sanitize_textarea_field(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['footer_text'] ?? ''))),
-            'margin_top'      => min(50, max(0, (int) ($_POST['margin_top']    ?? 15))),
-            'margin_bottom'   => min(50, max(0, (int) ($_POST['margin_bottom'] ?? 15))),
-            'margin_left'     => min(50, max(0, (int) ($_POST['margin_left']   ?? 15))),
-            'margin_right'    => min(50, max(0, (int) ($_POST['margin_right']  ?? 15))),
+            'logo_url'        => esc_url_raw((string) wp_unslash($_POST['logo_url'] ?? '')),
+            'logo_width'      => min(400, max(40, absint(wp_unslash($_POST['logo_width'] ?? 180)))),
+            'accent_color'    => sanitize_hex_color((string) wp_unslash($_POST['accent_color']    ?? '')) ?: $defs['accent_color'],
+            'separator_color' => sanitize_hex_color((string) wp_unslash($_POST['separator_color'] ?? '')) ?: $defs['separator_color'],
+            'font_family'     => sanitize_key(wp_unslash($_POST['font_family'] ?? 'dejavusans')),
+            'font_size_body'  => min(20, max(6, absint(wp_unslash($_POST['font_size_body'] ?? 11)))),
+            'title_size'      => min(36, max(10, absint(wp_unslash($_POST['title_size']     ?? 18)))),
+            'footer_text'     => sanitize_textarea_field(wp_unslash($_POST['footer_text'] ?? '')),
+            'margin_top'      => min(50, max(0, absint(wp_unslash($_POST['margin_top']    ?? 15)))),
+            'margin_bottom'   => min(50, max(0, absint(wp_unslash($_POST['margin_bottom'] ?? 15)))),
+            'margin_left'     => min(50, max(0, absint(wp_unslash($_POST['margin_left']   ?? 15)))),
+            'margin_right'    => min(50, max(0, absint(wp_unslash($_POST['margin_right']  ?? 15)))),
             'section_hidden'  => $hidden,
             'header_layout'   => self::sanitizeHeaderLayout(
                 is_array($header_layout_decoded) ? $header_layout_decoded : [],

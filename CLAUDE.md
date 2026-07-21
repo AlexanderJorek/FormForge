@@ -2,7 +2,7 @@
 
 ## Project Goal
 
-Build a custom WordPress form plugin (`form-forge`) to replace Forminator.
+Build a custom WordPress form plugin (`FormForge`).
 
 ## Directory Layout
 
@@ -28,8 +28,6 @@ uninstall.php    — cleanup on uninstall
 - html, feldgruppe (section), page-break
 - postdata, website
 - **SEPA Lastschriftmandat** — composite field (IBAN with masked input, BIC, Kontoinhaber, static creditor info block, dual signature canvases)
-
-**Discarded** (out of scope): calculation, hidden, password
 
 ### Data Storage
 
