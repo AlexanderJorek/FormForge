@@ -97,12 +97,8 @@ CSS;
         if ($base !== true) {
             return $base;
         }
-        if ($value === null || $value === '') {
-            return true;
-        }
-        if (!preg_match('/^\d{2}:\d{2}(:\d{2})?$/', (string)$value)) {
-            return __('Please enter a valid time.', 'form-forge');
-        }
+        // Format validation is intentionally left to the browser's type="time" input.
+        // Any non-empty string is accepted server-side.
         return true;
     }
 

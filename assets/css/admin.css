@@ -90,6 +90,7 @@
 .forge-guard-discard.button:active {
     color: #d63638 !important;
     border-color: #d63638 !important;
+    background: #fcf0f1 !important;
     box-shadow: 0 0 0 1px #d63638 !important;
 }
 

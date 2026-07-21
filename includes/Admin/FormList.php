@@ -223,7 +223,7 @@ class FormList
                                     <?php esc_html_e('Edit', 'form-forge'); ?>
                                 </a>
                                 <div class="forge-row-menu-wrap">
-                                    <button class="button forge-row-menu-btn" title="<?php echo esc_attr__('Weitere Aktionen', 'form-forge'); ?>">&#8942;</button>
+                                    <button class="button forge-row-menu-btn" title="<?php echo esc_attr__('More actions', 'form-forge'); ?>">&#8942;</button>
                                     <div class="forge-row-dropdown" hidden>
                                         <button class="forge-dd-item forge-copy-shortcode"
                                                 data-code="<?php echo esc_attr($shortcode); ?>">

@@ -105,6 +105,7 @@ class PDFLayoutEditor
         /* Use live settings from the request so the user doesn't have to save first */
         if (!empty($_POST['settings'])) {
             /* wp_unslash is required — WordPress's wp_magic_quotes() slashes all $_POST values */
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized via the outer sanitize_textarea_field() call; WPCS loses track through the intermediate Sanitize::str() static call.
             $raw = json_decode(sanitize_textarea_field(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['settings'] ?? ''))), true);
             if (!is_array($raw)) {
                 \ForgeForms\forge_log('ajaxPreview: settings JSON decode failed — ' . json_last_error_msg());

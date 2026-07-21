@@ -266,7 +266,7 @@ class FieldTestPage
             return self::expectOk('abcde', array_merge($cfg, ['limit_type'=>'chars','limit_max'=>'5']), $h);
         });
         self::run('map non-empty', fn() => self::expectMap('Hello', $cfg, $h, 'Hello'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
         self::run('sanitize strips <script>', function () use ($h) {
             return !str_contains($h->sanitizeConfigValue('label', '<script>x</script>'), '<script') ? true : 'script not stripped';
         });
@@ -297,7 +297,7 @@ class FieldTestPage
             return self::expectOk('a b c', array_merge($cfg, ['limit_type'=>'words','limit_max'=>'3']), $h);
         });
         self::run('map non-empty', fn() => self::expectMap('Hello', $cfg, $h, 'Hello'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
         self::run('sanitize strips <script> (inherited from BaseField)', function () use ($h) {
             return !str_contains($h->sanitizeConfigValue('description', '<p>ok</p><script>x</script>'), '<script') ? true : 'script not stripped';
         });
@@ -367,10 +367,10 @@ class FieldTestPage
             return self::expectError(['fname'=>'Hans','lname'=>''], $exp, $h);
         });
         self::run('map simple string', fn() => self::expectMap('Max Mustermann', $cfg, $h, 'Max Mustermann'));
-        self::run('map simple empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
+        self::run('map simple empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
         self::run('map expanded has Vorname', fn() => self::expectMapContains(['fname'=>'Hans','lname'=>'Müller'], $exp, $h, 'Hans'));
         self::run('map expanded has Nachname', fn() => self::expectMapContains(['fname'=>'Hans','lname'=>'Müller'], $exp, $h, 'Müller'));
-        self::run('map expanded empty → Kein Eintrag', fn() => self::expectMapContains(['fname'=>'','lname'=>''], $exp, $h, 'No entry'));
+        self::run('map expanded empty → Kein Eintrag', fn() => self::expectMapContains(['fname'=>'','lname'=>''], $exp, $h, __('[No entry]', 'form-forge')));
         self::run('render middle name subfield', function () use ($h, $exp) {
             $c = array_merge($exp, ['mname_enabled'=>true,'mname_label'=>'Zweiter Vorname']);
             return self::contains($h->render($c, 'f1'), 'Zweiter Vorname');
@@ -438,7 +438,7 @@ class FieldTestPage
             return self::expectOk('+358123456789', $c, $h);
         });
         self::run('map non-empty', fn() => self::expectMap('+4915123456789', $cfg, $h, '+4915123456789'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
     }
 
     private static function testNumber(): void
@@ -494,7 +494,7 @@ class FieldTestPage
         self::run('validate partial required exp err', function () use ($h, $exp) {
             return self::expectError(['street'=>'Hauptstr. 1','city'=>'','zip'=>'10115'], $exp, $h);
         });
-        self::run('map non-array → Kein Eintrag', fn() => self::expectMapContains('not-array', $cfg, $h, 'No entry'));
+        self::run('map non-array → Kein Eintrag', fn() => self::expectMapContains('not-array', $cfg, $h, __('[No entry]', 'form-forge')));
         self::run('map array has Straße', fn() => self::expectMapContains(['street'=>'Hauptstr. 1','city'=>'Berlin','zip'=>'10115'], $exp, $h, 'Hauptstr'));
         self::run('map array has Stadt', fn() => self::expectMapContains(['street'=>'Hauptstr. 1','city'=>'Berlin','zip'=>'10115'], $exp, $h, 'Berlin'));
         $expFull = array_merge($exp, [
@@ -561,7 +561,7 @@ class FieldTestPage
         self::run('validate wrong format (text)', fn() => self::expectError('not-a-date', array_merge($cfg, ['required'=>true]), $h));
         self::run('validate invalid calendar date', fn() => self::expectError('31.02.2026', $cfg, $h));
         self::run('map non-empty returns value', fn() => self::expectMap('10.07.2026', $cfg, $h, '10.07.2026'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
         self::run('validate before min_date → error', function () use ($h, $cfg) {
             return self::expectError('10.07.2020', array_merge($cfg, ['min_date'=>'01.01.2025','max_date'=>'31.12.2025']), $h);
         });
@@ -606,7 +606,7 @@ class FieldTestPage
         self::run('validate any non-empty', fn() => self::expectOk('14:30', $cfg, $h));
         self::run('validate string passes', fn() => self::expectOk('not-a-time', $cfg, $h));
         self::run('map non-empty', fn() => self::expectMap('14:30', $cfg, $h, '14:30'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
     }
 
     private static function testCurrency(): void
@@ -639,7 +639,7 @@ class FieldTestPage
         self::run('map has currency symbol', fn() => self::expectMapContains('12.5', $cfg, $h, '€'));
         self::run('map uses comma decimal', fn() => self::expectMapContains('12.5', $cfg, $h, ','));
         self::run('map non-numeric string passes through unformatted', fn() => self::expectMap('N/A', $cfg, $h, 'N/A €'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
     }
 
     private static function testSelect(): void
@@ -675,9 +675,9 @@ class FieldTestPage
         // SelectField has no server-side option-list validation — any value passes
         self::run('validate any value passes', fn() => self::expectOk('a', $cfg, $h));
         self::run('map known value → label', fn() => self::expectMap('a', $cfg, $h, 'Alpha'));
-        self::run('map __other__ → [Other]', fn() => self::expectMapContains('__other__', $cfg, $h, '[Other]'));
+        self::run('map __other__ → [Other]', fn() => self::expectMapContains('__other__', $cfg, $h, __('[Other]', 'form-forge')));
         self::run('map unknown value → raw', fn() => self::expectMap('unknown', $cfg, $h, 'unknown'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
     }
 
     private static function testRadio(): void
@@ -718,7 +718,7 @@ class FieldTestPage
         self::run('validate any value passes', fn() => self::expectOk('x', $cfg, $h));
         self::run('map known value → label', fn() => self::expectMap('x', $cfg, $h, 'X-Ray'));
         self::run('map unknown value → raw', fn() => self::expectMap('unknown', $cfg, $h, 'unknown'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
     }
 
     private static function testCheckbox(): void
@@ -758,8 +758,8 @@ class FieldTestPage
         self::run('validate exact at max_selections passes', fn() => self::expectOk(['one','two'], array_merge($cfg, ['max_selections'=>2]), $h));
         self::run('map known values has Eins', fn() => self::expectMapContains(['one','two'], $cfg, $h, 'Eins'));
         self::run('map known values has Zwei', fn() => self::expectMapContains(['one','two'], $cfg, $h, 'Zwei'));
-        self::run('map __other__ → [Other]', fn() => self::expectMapContains(['__other__'], $cfg, $h, '[Other]'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains([], $cfg, $h, 'No entry'));
+        self::run('map __other__ → [Other]', fn() => self::expectMapContains(['__other__'], $cfg, $h, __('[Other]', 'form-forge')));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains([], $cfg, $h, __('[No entry]', 'form-forge')));
     }
 
     private static function testUpload(): void
@@ -803,7 +803,7 @@ class FieldTestPage
         self::run('validate blocked ext exe', fn() => self::expectError(['name'=>'evil.exe','tmp_name'=>'/tmp/x','error'=>0,'size'=>100,'type'=>'application/octet-stream'], $cfg, $h));
         self::run('validate allowed ext pdf', fn() => self::expectOk(['name'=>'doc.pdf','tmp_name'=>'/tmp/x','error'=>0,'size'=>100,'type'=>'application/pdf'], $cfg, $h));
         self::run('map string value', fn() => self::expectMap('file.pdf', $cfg, $h, 'file.pdf'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
     }
 
     private static function testSignature(): void
@@ -835,7 +835,7 @@ class FieldTestPage
             return self::expectError($validPng, array_merge($cfg, ['required'=>true,'export_format'=>'jpeg']), $h);
         });
         self::run('map non-empty → empty string', fn() => self::expectMap($validPng, $cfg, $h, ''));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
         self::run('includeValueInSeal=false', fn() => !$h->includeValueInSeal() ? true : 'expected false');
     }
 
@@ -881,7 +881,7 @@ class FieldTestPage
         self::run('validate exactly at max → ok', fn() => self::expectOk('5', $cfg, $h));
         self::run('map value/max format', fn() => self::expectMap('3', $cfg, $h, '3 / 5'));
         self::run('map half value format', fn() => self::expectMap('2.5', $cfg, $h, '2.5 / 5'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
     }
 
     private static function testSlider(): void
@@ -913,7 +913,7 @@ class FieldTestPage
             return self::expectOk(['from'=>'0','to'=>'100'], array_merge($cfg, ['ranged'=>true]), $h);
         });
         self::run('map scalar value', fn() => self::expectMap('50', $cfg, $h, '50'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
         self::run('map ranged has from', fn() => self::expectMapContains(['from'=>'20','to'=>'80'], array_merge($cfg, ['ranged'=>true]), $h, '20'));
         self::run('map ranged has to', fn() => self::expectMapContains(['from'=>'20','to'=>'80'], array_merge($cfg, ['ranged'=>true]), $h, '80'));
     }
@@ -949,14 +949,14 @@ class FieldTestPage
             $c = $h->getDefaultConfig();
             unset($c['consent_text']);
             $c['type'] = 'consent';
-            return self::contains($h->render($c, 'f1'), 'I agree.');
+            return self::contains($h->render($c, 'f1'), __('I agree.', 'form-forge'));
         });
         self::run('validate required empty', fn() => self::expectError('', array_merge($cfg, ['required'=>true]), $h));
         self::run('validate required checked', fn() => self::expectOk('1', array_merge($cfg, ['required'=>true]), $h));
         self::run('validate optional empty', fn() => self::expectOk('', $cfg, $h));
-        self::run('map checked → Yes', fn() => self::expectMap('1', $cfg, $h, 'Yes'));
-        self::run('map unchecked → No', fn() => self::expectMap('', $cfg, $h, 'No'));
-        self::run('map 0 → No', fn() => self::expectMap('0', $cfg, $h, 'No'));
+        self::run('map checked → Yes', fn() => self::expectMap('1', $cfg, $h, __('Yes', 'form-forge')));
+        self::run('map unchecked → No', fn() => self::expectMap('', $cfg, $h, __('No', 'form-forge')));
+        self::run('map 0 → No', fn() => self::expectMap('0', $cfg, $h, __('No', 'form-forge')));
         self::run('sanitize keeps <a> in text', function () use ($h) {
             $out = $h->sanitizeConfigValue('consent_text', '<a href="https://x.com">Link</a>');
             return str_contains($out, '<a') ? true : 'link stripped: '.$out;
@@ -994,8 +994,8 @@ class FieldTestPage
         // GDPR always errors when unchecked, regardless of required config flag
         self::run('validate unchecked required=true → error', fn() => self::expectError('', array_merge($cfg, ['required'=>true]), $h));
         self::run('validate unchecked required=false → error', fn() => self::expectError('', array_merge($cfg, ['required'=>false]), $h));
-        self::run('map checked → Privacy accepted', fn() => self::expectMapContains('1', $cfg, $h, 'Privacy accepted'));
-        self::run('map unchecked → Privacy not accepted', fn() => self::expectMapContains('', $cfg, $h, 'Privacy not accepted'));
+        self::run('map checked → Privacy accepted', fn() => self::expectMapContains('1', $cfg, $h, __('Privacy accepted', 'form-forge')));
+        self::run('map unchecked → Privacy not accepted', fn() => self::expectMapContains('', $cfg, $h, __('Privacy not accepted', 'form-forge')));
     }
 
     private static function testHtml(): void
@@ -1171,8 +1171,8 @@ class FieldTestPage
             }
             return str_contains($r, 'My Page') ? true : 'expected "My Page" in output';
         });
-        self::run('map empty array → Kein Eintrag', fn() => self::expectMapContains([], $cfg, $h, 'No entry'));
-        self::run('map non-array → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
+        self::run('map empty array → Kein Eintrag', fn() => self::expectMapContains([], $cfg, $h, __('[No entry]', 'form-forge')));
+        self::run('map non-array → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
     }
 
     private static function testWebsite(): void
@@ -1192,7 +1192,7 @@ class FieldTestPage
         // validate_url=false: invalid URLs pass (no format check)
         self::run('validate invalid URL no flag', fn() => self::expectOk('not a url', array_merge($cfg, ['validate_url'=>false]), $h));
         self::run('map value', fn() => self::expectMap('https://example.com', $cfg, $h, 'https://example.com'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, 'No entry'));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
     }
 
     private static function testSepa(): void
@@ -1267,7 +1267,7 @@ class FieldTestPage
             $c = array_merge($cfg, ['required'=>true,'country_filter_mode'=>'allow','country_filter_list'=>['de']]);
             return self::expectOk(['iban'=>'DE89370400440532013000','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>''], $c, $h);
         });
-        self::run('map non-array → No entry', fn() => str_contains($h->map(null, $cfg), 'No entry') ? true : 'wrong map');
+        self::run('map non-array → No entry', fn() => str_contains($h->map(null, $cfg), __('[No entry]', 'form-forge')) ? true : 'wrong map');
         self::run('map valid data contains IBAN', fn() => self::expectMapContains($validData, $cfg, $h, 'IBAN'));
         self::run('map valid data contains BIC', fn() => self::expectMapContains($validData, $cfg, $h, 'BIC'));
         self::run('map valid data contains holder', fn() => self::expectMapContains($validData, $cfg, $h, 'Mustermann'));
