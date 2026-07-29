@@ -108,11 +108,6 @@
     display: none;
 }
 
-.forge-field--invalid .forge-input,
-.forge-field--invalid .forge-signature-canvas {
-    border-color: var(--forge-error) !important;
-}
-
 /* ── Inputs ───────────────────────────────────────────────────────────────── */
 .forge-input {
     display: block;

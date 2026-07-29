@@ -144,6 +144,11 @@ CSS;
     /**
      * Maps the field value to a human-readable string for email and PDF output.
      *
+     * Embeds the actual consent text shown at submission time and a timestamp (not
+     * just "Yes"/"No") so the sealed PDF record can independently demonstrate what was
+     * agreed to and when — GDPR Art. 7(1) requires the controller to be able to
+     * demonstrate consent; a bare "Yes" can't do that if consent_text is edited later.
+     *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
      *
@@ -151,7 +156,16 @@ CSS;
      */
     public function map(mixed $value, array $config): string
     {
-        return (!empty($value) && $value !== '0') ? __('Yes', 'form-forge') : __('No', 'form-forge');
+        if (empty($value) || $value === '0') {
+            return __('Not agreed', 'form-forge');
+        }
+        $consent_text = wp_strip_all_tags((string)($config['consent_text'] ?? __('I agree to the terms.', 'form-forge')));
+        return sprintf(
+            // translators: %1$s: consent text shown to the user, %2$s: agreement timestamp.
+            __('Agreed to "%1$s" on %2$s', 'form-forge'),
+            $consent_text,
+            current_time('mysql')
+        );
     }
 
     /**

@@ -179,7 +179,7 @@ CSS;
         $icon_key  = $config['icon_type'] ?? 'star';
         $icons     = self::ICONS[$icon_key] ?? self::ICONS['star'];
         $req       = !empty($config['required']) ? ' data-required="true"' : '';
-        $custom_url = $custom ? esc_url($config['custom_icon_url']) : '';
+        $custom_url = $custom ? esc_url($config['custom_icon_url'], ['http', 'https']) : '';
 
         $inner = '<div class="forge-rating-group" role="group"'
             . ' aria-label="' . esc_attr($config['label'] ?? __('Rating', 'form-forge')) . '"'

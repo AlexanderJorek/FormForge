@@ -33,9 +33,10 @@ class UploadField extends BaseField
     // against a malicious file renamed to a permitted-looking extension)
     private const BLOCKED_TYPES = [
         'htm','html','shtml','phtml','jse','jar','xml','css','asp','aspx',
-        'jsp','sql','hta','dll','bat','com','sh','bash','py','pl','js',
+        'jsp','jspx','sql','hta','dll','bat','com','sh','bash','py','pl','js',
         'php','php3','php4','php5','php7','pht','phar','cgi',
         'svg','swf','dfxp','rar','exe','htaccess','htpasswd','config','ini',
+        'msi','vbs','vbe','ps1','ps1xml','psm1','scr','pif','wsf','wsh','reg','cer',
     ];
 
     // Second line of defense: real MIME type (via finfo) is checked against this list too,
@@ -521,11 +522,24 @@ CSS;
             $sizes     = is_array($file['size'] ?? null) ? $file['size'] : [$file['size'] ?? 0];
             $max_bytes = (int)($config['max_size_mb'] ?? 10) * 1024 * 1024;
             $finfo     = new \finfo(FILEINFO_MIME_TYPE);
+            // Enforce the admin-configured allow-list server-side too — the <input accept>
+            // attribute built by buildAccept() only constrains the browser's file picker,
+            // a direct POST can otherwise submit any type not on the hard-coded deny-list.
+            $allowed_exts = array_filter(array_map(
+                static function (string $e): string {
+                    return ltrim(strtolower(trim($e)), '.');
+                },
+                explode(',', $this->buildAccept($config))
+            ));
             foreach ($names as $i => $name) {
                 $ext = strtolower(pathinfo((string)$name, PATHINFO_EXTENSION));
                 if (in_array($ext, self::BLOCKED_TYPES, true)) {
                     // translators: %s: rejected file extension.
                     return sprintf(__('File type ".%s" is not allowed for security reasons.', 'form-forge'), esc_html($ext));
+                }
+                if (!empty($allowed_exts) && !in_array($ext, $allowed_exts, true)) {
+                    // translators: %s: rejected file extension.
+                    return sprintf(__('File type ".%s" is not permitted for this field.', 'form-forge'), esc_html($ext));
                 }
                 if ((int)($sizes[$i] ?? 0) > $max_bytes) {
                     return sprintf(

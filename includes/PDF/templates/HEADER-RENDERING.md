@@ -8,7 +8,7 @@ This document covers every non-obvious detail about how the PDF layout editor's 
 
 | File | Role |
 |------|------|
-| `pdf-templates/layout.php` | PHP: converts saved header JSON → mPDF HTML |
+| `includes/PDF/templates/layout.php` | PHP: converts saved header JSON → mPDF HTML |
 | `includes/Admin/PDFLayoutEditor.php` | JS: builder canvas + live preview renderer |
 | `includes/PDF/Generator.php` | Instantiates mPDF, injects HTML, configures margins |
 

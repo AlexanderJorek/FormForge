@@ -297,21 +297,17 @@ class FormProcessor
             // request into one shared rate-limit bucket.
             return true;
         }
-        $key = 'forge_rl_' . md5($ip . '_' . $form_id);
-        $count = (int) get_transient($key);
-        if ($count >= 10) {
-            return true;
-        }
-        set_transient($key, $count + 1, 5 * MINUTE_IN_SECONDS);
-        return false;
+        $key = 'submit_' . md5($ip . '_' . $form_id);
+        return \ForgeForms\Utils\RateLimiter::increment($key, 5 * MINUTE_IN_SECONDS) > 10;
     }
 
     /**
      * Returns all field IDs (top-level and group children) that should be hidden
      * based on the submitted values and the form's condition rules.
      *
-     * @param array $fields     Form field configs.
-     * @param array $flat       Flat map of field_id → submitted value.
+     * @param array $fields Form field configs.
+     * @param array $flat   Flat map of field_id → submitted value.
+     * @param array $raw    Raw per-field submitted values (used for group copy counts).
      *
      * @return array<string>
      */
@@ -446,7 +442,10 @@ class FormProcessor
             'not_empty'    => $isArr ? !empty($val) : $str !== '',
             'greater'      => is_numeric($str) && is_numeric($rv) && (float)$str > (float)$rv,
             'less'         => is_numeric($str) && is_numeric($rv) && (float)$str < (float)$rv,
-            default        => true,
+            // Fail safe on an unrecognized operator: don't match, so a malformed/unknown
+            // rule can't silently hide a field (action='hide') or hide-by-omission
+            // (action='show') — it behaves as if the rule weren't satisfied.
+            default        => false,
         };
     }
 }

@@ -34,6 +34,50 @@ defined('ABSPATH') || exit;
 class MailSender
 {
     /**
+     * Strips newlines from a value before it's interpolated into a log line,
+     * preventing a crafted slug/recipient from forging adjacent log entries.
+     *
+     * @param mixed $value Value to sanitize for logging.
+     *
+     * @return string
+     */
+    private static function logSafe(mixed $value): string
+    {
+        return str_replace(["\r", "\n"], ' ', (string)$value);
+    }
+
+    /**
+     * Masks an email address (or comma-separated list of them) for debug logging,
+     * keeping only enough to distinguish log lines during troubleshooting without
+     * writing full recipient addresses — personal data — into PHP's error_log, a
+     * sink this plugin doesn't control and can't clean up on uninstall.
+     *
+     * @param mixed $value Email address, or comma-separated list of addresses.
+     *
+     * @return string
+     */
+    private static function maskEmail(mixed $value): string
+    {
+        $value = self::logSafe($value);
+        if ($value === '') {
+            return '(none)';
+        }
+        return implode(', ', array_map(
+            static function (string $addr): string {
+                $addr = trim($addr);
+                $at   = strrpos($addr, '@');
+                if ($at === false) {
+                    return $addr === '' ? '' : substr($addr, 0, 1) . '***';
+                }
+                $local  = substr($addr, 0, $at);
+                $domain = substr($addr, $at + 1);
+                return substr($local, 0, 1) . '***@' . $domain;
+            },
+            explode(',', $value)
+        ));
+    }
+
+    /**
      * Registers the wp_mail_failed logger once at class load time.
      *
      * @return void
@@ -97,7 +141,7 @@ class MailSender
             if (empty($notif['enabled'])) {
                 \ForgeForms\forge_log(
                     'ForgeForms MailSender: notification '
-                    . ($notif['slug'] ?? '?') . ' disabled, skipping'
+                    . self::logSafe($notif['slug'] ?? '?') . ' disabled, skipping'
                 );
                 continue;
             }
@@ -106,10 +150,11 @@ class MailSender
                 ? self::resolveRoutedRecipient($notif, $mapped, $form)
                 : self::resolveRecipient(\ForgeForms\Utils\Sanitize::str($notif['to'] ?? null), $mapped, $form);
             if (empty($to)) {
+                // Don't log $notif['to'] verbatim — in routing mode it's derived from a
+                // submitted field value and could itself be personal data.
                 \ForgeForms\forge_log(
-                    'ForgeForms MailSender: notification ' . ($notif['slug'] ?? '?')
-                    . ' has no resolvable recipient (raw: '
-                    . ($notif['to'] ?? '') . '), skipping'
+                    'ForgeForms MailSender: notification ' . self::logSafe($notif['slug'] ?? '?')
+                    . ' has no resolvable recipient, skipping'
                 );
                 continue;
             }
@@ -148,8 +193,11 @@ class MailSender
                strip CR/LF so a submitter can't inject extra mail headers, then
                run through sanitize_text_field() for the same reason the
                recipient/reply-to paths do — it strips other control chars,
-               not just \r\n, that some MTAs also treat as line separators. */
-            $from_name = sanitize_text_field(str_replace(["\r", "\n"], '', $from_name));
+               not just \r\n, that some MTAs also treat as line separators.
+               Also strip <, >, and , from from_name — otherwise a submitted
+               value could smuggle a second mailbox into the single From header
+               (e.g. "Name <a@a.com>, spoof@evil.com"). */
+            $from_name = sanitize_text_field(str_replace(["\r", "\n", '<', '>', ','], '', $from_name));
             $from_email = str_replace(["\r", "\n"], '', sanitize_email($from_email));
             $subject = sanitize_text_field(str_replace(["\r", "\n"], '', $subject));
 
@@ -210,7 +258,7 @@ class MailSender
             remove_action('phpmailer_init', $altBodySetter);
 
             \ForgeForms\forge_log(
-                'ForgeForms MailSender: wp_mail to ' . $to . ' returned '
+                'ForgeForms MailSender: wp_mail to ' . self::maskEmail($to) . ' returned '
                 . ($sent ? 'true' : 'false')
             );
         }

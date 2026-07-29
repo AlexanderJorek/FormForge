@@ -9,7 +9,7 @@
 
     <exclude-pattern>vendor/*</exclude-pattern>
     <exclude-pattern>assets/*</exclude-pattern>
-    <exclude-pattern>pdf-templates/*</exclude-pattern>
+    <exclude-pattern>includes/PDF/templates/*</exclude-pattern>
 
     <!--
         Every plugin file starts with `defined('ABSPATH') || exit;` before its

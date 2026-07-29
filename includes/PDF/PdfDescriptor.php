@@ -84,15 +84,23 @@ class PdfDescriptor
     }
 
     /**
-     * Sets the cell content to raw HTML (no escaping applied).
+     * Sets the cell content to raw HTML.
      *
-     * @param string $html Raw HTML string.
+     * Every field handler's PDF output funnels through this one escape hatch,
+     * so callers must explicitly opt in to skipping sanitization by passing
+     * $trusted = true — otherwise the HTML is run through wp_kses_post() first.
+     * This makes "did this caller remember to sanitize?" visible at every call
+     * site instead of silently depending on caller discipline.
+     *
+     * @param string $html    HTML string.
+     * @param bool   $trusted Pass true only when $html is already known-safe
+     *                        (e.g. pre-sanitized by the field's own kses pass).
      *
      * @return static
      */
-    public function rawHtml(string $html): static
+    public function rawHtml(string $html, bool $trusted = false): static
     {
-        $this->cellHtml = $html;
+        $this->cellHtml = $trusted ? $html : wp_kses_post($html);
         return $this;
     }
 
@@ -122,14 +130,20 @@ class PdfDescriptor
         string $filename,
         string $mime = 'image/png'
     ): static {
-        if ($mime === 'image/tiff') {
+        if ($mime === 'image/tiff' && PdfUtils::precheckDimensions($binary)) {
             $gd = @imagecreatefromstring($binary);
             if ($gd !== false) {
-                ob_start();
-                imagepng($gd);
-                $binary   = (string) ob_get_clean();
-                $mime     = 'image/png';
-                $filename = preg_replace('/\.tiff?$/i', '.png', $filename);
+                // Backstop for the rare case getimagesizefromstring() couldn't parse
+                // the TIFF header but GD could still decode it.
+                if (imagesx($gd) * imagesy($gd) > PdfUtils::maxSafePixels()) {
+                    imagedestroy($gd);
+                } else {
+                    ob_start();
+                    imagepng($gd);
+                    $binary   = (string) ob_get_clean();
+                    $mime     = 'image/png';
+                    $filename = preg_replace('/\.tiff?$/i', '.png', $filename);
+                }
             }
         }
 

@@ -7,12 +7,12 @@ Build a custom WordPress form plugin (`FormForge`).
 ## Directory Layout
 
 ```
-assets/          — CSS, JS, vendor front-end assets
-includes/        — PHP plugin source (Admin, Fields, Form, PDF, Utils)
-pdf-templates/   — mPDF layout templates
-vendor/          — Composer dependencies
-forge-forms.php  — plugin entry point
-uninstall.php    — cleanup on uninstall
+assets/               — CSS, JS front-end assets
+includes/             — PHP plugin source (Admin, Fields, Form, PDF, Utils)
+includes/PDF/templates/ — mPDF layout templates
+vendor/               — Composer dependencies + manually-vendored pdf.js
+forge-forms.php       — plugin entry point
+uninstall.php         — cleanup on uninstall
 ```
 
 ## Scope
@@ -27,7 +27,7 @@ uninstall.php    — cleanup on uninstall
 - captcha, consent, gdprcheckbox
 - html, feldgruppe (section), page-break
 - postdata, website
-- **SEPA Lastschriftmandat** — composite field (IBAN with masked input, BIC, Kontoinhaber, static creditor info block, dual signature canvases)
+- **SEPA Lastschriftmandat** — composite field (IBAN with masked input, BIC, Kontoinhaber, static creditor info block, signature canvas)
 
 ### Data Storage
 
@@ -35,7 +35,7 @@ No form submission data is ever stored locally. All data goes to email and/or PD
 
 ### PDF System
 
-PDF generation lives in `includes/PDF/`. The mPDF-based generator uses `pdf-templates/layout.php` and integrates with the plugin's mail hooks via `SubmissionHook.php` and `MailAttachments.php`.
+PDF generation lives in `includes/PDF/`. The mPDF-based generator uses `includes/PDF/templates/layout.php` and integrates with the plugin's mail hooks via `SubmissionHook.php` and `MailAttachments.php`.
 
 ### UI / Admin
 

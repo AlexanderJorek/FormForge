@@ -51,7 +51,6 @@ $_font      = match ($o['font_family']) {
 $_logo_post_id = !empty($o['logo_url']) ? attachment_url_to_postid($o['logo_url']) : 0;
 $_logo_path    = $_logo_post_id ? (get_attached_file($_logo_post_id) ?: '') : '';
 
-$_section_order  = is_array($o['section_order'])  ? $o['section_order']  : $_defaults['section_order'];
 $_section_hidden = is_array($o['section_hidden']) ? $o['section_hidden'] : [];
 
 $_margin_top_mm = (int) ($o['margin_top'] ?? 15);
@@ -62,7 +61,6 @@ return [
     'margin_right_mm'  => (int) ($o['margin_right']  ?? 15),
     'margin_bottom_mm' => (int) ($o['margin_bottom'] ?? 15),
 
-    'section_order'  => $_section_order,
     'section_hidden' => $_section_hidden,
 
     'base_css' => function () use ($_accent, $_sep, $_fs, $_title_fs, $_font): string {
@@ -150,7 +148,7 @@ return [
                     $align = in_array($el['align'] ?? '', ['left','center','right'], true)
                            ? $el['align'] : 'left';
                     $raw   = $el['content'] ?? $el['text'] ?? '{form_title}';
-                    $raw   = str_replace('{form_title}', $title, $raw);
+                    $raw   = str_replace('{form_title}', esc_html($title), $raw);
                     $allowed = [
                         'b'      => [],
                         'strong' => [],
@@ -233,9 +231,9 @@ return [
         $metadata = $data['metadata'] ?? [];
         return '
         <div class="section-metadata">
-            <strong>Metadaten</strong><br>
-            Erstellt: ' . esc_html($metadata['generated'] ?? '') . '<br>
-            Formular: ' . esc_html($metadata['form_name'] ?? '')
+            <strong>' . esc_html__('Metadata', 'form-forge') . '</strong><br>
+            ' . esc_html__('Created:', 'form-forge') . ' ' . esc_html($metadata['generated'] ?? '') . '<br>
+            ' . esc_html__('Form:', 'form-forge') . ' ' . esc_html($metadata['form_name'] ?? '')
             . ' (ID: ' . esc_html((string) ($metadata['form_id'] ?? '')) . ')
         </div>';
     },
@@ -243,11 +241,8 @@ return [
     'legal_notice' => function (): string {
         return '
         <p class="section-legal">
-            <strong>Rechtlicher Hinweis:</strong>
-            Dieses Dokument stellt das Original dar. Jede Änderung, Manipulation oder Modifikation
-            macht dieses Dokument ungültig. Dieses Dokument wurde in elektronischer Form ausgestellt
-            und ist ausschließlich in elektronischer Form aufzubewahren. Jeder Ausdruck ist lediglich
-            eine Kopie und hat keine Rechtsgültigkeit.
+            <strong>' . esc_html__('Legal Notice:', 'form-forge') . '</strong>
+            ' . esc_html__('This document represents the original. Any change, manipulation, or modification invalidates this document. This document was issued in electronic form and must be kept exclusively in electronic form. Any printout is merely a copy and has no legal validity.', 'form-forge') . '
         </p>';
     },
 

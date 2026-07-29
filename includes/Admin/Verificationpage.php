@@ -20,6 +20,7 @@ defined('ABSPATH') || exit;
 
 use Smalot\PdfParser\Parser;
 use ForgeForms\PDF\HashSeal;
+use ForgeForms\PDF\PdfUtils;
 
 add_action(
     'wp_ajax_forge_verify_push_lines',
@@ -39,6 +40,14 @@ add_action(
 
         /* ---- Nonce ---- */
         check_ajax_referer('forge_verifier_nonce', 'nonce');
+
+        /* ---- Rate limit: this handler raises memory/time limits per request, so a
+           low-privileged verifier user firing it repeatedly can still create a modest
+           self-DoS surface on shared hosting. ---- */
+        $rl_key = 'verify_' . get_current_user_id();
+        if (\ForgeForms\Utils\RateLimiter::increment($rl_key, 5) > 1) {
+            wp_send_json_error(['message' => 'Please wait before verifying another PDF.'], 429);
+        }
 
         /* ---- Input ---- */
         $pdf_token   = sanitize_key($_POST['pdf_token'] ?? '');
@@ -1093,14 +1102,11 @@ final class Verificationpage
                 const blocks = root.querySelectorAll('.img-slot-content');
                 if (!blocks.length) return;
 
-                console.group('[FF] Processing image slots');
-
                 blocks.forEach(block => {
                     const uid = block.dataset.slot;
                     const slot = document.getElementById(uid);
 
                     if (!slot) {
-                        console.warn('[FF] Slot not found for', uid);
                         return;
                     }
 
@@ -1114,13 +1120,9 @@ final class Verificationpage
                     slot.querySelectorAll('img').forEach(img => {
                         if (!img.complete) {
                             img.onload = () => img.style.height = 'auto';
-                            img.onerror = () =>
-                                console.warn('[FF] Image failed:', img.src);
                         }
                     });
                 });
-
-                console.groupEnd();
             }
 
             document.addEventListener('DOMContentLoaded', () => {
@@ -1185,7 +1187,6 @@ final class Verificationpage
     }
 
     private static array $image_slots = [];
-    private static bool $contains_background_images = false;
     private static array $files_to_delete = [];
     private static array $pdfs_to_delete = [];
     private static bool $image_cleanup_registered = false;
@@ -1246,7 +1247,6 @@ final class Verificationpage
         // --- Store visual lines if provided ---
         $upload_dir   = wp_upload_dir();
         $safe_dir     = $upload_dir['basedir'] . '/forge-secure-pdf';
-        $log_dir      = $safe_dir . '/log';
 
         foreach (['', '/log'] as $sub) {
             $dir = $safe_dir . $sub;
@@ -2248,34 +2248,37 @@ final class Verificationpage
                         unset($_sm);
                     }
 
+                    // --- Ensure image output directory exists (HTTP-blocked) ---
+                    // Hoisted out of $scanXObjects: this closure recurses per embedded
+                    // image/Form-XObject, so running these idempotent filesystem checks
+                    // inside it repeated the same stat/write calls once per image.
+                    $upload_dir = wp_upload_dir();
+                    $safe_dir   = $upload_dir['basedir'] . '/forge-secure-pdf';
+                    $ver_dir    = $safe_dir . '/verimages';
+
+                    foreach ([$safe_dir, $ver_dir] as $dir) {
+                        if (!is_dir($dir)) {
+                            wp_mkdir_p($dir);
+                            chmod($dir, 0750);
+                            file_put_contents($dir . '/index.php', "<?php // Silence is golden ?>");
+                            chmod($dir . '/index.php', 0640);
+                        }
+                    }
+
+                    // Ensure the parent .htaccess exists (Generator may not have run yet).
+                    $htaccess = $safe_dir . '/.htaccess';
+                    if (!file_exists($htaccess)) {
+                        file_put_contents(
+                            $htaccess,
+                            "Options -Indexes\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n"
+                        );
+                        chmod($htaccess, 0640);
+                    }
+
                     $scanXObjects = function ($pdf_raw, $parentName = null, array $visited = [])
- use (&$scanXObjects, $allowed_hashes, $rebuilt_payload, $smask_obj_nums, $exact_image_hashes, $use_exact_hashes) {
+ use (&$scanXObjects, $allowed_hashes, $rebuilt_payload, $smask_obj_nums, $exact_image_hashes, $use_exact_hashes, $safe_dir, $ver_dir) {
                         $offset = 0;
                         $found  = false;
-
-                        // --- Ensure image output directory exists (HTTP-blocked) ---
-                        $upload_dir = wp_upload_dir();
-                        $safe_dir   = $upload_dir['basedir'] . '/forge-secure-pdf';
-                        $ver_dir    = $safe_dir . '/verimages';
-
-                        foreach ([$safe_dir, $ver_dir] as $dir) {
-                            if (!is_dir($dir)) {
-                                wp_mkdir_p($dir);
-                                chmod($dir, 0750);
-                                file_put_contents($dir . '/index.php', "<?php // Silence is golden ?>");
-                                chmod($dir . '/index.php', 0640);
-                            }
-                        }
-
-                        // Ensure the parent .htaccess exists (Generator may not have run yet).
-                        $htaccess = $safe_dir . '/.htaccess';
-                        if (!file_exists($htaccess)) {
-                            file_put_contents(
-                                $htaccess,
-                                "Options -Indexes\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n"
-                            );
-                            chmod($htaccess, 0640);
-                        }
 
                         while (($pos = strpos($pdf_raw, '/XObject', $offset)) !== false) {
                             $found = true;
@@ -2345,21 +2348,22 @@ final class Verificationpage
                                     // otherwise-tiny image object could otherwise trigger a multi-GB
                                     // str_repeat()/str_pad() or a CPU-burning pixel loop.
                                     // JPEG (DCTDecode) bytes are hashed raw and never run through the
-                                    // manual PNG-predictor/indexed-palette/GD-pixel loops below, so a
-                                    // real 8000×8000/64MP camera photo (which is virtually always a
-                                    // JPEG) is allowed up to 100MP. Any other filter DOES go through
-                                    // those unvectorized per-pixel loops, so it's capped at the original,
-                                    // safer 40MP to bound worst-case CPU/memory to a sane amount of
-                                    // per-pixel PHP work.
+                                    // manual PNG-predictor/indexed-palette/GD-pixel loops below, so they
+                                    // get the full memory-based cap (PdfUtils::maxSafePixels(), same
+                                    // adaptive ceiling used for uploaded/attached images elsewhere).
+                                    // Any other filter DOES go through those unvectorized per-pixel
+                                    // PHP loops, so it's held to half that budget to bound worst-case
+                                    // CPU time as well as memory.
                             $dims_over_cap = false;
+                            $safe_pixels = PdfUtils::maxSafePixels();
                             // Require DCTDecode as the SOLE declared filter for the higher cap — a
-                            // crafted PDF could otherwise declare DCTDecode (to claim the 100MP
+                            // crafted PDF could otherwise declare DCTDecode (to claim the full
                             // allowance) while ALSO setting a PNG /Predictor or an Indexed
                             // colorspace that routes it into the unvectorized per-pixel loops below
                             // regardless, defeating the point of the lower cap on those paths.
                             $pixel_cap = (count($filters) === 1 && $filters[0] === 'DCTDecode')
-                                ? 100_000_000
-                                : 40_000_000;
+                                ? $safe_pixels
+                                : (int) ($safe_pixels / 2);
                             if ($width !== null && $height !== null) {
                                 if ($width < 0 || $height < 0 || $width > 20000 || $height > 20000
                                     || ($width * $height) > $pixel_cap
@@ -2537,17 +2541,17 @@ final class Verificationpage
                                     echo "<b>Image could not be recreated from stream — counted as mismatch</b><br>";
                                     echo "<ul style='margin:5px 0; padding-left:18px;'>";
                                     foreach ($failureReasons as $r) {
-                                        echo "<li>{$r}</li>";
+                                        echo "<li>" . esc_html($r) . "</li>";
                                     }
                                     echo "</ul>";
 
                                     echo "<div style='font-size:11px; color:#333;'>";
                                     echo "<b>Image metadata:</b><br>";
-                                    echo "• Filters: " . implode(', ', $filters) . "<br>";
-                                    echo "• Width × Height: {$width} × {$height}<br>";
-                                    echo "• BitsPerComponent: {$bpc}<br>";
-                                    echo "• ColorSpace: {$colorspace}<br>";
-                                    echo "• Channels: {$channels}<br>";
+                                    echo "• Filters: " . esc_html(implode(', ', $filters)) . "<br>";
+                                    echo "• Width × Height: " . (int)$width . " × " . (int)$height . "<br>";
+                                    echo "• BitsPerComponent: " . (int)$bpc . "<br>";
+                                    echo "• ColorSpace: " . esc_html($colorspace) . "<br>";
+                                    echo "• Channels: " . (int)$channels . "<br>";
                                     echo "• ImageMask: " . ($isImageMask ? 'true' : 'false') . "<br>";
                                     $dec_size = $decoded !== null ? strlen($decoded) . ' bytes' : 'n/a';
                                     echo "• Decoded size: {$dec_size}<br>";

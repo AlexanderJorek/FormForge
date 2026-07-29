@@ -97,9 +97,6 @@
 /* ================================================================
  * Global reset inside plugin scope
  * ================================================================ */
-.forge-admin-wrap *,
-.forge-admin-wrap *::before,
-.forge-admin-wrap *::after,
 .forge-modal-backdrop *,
 .forge-modal-backdrop *::before,
 .forge-modal-backdrop *::after {
@@ -716,17 +713,6 @@
     resize: vertical;
 }
 
-.forge-sp-row--check {
-    align-items: center;
-}
-
-.forge-sp-row--check input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    margin: 0;
-    accent-color: var(--forge-admin-accent);
-}
-
 /* ================================================================
  * Settings Modal â€” wider variant, 3-tab layout
  * ================================================================ */
@@ -847,14 +833,6 @@
     justify-content: flex-end;
     flex-shrink: 0;
     background: #fff;
-}
-
-/* Readonly field ID input */
-.forge-sp-readonly {
-    background: #f6f7f7 !important;
-    color: #787c82;
-    font-family: monospace;
-    font-size: 12px;
 }
 
 .forge-sp-row {
@@ -981,11 +959,15 @@
     color: var(--forge-admin-accent);
     outline: none;
 }
+/* position:fixed + top/left set by JS (see spInfoIcon in admin-builder.js) —
+   the settings modal has overflow:hidden for its rounded corners, so an
+   absolutely-positioned descendant tooltip gets silently clipped there.
+   Appended directly to <body>, so its z-index must clear .forge-modal-backdrop
+   (100000), not just other in-panel content — matches .forge-access-dropdown's
+   z-index for the same reason (see FormSettings.php). */
 .forge-info-tooltip {
     display: none;
-    position: absolute;
-    bottom: calc(100% + 6px);
-    right: 0;
+    position: fixed;
     width: 220px;
     background: #fff;
     color: #3c434a !important;
@@ -996,7 +978,7 @@
     padding: 8px 10px;
     border-radius: 4px;
     white-space: normal;
-    z-index: 9999;
+    z-index: 100001;
     pointer-events: none;
     box-shadow: 0 2px 8px rgba(0,0,0,.12);
 }
@@ -1455,27 +1437,6 @@
     color: #646970;
 }
 
-/* Date composite layout */
-.forge-date-group {
-    display: flex;
-    gap: 10px;
-}
-
-.forge-date-sub {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.forge-date-day,
-.forge-date-month {
-    width: 70px;
-}
-
-.forge-date-year {
-    width: 100px;
-}
-
 /* ================================================================
  * Settings page
  * ================================================================ */
@@ -1486,25 +1447,6 @@
     max-width: 900px;
     padding: 20px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-}
-
-.forge-verify-dropzone {
-    border: 2px dashed #c3c4c7;
-    border-radius: 8px;
-    padding: 60px 20px;
-    text-align: center;
-    color: #787c82;
-    font-size: 14px;
-    cursor: pointer;
-    background: #fff;
-    transition: border-color .15s, background .15s, color .15s;
-}
-
-.forge-verify-dropzone:hover,
-.forge-verify-dropzone.forge-drag-over {
-    border-color: var(--forge-admin-accent);
-    background: #f0f6fc;
-    color: var(--forge-admin-accent);
 }
 
 /* ================================================================
@@ -1530,27 +1472,6 @@
 .forge-btn-primary:hover {
     background: color-mix(in srgb, var(--forge-admin-accent) 82%, #000);
     color: var(--forge-accent-text, #fff);
-}
-
-.forge-btn-secondary {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 16px;
-    background: #f0f0f1;
-    color: #1d2327;
-    border: 1px solid #c3c4c7;
-    border-radius: 3px;
-    font-size: 13px;
-    cursor: pointer;
-    text-decoration: none;
-    transition: background .1s;
-    line-height: 1.4;
-}
-
-.forge-btn-secondary:hover {
-    background: #dcdcde;
-    color: #1d2327;
 }
 
 .forge-notice {
@@ -1709,8 +1630,8 @@
 
 .forge-pdf-badge-pass, .forge-pdf-pill--pass { background: #d4edda; color: #155724; }
 .forge-pdf-badge-fail, .forge-pdf-pill--fail { background: #f8d7da; color: #721c24; }
-.forge-pdf-badge-info, .forge-pdf-pill--info { background: #d1ecf1; color: #0c5460; }
-.forge-pdf-badge-warn, .forge-pdf-pill--warn { background: #fff3cd; color: #856404; }
+.forge-pdf-badge-info { background: #d1ecf1; color: #0c5460; }
+.forge-pdf-pill--warn { background: #fff3cd; color: #856404; }
 
 /* Nested sub-section toggle (inside an open forge-pdf-detail-content) */
 .forge-pdf-subsection { border-top: 1px solid #e2e4e7; }
@@ -1848,34 +1769,6 @@
 .forge-pdf-hash-row--pass { border-left-color: #00a32a; }
 .forge-pdf-hash-row--fail { border-left-color: #d63638; }
 .forge-pdf-hash-row--warn { border-left-color: #dba617; }
-
-/* Font table */
-.forge-pdf-font-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-}
-
-.forge-pdf-font-table th {
-    text-align: left;
-    padding: 5px 10px;
-    background: #f6f7f7;
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .05em;
-    color: #787c82;
-    border-bottom: 1px solid #dcdcde;
-}
-
-.forge-pdf-font-table td {
-    padding: 5px 10px;
-    border-bottom: 1px solid #f0f0f1;
-    vertical-align: middle;
-}
-
-.forge-pdf-font-table tr:last-child td { border-bottom: none; }
-.forge-pdf-font-table td:first-child { width: 64px; }
 
 /* PDF object chips */
 .forge-pdf-tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -2040,10 +1933,8 @@
 
 .forge-pdf-summary-row { cursor: pointer; transition: background .1s; }
 .forge-pdf-summary-row:hover { background: #f6f7f7; }
-.forge-pdf-row-pass { color: #00a32a; font-weight: 600; }
 .forge-pdf-row-fail { color: #d63638; font-weight: 600; }
 .forge-pdf-row-caret-cell { text-align: right; color: #a7aaad; font-size: 11px; }
-.forge-pdf-summary-detail-row td { background: #f9f9f9; border-left: 3px solid #d63638; padding: 10px 14px 10px 16px; font-size: 12px; color: #444; line-height: 1.5; }
 
 /* ================================================================
  * "Add Field" bar at bottom of canvas
@@ -3217,14 +3108,6 @@
     color: #1a5c28;
 }
 
-.forge-reset-trigger {
-    color: #b32d2e !important;
-    border-color: #b32d2e !important;
-}
-.forge-reset-trigger:hover {
-    background: #f9e9e9 !important;
-}
-
 /* â”€â”€ Security tile â”€â”€ */
 .forge-security-actions {
     display: flex;
@@ -3373,12 +3256,9 @@
     text-transform: uppercase;
     white-space: nowrap;
 }
-.forge-key-badge--initial  { background: #e8f0fe; color: #1a56db; }
 .forge-key-badge--rotated  { background: #d4edda; color: #155724; }
 .forge-key-badge--compromised { background: #f8d7da; color: #721c24; }
 
-.forge-key-rotate-modal .forge-key-history-table,
-.forge-key-view-modal .forge-key-history-table { margin: 12px 0 16px; }
 .forge-key-rotate-fields { margin-top: 16px; padding-top: 16px; border-top: 1px solid #e2e4e7; }
 
 .forge-key-view-title {
@@ -3407,25 +3287,6 @@
     border: 1px solid #c3c4c7;
     border-radius: 3px;
     padding: 1px 5px;
-}
-
-.forge-seal-setup-notice {
-    background: #f0f6fc;
-    border: 1px solid #c3d4e6;
-    border-radius: 4px;
-    padding: 14px 16px;
-    margin-bottom: 16px;
-    font-size: 13px;
-    line-height: 1.6;
-}
-
-.forge-seal-setup-notice p { margin: 0 0 8px; }
-.forge-seal-setup-notice p:last-of-type { margin-bottom: 12px; }
-
-.forge-seal-setup-actions {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
 }
 
 .forge-key-uuid-cell {
@@ -3487,15 +3348,6 @@
 }
 .forge-key-pw-errors li::before { content: 'âœ—  '; }
 
-.forge-key-compromised-wrap {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    cursor: pointer;
-    margin: 10px 0 6px;
-    font-size: 13px;
-    color: #3c434a;
-}
 .forge-key-compromised-hint {
     color: #b32d2e !important;
     margin-bottom: 12px !important;
@@ -4245,48 +4097,6 @@
     position: relative; /* anchors the per-page footer overlay */
 }
 
-/* Logo picker */
-.forge-logo-picker {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.forge-logo-preview {
-    width: 100%;
-    height: 80px;
-    border: 2px dashed #c3c4c7;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #f9f9f9;
-    overflow: hidden;
-}
-
-.forge-logo-preview img {
-    max-width: 100%;
-    max-height: 76px;
-    object-fit: contain;
-}
-
-.forge-logo-placeholder {
-    color: #aaa;
-    font-size: 12px;
-}
-
-.forge-logo-actions {
-    display: flex;
-    gap: 8px;
-}
-
-/* Color inputs */
-.forge-color-row .forge-color-input-wrap {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
 /* ================================================================
  * Group field â€” builder row
  * ================================================================ */
@@ -4424,12 +4234,6 @@
 }
 .forge-group-add-child-btn:hover { background: color-mix(in srgb, var(--forge-admin-accent) 8%, transparent); }
 
-.forge-hex-input {
-    width: 90px !important;
-    font-family: monospace;
-    font-size: 12px !important;
-}
-
 input[type="color"] {
     width: 38px;
     height: 32px;
@@ -4533,12 +4337,6 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 
 .forge-section-item.forge-section-hidden span {
     text-decoration: line-through;
-}
-
-.forge-drag-handle {
-    color: #c3c4c7;
-    font-size: 13px;
-    flex-shrink: 0;
 }
 
 .forge-section-item span {
@@ -4754,9 +4552,6 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     outline: none !important;
 }
 #hb-delete-btn:hover { background: #d63638 !important; color: #fff !important; }
-.forge-hb-prop-inline          { display:flex; align-items:center; gap:6px; }
-.forge-hb-prop-inline span     { font-size:11px; font-weight:600; color:#50575e; }
-.forge-hb-prop-inline input    { width:auto !important; }
 .forge-hb-empty                { color:#aaa; font-size:12px; font-style:italic; text-align:center; padding:24px 0; }
 .forge-hb-fmt-toolbar {
     display: flex;
@@ -4821,11 +4616,6 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 /* Re-show the spinner WebKit hides on very narrow number inputs by default */
 .forge-hb-tb-size::-webkit-inner-spin-button,
 .forge-hb-tb-size::-webkit-outer-spin-button { opacity: 1; }
-.forge-hb-tb-unit {
-    font-size: 11px;
-    color: #50575e;
-    margin: 0 3px 0 1px;
-}
 .forge-hb-tb-color {
     width: 26px;
     height: 26px;
@@ -5061,11 +4851,6 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     color: #1d2327;
 }
 
-/* Error state on IBAN input when country not allowed */
-.forge-input--country-error {
-    border-color: #b32d2e !important;
-}
-
 /* â”€â”€ User-access modal â”€â”€ */
 .forge-access-modal {
     max-width: 660px;
@@ -5296,17 +5081,6 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     z-index: 1;
 }
 
-/* â”€â”€ Form Select â€” modal â”€â”€ */
-.forge-fsel-modal-label {
-    display: block;
-    font-size: 13px;
-    font-weight: 600;
-    color: #1d2327;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    font-size: 11px;
-}
-
 /* â”€â”€ Form Select â€” modal item editor â”€â”€ */
 .forge-fsel-cols-header {
     display: grid;
@@ -5429,20 +5203,6 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     border: none !important;
     box-shadow: none !important;
 }
-.forge-fsel-search-close {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: #a7aaad;
-    font-size: 12px;
-    padding: 3px 4px;
-    border-radius: 3px;
-    line-height: 1;
-    flex-shrink: 0;
-    transition: color .1s, background .1s;
-}
-.forge-fsel-search-close:hover { color: #1d2327; background: #f0f0f1; }
-
 .forge-fsel-sr-item {
     display: block;
     width: 100%;

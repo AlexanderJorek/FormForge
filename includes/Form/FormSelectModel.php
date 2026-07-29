@@ -41,6 +41,11 @@ class FormSelectModel
      */
     public static function getAll(): array
     {
+        // Defense-in-depth: all current call sites are already gated on
+        // Plugin::userCan('edit_forms') before reaching here, same as save()/delete().
+        if (!\ForgeForms\Plugin::userCan('edit_forms')) {
+            return [];
+        }
         return array_map([self::class, 'fromArray'], self::getRaw());
     }
 
@@ -53,6 +58,11 @@ class FormSelectModel
      */
     public static function get(int $id): ?self
     {
+        // Defense-in-depth: all current call sites are already gated on
+        // Plugin::userCan('edit_forms') before reaching here, same as save()/delete().
+        if (!\ForgeForms\Plugin::userCan('edit_forms')) {
+            return null;
+        }
         foreach (self::getRaw() as $record) {
             if ((int) ($record['id'] ?? 0) === $id) {
                 return self::fromArray($record);

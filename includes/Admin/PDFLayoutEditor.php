@@ -192,6 +192,11 @@ class PDFLayoutEditor
         if (!\ForgeForms\Plugin::userCan('edit_pdf_layout')) {
             return;
         }
+        // Registered with the generic 'read' capability because ForgeForms uses its own
+        // userCan('edit_pdf_layout') capability model rather than a real WP capability;
+        // real enforcement happens above (addPage bails already) and again at the top
+        // of render(). Any new callback reachable from this menu item MUST re-check
+        // userCan('edit_pdf_layout') itself — do not rely on this menu registration alone.
         $hook = add_submenu_page(
             'forge-forms',
             __('FormForge PDF Layout', 'form-forge'),
@@ -1115,8 +1120,12 @@ class PDFLayoutEditor
     }
 
     function hbOpenMediaPicker(onSelect){
-        if(!window.wp || !wp.media){ var u=prompt('Bild-URL:'); if(u) onSelect(u,0,0); return; }
-        var fr=wp.media({title:'Bild wählen',button:{text:'Einfügen'},multiple:false});
+        if(!window.wp || !wp.media){
+            var u=prompt('<?php echo esc_js(__('Image URL:', 'form-forge')); ?>');
+            if(u && !/^\s*(javascript|vbscript|data):/i.test(u)) onSelect(u,0,0);
+            return;
+        }
+        var fr=wp.media({title:'<?php echo esc_js(__('Select image', 'form-forge')); ?>',button:{text:'<?php echo esc_js(__('Insert', 'form-forge')); ?>'},multiple:false});
         fr.on('open',function(){
             var wrap=document.querySelector('.media-modal'), over=document.querySelector('.media-modal-backdrop');
             if(wrap) wrap.style.zIndex='200000';
@@ -1134,15 +1143,15 @@ class PDFLayoutEditor
         if(!hbProps) return;
         hbSel = null;
         hbProps.innerHTML = '<div class="forge-hb-img-picker">'
-            +'<p class="forge-hb-img-picker-title"><i class="fa-solid fa-image"></i> Bild hinzufügen</p>'
+            +'<p class="forge-hb-img-picker-title"><i class="fa-solid fa-image"></i> <?php echo esc_js(__('Add image', 'form-forge')); ?></p>'
             +'<button type="button" class="button button-primary" id="hb-pick-media" style="width:100%">'
-            +'<i class="fa-solid fa-photo-film"></i> Aus Mediathek wählen</button>'
-            +'<div class="forge-hb-img-picker-sep"><span>oder</span></div>'
-            +'<div class="forge-hb-prop-group"><span>Externe URL</span>'
+            +'<i class="fa-solid fa-photo-film"></i> <?php echo esc_js(__('Choose from media library', 'form-forge')); ?></button>'
+            +'<div class="forge-hb-img-picker-sep"><span><?php echo esc_js(__('or', 'form-forge')); ?></span></div>'
+            +'<div class="forge-hb-prop-group"><span><?php echo esc_js(__('External URL', 'form-forge')); ?></span>'
             +'<input type="text" id="hb-pick-url" placeholder="https://…" style="margin-bottom:4px">'
-            +'<button type="button" class="button" id="hb-pick-url-confirm" style="width:100%">Einfügen</button>'
+            +'<button type="button" class="button" id="hb-pick-url-confirm" style="width:100%"><?php echo esc_js(__('Insert', 'form-forge')); ?></button>'
             +'</div>'
-            +'<button type="button" class="button" id="hb-pick-cancel" style="width:100%;margin-top:8px">Abbrechen</button>'
+            +'<button type="button" class="button" id="hb-pick-cancel" style="width:100%;margin-top:8px"><?php echo esc_js(__('Cancel', 'form-forge')); ?></button>'
             +'</div>';
 
         document.getElementById('hb-pick-media').addEventListener('click', function(){
@@ -1853,7 +1862,7 @@ class PDFLayoutEditor
                 // formatted HTML into el.content (bold/italic/color/superscript
                 // spans) — el.text is only ever a plain-text fallback. Persist
                 // content through the same inline-formatting allow-list used at
-                // PDF-render time (pdf-templates/layout.php), or the admin's
+                // PDF-render time (includes/PDF/templates/layout.php), or the admin's
                 // formatting is silently discarded on every save.
                 $raw_content = $el['content'] ?? $el['text'] ?? '{form_title}';
                 $raw_html = is_string($raw_content) ? $raw_content : '{form_title}';

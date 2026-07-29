@@ -23,9 +23,7 @@ define('FORGE_FORMS_VERSION', '1.0.0');
 define('FORGE_FORMS_BASENAME', plugin_basename(__FILE__));
 
 $composer_autoload = FORGE_FORMS_PATH . 'vendor/autoload.php';
-if (file_exists($composer_autoload)) {
-    include_once $composer_autoload;
-} else {
+if (!file_exists($composer_autoload)) {
     add_action(
         'admin_notices',
         static function (): void {
@@ -35,7 +33,12 @@ if (file_exists($composer_autoload)) {
             . '</p></div>';
         }
     );
+    // Bail out of the rest of the bootstrap — Plugin.php and its dependents rely on
+    // Composer-vendored classes (e.g. Smalot\PdfParser\Parser), so continuing without
+    // the autoloader would produce an uncaught fatal instead of staying inert.
+    return;
 }
+include_once $composer_autoload;
 
 // Plugin.php is loaded explicitly (not via the Composer PSR-4 autoloader, which only
 // covers vendor/ dependencies) since it's the class that wires up autoloading for the

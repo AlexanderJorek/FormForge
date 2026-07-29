@@ -31,7 +31,7 @@ Get-ChildItem -Path $root -Force | Where-Object { $exclude -notcontains $_.Name 
 
 # Dev-notes files that live inside otherwise-shipped folders (not excludable by
 # top-level name above) — remove them individually from the staged copy.
-$nestedExclude = @('pdf-templates/HEADER-RENDERING.md')
+$nestedExclude = @('includes/PDF/templates/HEADER-RENDERING.md', 'languages/compile-mo.php')
 foreach ($rel in $nestedExclude) {
     $path = Join-Path $stageDir $rel
     if (Test-Path $path) { Remove-Item -Force $path }

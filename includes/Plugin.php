@@ -209,13 +209,11 @@ class Plugin
         // browser) to avoid CORS issues and to rate-limit our own usage of their API.
         // See includes/Utils/ClientIp.php for the trusted-proxy-aware IP resolution.
         $ip  = Utils\ClientIp::resolve();
-        $key = 'forge_rl_iban_' . md5($ip);
-        $count = (int) get_transient($key);
-        if ($count >= 20) {
+        $key = 'iban_' . md5($ip);
+        if (Utils\RateLimiter::increment($key, MINUTE_IN_SECONDS) > 20) {
             wp_send_json_error();
             return;
         }
-        set_transient($key, $count + 1, MINUTE_IN_SECONDS);
 
         // 15 is the shortest valid IBAN length (Norway); the openiban.com call below
         // rejects anything malformed regardless, this is just an early cheap reject

@@ -50,7 +50,7 @@ class Generator
             return false;
         }
 
-        $layout = include FORGE_FORMS_PATH . 'pdf-templates/layout.php';
+        $layout = include FORGE_FORMS_PATH . 'includes/PDF/templates/layout.php';
 
         $image_vars     = [];
         $sealed_uploads = [];
@@ -154,7 +154,7 @@ class Generator
 
             $pdf_dir   = $safe_dir . '/pdf';
             $mpdf_temp = $safe_dir . '/mpdf';
-            $grid_svg  = FORGE_FORMS_PATH . 'pdf-templates/construction-grid.svg';
+            $grid_svg  = FORGE_FORMS_PATH . 'includes/PDF/templates/construction-grid.svg';
 
             $form_name_clean = substr(preg_replace('/[^a-zA-Z0-9_-]/', '_', $title), 0, 80);
             $date_time       = wp_date('D_d_m_Y_T_H_i');
@@ -169,9 +169,6 @@ class Generator
             $user_footer_text = isset($layout['footer'])
                 ? trim((string) $layout['footer']())
                 : '';
-            $pdf_opts  = (array) get_option('forge_forms_pdf_layout', []);
-            $sep_color = sanitize_hex_color(\ForgeForms\Utils\Sanitize::str($pdf_opts['separator_color'] ?? ''))
-                ?: '#c9cdd4';
             /* Reserve enough vertical space: ~5mm per line of user footer text. */
             $footer_lines  = $user_footer_text !== '' ? max(1, substr_count($user_footer_text, "\n") + 1) : 0;
             $footer_margin = $footer_lines > 0 ? 5 + ($footer_lines * 5) : 5;
@@ -188,13 +185,7 @@ class Generator
 
             /* ---- PASS 1: font discovery ---- */
             $mpdf = new Mpdf($mpdf_config);
-            $mpdf->SetDefaultBodyCSS('background', "url('{$grid_svg}')");
-            $mpdf->SetDefaultBodyCSS('background-repeat', 'repeat');
-            $mpdf->SetDefaultBodyCSS('background-position', 'center center');
-            $mpdf->SetHTMLFooter(self::footerHtml($user_footer_text, $sep_color));
-            if (!empty($image_vars)) {
-                $mpdf->imageVars = $image_vars;
-            }
+            self::configureMpdfInstance($mpdf, $grid_svg, $user_footer_text, $image_vars);
 
             self::writeHtmlChunked($mpdf, $html);
 
@@ -276,13 +267,7 @@ class Generator
             $mpdf->SetTitle($pdf_meta['title']);
             $mpdf->SetAuthor($pdf_meta['author']);
             $mpdf->SetCreator($pdf_meta['creator']);
-            $mpdf->SetDefaultBodyCSS('background', "url('{$grid_svg}')");
-            $mpdf->SetDefaultBodyCSS('background-repeat', 'repeat');
-            $mpdf->SetDefaultBodyCSS('background-position', 'center center');
-            $mpdf->SetHTMLFooter(self::footerHtml($user_footer_text, $sep_color));
-            if (!empty($image_vars)) {
-                $mpdf->imageVars = $image_vars;
-            }
+            self::configureMpdfInstance($mpdf, $grid_svg, $user_footer_text, $image_vars);
 
             self::writeHtmlChunked($mpdf, $html);
 
@@ -355,11 +340,38 @@ class Generator
     /* ------------------------------------------------------------------ */
 
     /**
+     * Applies the shared body-background, footer, and image-vars configuration
+     * common to both PASS 1 and PASS 2 mPDF instances, so the two passes can't
+     * silently diverge over time.
+     *
+     * @param Mpdf   $mpdf             The mPDF instance to configure.
+     * @param string $grid_svg         Absolute path to the background grid SVG.
+     * @param string $user_footer_text User-configured footer text (already trimmed).
+     * @param array  $image_vars       Image variable map for inline images.
+     *
+     * @return void
+     */
+    private static function configureMpdfInstance(
+        Mpdf $mpdf,
+        string $grid_svg,
+        string $user_footer_text,
+        array $image_vars
+    ): void {
+        $mpdf->SetDefaultBodyCSS('background', "url('" . str_replace("'", "%27", $grid_svg) . "')");
+        $mpdf->SetDefaultBodyCSS('background-repeat', 'repeat');
+        $mpdf->SetDefaultBodyCSS('background-position', 'center center');
+        $mpdf->SetHTMLFooter(self::footerHtml($user_footer_text));
+        if (!empty($image_vars)) {
+            $mpdf->imageVars = $image_vars;
+        }
+    }
+
+    /**
      * Returns the mPDF HTML footer string with page number tokens.
      *
      * @return string HTML footer markup.
      */
-    private static function footerHtml(string $user_text = '', string $sep_color = '#c9cdd4'): string
+    private static function footerHtml(string $user_text = ''): string
     {
         $pageno = '<span style="font-size:0.1px;line-height:0.1px;color:#fff;">'
             . '[FORGE_PDF_PAGENO_START]</span>'
@@ -424,7 +436,7 @@ class Generator
             $template[] = ['name' => $name, 'mime' => $mime, 'sha256' => $th ?? hash('sha256', $data)];
         };
 
-        $fingerprint(FORGE_FORMS_PATH . 'pdf-templates/construction-grid.svg', 'construction-grid.svg');
+        $fingerprint(FORGE_FORMS_PATH . 'includes/PDF/templates/construction-grid.svg', 'construction-grid.svg');
 
         $raw = (array) \get_option('forge_forms_pdf_layout', []);
 
@@ -486,9 +498,13 @@ class Generator
             }
 
             $body = substr($pdf_raw, $bs, $be - $bs);
+            if (strlen($body) > 67108864) {
+                $offset = $be + 9;
+                continue;
+            }
             $dec  = @gzuncompress($body) ?: @gzinflate(substr($body, 2));
 
-            if ($dec !== false && self::isPageContentStream($dec)) {
+            if ($dec !== false && strlen($dec) <= 67108864 && self::isPageContentStream($dec)) {
                 $hashes[] = hash('sha256', $dec);
             }
             $offset = $be + 9;

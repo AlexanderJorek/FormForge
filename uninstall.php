@@ -56,10 +56,13 @@ $options = [
     'forge_forms_recaptcha_secret_key',
     'forge_forms_hover_color',
     'forge_forms_accent_color',
+    'forge_forms_admin_accent',
     'forge_forms_border_color',
     'forge_forms_pdf_settings',
     'forge_forms_pdf_layout',
+    'forge_forms_field_layout',
     'forge_forms_version',
+    'forge_form_selects',
     // Seal key data — deleted on uninstall, NOT on reset.
     'forge_forms_seal_key',
     'forge_forms_seal_key_history',
@@ -79,7 +82,13 @@ if (is_dir($plugin_dir)) {
     $it    = new RecursiveDirectoryIterator($plugin_dir, FilesystemIterator::SKIP_DOTS);
     $files = new RecursiveIteratorIterator($it, RecursiveIteratorIterator::CHILD_FIRST);
     foreach ($files as $file) {
-        $file->isDir() ? rmdir($file->getRealPath()) : unlink($file->getRealPath());
+        $path = $file->getRealPath();
+        $ok   = $file->isDir() ? @rmdir($path) : @unlink($path);
+        if (!$ok) {
+            error_log('FormForge uninstall: failed to remove ' . $path);
+        }
     }
-    rmdir($plugin_dir);
+    if (!@rmdir($plugin_dir)) {
+        error_log('FormForge uninstall: failed to remove directory ' . $plugin_dir);
+    }
 }

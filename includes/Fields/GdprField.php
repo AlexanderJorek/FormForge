@@ -129,7 +129,12 @@ CSS;
 
         $text = sprintf(
             // translators: %1$s: privacy policy URL, %2$s: privacy policy link text.
-            __('I have read the <a href="%1$s" target="_blank" rel="noopener">%2$s</a> and accept it.', 'form-forge'),
+            // This is framed as an acknowledgment of having read the notice (lawful under
+            // GDPR Art. 13 without needing consent mechanics), not a freely-given "consent" —
+            // use ConsentField instead for cases that need genuine opt-in consent (e.g.
+            // marketing use), since that field already supports a non-forced, per-form
+            // required toggle.
+            __('I have read and acknowledge the <a href="%1$s" target="_blank" rel="noopener">%2$s</a>.', 'form-forge'),
             $policy_url,
             $policy_text
         );
@@ -153,16 +158,22 @@ CSS;
      */
     public function validate(mixed $value, array $config): bool|string
     {
-        // Always mandatory regardless of the 'required' config flag — GDPR consent
-        // can't be made optional, so it errors on empty unconditionally
+        // Always mandatory regardless of the 'required' config flag — the privacy notice
+        // acknowledgment can't be made optional, so it errors on empty unconditionally
         if (empty($value)) {
-            return __('Please accept the privacy policy.', 'form-forge');
+            return __('Please read and acknowledge the privacy policy.', 'form-forge');
         }
         return true;
     }
 
     /**
      * Maps the field value to a human-readable string for email and PDF output.
+     *
+     * Embeds the acknowledged policy link text/URL and a submission timestamp (not just
+     * a bare "accepted" string) so the sealed PDF record can independently demonstrate
+     * what was acknowledged and when — GDPR Art. 7(1) requires the controller to be able
+     * to demonstrate consent/notice was given; a bare boolean can't do that if the linked
+     * privacy policy is edited later.
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
@@ -171,7 +182,18 @@ CSS;
      */
     public function map(mixed $value, array $config): string
     {
-        return !empty($value) ? __('Privacy accepted', 'form-forge') : __('Privacy not accepted', 'form-forge');
+        if (empty($value)) {
+            return __('Privacy notice not acknowledged', 'form-forge');
+        }
+        $policy_text = wp_strip_all_tags((string)($config['privacy_policy_text'] ?? __('Privacy policy', 'form-forge')));
+        $policy_url  = (string)($config['privacy_policy_url'] ?? get_privacy_policy_url());
+        return sprintf(
+            // translators: %1$s: privacy policy link text, %2$s: privacy policy URL, %3$s: acknowledgment timestamp.
+            __('Acknowledged "%1$s" (%2$s) on %3$s', 'form-forge'),
+            $policy_text,
+            $policy_url,
+            current_time('mysql')
+        );
     }
 
     /**

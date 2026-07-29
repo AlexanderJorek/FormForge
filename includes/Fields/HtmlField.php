@@ -148,10 +148,6 @@ CSS;
             'use'      => ['href'=>true,'xlink:href'=>true,'x'=>true,'y'=>true,'width'=>true,'height'=>true],
             'text'     => ['x'=>true,'y'=>true,'fill'=>true,'font-size'=>true,'text-anchor'=>true,
                            'class'=>true,'transform'=>true],
-            'animate'  => ['attributeName'=>true,'from'=>true,'to'=>true,'dur'=>true,
-                           'repeatCount'=>true,'values'=>true,'calcMode'=>true],
-            'animateTransform' => ['attributeName'=>true,'type'=>true,'from'=>true,'to'=>true,
-                                   'dur'=>true,'repeatCount'=>true],
         ];
         $html = \wp_kses($html, array_merge($base, $extra));
         // <use href>/<use xlink:href> may only reference an in-document fragment;
@@ -227,7 +223,8 @@ CSS;
      */
     public function pdfData(array $field): array
     {
-        $desc = $this->pdf($field)->rawHtml((string)($field['value'] ?? ''));
+        // $field['value'] is already sanitized via self::kses() in mapNormalized().
+        $desc = $this->pdf($field)->rawHtml((string)($field['value'] ?? ''), true);
         if (empty($field['label'])) {
             $desc->unlabeled();
         }

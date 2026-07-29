@@ -1609,7 +1609,7 @@ function buildGeneralTab(idx, field, pal) {
                     }, schema_entry.hint);
             }(s));
         } else if (s.type === 'checkbox') {
-            spCheckbox(panel, s.key, s.label, !!cur, function (v) { change(s.key, v); });
+            spCheckbox(panel, s.key, s.label, !!cur, function (v) { change(s.key, v); }, s.disclaimer || '');
         } else if (s.type === 'select') {
             spSelect(panel, s.key, s.label, s.options || [], cur, function (v) { change(s.key, v); });
         } else if (s.type === 'options_list' || s.type === 'options') {
@@ -2352,7 +2352,7 @@ function spMediaUpload(parent, key, label, value, onChange, hint) {
     btn.addEventListener('click', function () {
         if (typeof wp === 'undefined' || !wp.media) {
             var u = prompt('Bild-URL:');
-            if (u) { inp.value = u; onChange(u); updateThumb(); }
+            if (u && !/^\s*(javascript|vbscript|data):/i.test(u)) { inp.value = u; onChange(u); updateThumb(); }
             return;
         }
         var frame = wp.media({ title: label, button: { text: 'Übernehmen' }, multiple: false, library: { type: 'image' } });
@@ -2431,13 +2431,28 @@ function spInfoIcon(text) {
     icon.className = 'fa-solid fa-circle-info';
     wrap.appendChild(icon);
 
+    // Appended to <body> (not `wrap`) and position:fixed, because the settings
+    // modal has overflow:hidden for its rounded corners — an absolutely-positioned
+    // descendant tooltip gets silently clipped there instead of floating above the
+    // modal, the same problem forge-access-dropdown (FormSettings.php) already
+    // solves the same way.
     var tip = document.createElement('span');
     tip.className   = 'forge-info-tooltip';
     tip.textContent = text;
-    wrap.appendChild(tip);
+    document.body.appendChild(tip);
 
     var open = false;
-    function show() { tip.classList.add('forge-info-tooltip--visible'); }
+    function position() {
+        var r = wrap.getBoundingClientRect();
+        // Render off-screen first so its real height can be measured before placing it.
+        tip.style.left = '-9999px';
+        tip.style.top  = '-9999px';
+        tip.classList.add('forge-info-tooltip--visible');
+        var tipRect = tip.getBoundingClientRect();
+        tip.style.top  = (r.top - tipRect.height - 6) + 'px';
+        tip.style.left = (r.right - tipRect.width) + 'px';
+    }
+    function show() { position(); }
     function hide() { tip.classList.remove('forge-info-tooltip--visible'); open = false; }
 
     wrap.addEventListener('mouseenter', show);
@@ -2457,6 +2472,17 @@ function spInfoIcon(text) {
         }
         if (e.key === 'Escape') { hide(); }
     });
+
+    // The tooltip lives on <body>, not inside `wrap` — remove it when the icon
+    // itself is ever removed from the DOM (e.g. rebuilding the settings panel),
+    // or it would leak a detached, invisible node on every rebuild.
+    var observer = new MutationObserver(function () {
+        if (!document.body.contains(wrap)) {
+            tip.remove();
+            observer.disconnect();
+        }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
 
     return wrap;
 }
@@ -3272,7 +3298,7 @@ function spRichTextEditor(parent, key, label, value, onChange) {
             iframe.contentWindow.focus();
             if (cmd[0] === 'createLink') {
                 var url = window.prompt('Link-URL eingeben:', 'https://');
-                if (!url) return;
+                if (!url || /^\s*(javascript|vbscript|data):/i.test(url)) return;
                 doc.execCommand('createLink', false, url);
             } else {
                 doc.execCommand(cmd[0], false, null);

@@ -241,6 +241,7 @@ CSS;
                 var bicManuallyEntered = false;
                 function lookupBic(iban) {
                     if (bicManuallyEntered) return;
+                    if (input.dataset.liveLookup === '0') return;
                     var bicInput = getBicInput();
                     if (!bicInput) return;
                     var ajaxUrl = (window.ForgeForms && window.ForgeForms.ajaxUrl) || '';
@@ -478,12 +479,18 @@ CSS;
             $html .= ' <span class="forge-required" aria-hidden="true">*</span>';
         }
         $html .= '</label>';
+        // live_iban_lookup defaults to true (existing behavior). When disabled, the BIC
+        // lookup AJAX call (which relays the visitor's IBAN to the third-party
+        // openiban.com service pre-submission) is skipped client-side and the account
+        // holder enters the BIC manually.
+        $live_lookup = !isset($config['live_iban_lookup']) || !empty($config['live_iban_lookup']);
         $html .= '<input type="text" id="' . esc_attr($field_id) . '-iban"'
             . ' name="' . esc_attr($field_id) . '[iban]"'
             . ' class="forge-input forge-sepa-iban"'
             . ' maxlength="42" autocomplete="off"'
             . ' inputmode="text" spellcheck="false"'
             . ' data-placeholder-country="' . $placeholder_cc . '"'
+            . ' data-live-lookup="' . ($live_lookup ? '1' : '0') . '"'
             . $filter_attr
             . ' value="' . $iban_val . '">';
         $html .= '<div class="forge-field-hint"></div>';
@@ -853,6 +860,7 @@ CSS;
             'placeholder_country' => 'DE',
             'country_filter_mode' => 'off',
             'country_filter_list' => [],
+            'live_iban_lookup'    => true,
         ];
     }
 
@@ -865,6 +873,19 @@ CSS;
     {
         $country_options = $this->ibanCountryOptions();
         return [
+            [
+                'key'        => 'live_iban_lookup',
+                'type'       => 'checkbox',
+                'label'      => __('Auto-fill BIC via live IBAN lookup', 'form-forge'),
+                'default'    => true,
+                'disclaimer' => __(
+                    'When enabled, the visitor\'s IBAN is sent to the third-party service openiban.com '
+                    . 'as soon as it\'s fully typed — before the form is submitted — to look up the matching BIC. '
+                    . 'Disable this to have visitors enter the BIC manually instead, keeping IBAN data on your own site '
+                    . 'until submission.',
+                    'form-forge'
+                ),
+            ],
             [
                 'key'   => 'mandate_title',
                 'type'  => 'text',

@@ -14,6 +14,7 @@ msgstr ""
 "X-Generator: FormForge i18n tooling\n"
 
 
+
 #. Plugin Name of the plugin
 #: forge-forms.php
 #: includes/Admin/FormList.php:91
@@ -45,6 +46,89 @@ msgstr ""
 msgid "Composer autoloader not found. Run <code>composer install</code> in the plugin directory."
 msgstr "Composer-Autoloader nicht gefunden. Führen Sie <code>composer install</code> im Plugin-Verzeichnis aus."
 
+#: includes/Admin/FieldTestPage.php:269
+#: includes/Admin/FieldTestPage.php:300
+#: includes/Admin/FieldTestPage.php:370
+#: includes/Admin/FieldTestPage.php:373
+#: includes/Admin/FieldTestPage.php:441
+#: includes/Admin/FieldTestPage.php:497
+#: includes/Admin/FieldTestPage.php:564
+#: includes/Admin/FieldTestPage.php:609
+#: includes/Admin/FieldTestPage.php:642
+#: includes/Admin/FieldTestPage.php:680
+#: includes/Admin/FieldTestPage.php:721
+#: includes/Admin/FieldTestPage.php:762
+#: includes/Admin/FieldTestPage.php:806
+#: includes/Admin/FieldTestPage.php:838
+#: includes/Admin/FieldTestPage.php:884
+#: includes/Admin/FieldTestPage.php:916
+#: includes/Admin/FieldTestPage.php:1174
+#: includes/Admin/FieldTestPage.php:1175
+#: includes/Admin/FieldTestPage.php:1195
+#: includes/Admin/FieldTestPage.php:1270
+#: includes/Fields/AddressField.php:233
+#: includes/Fields/AddressField.php:255
+#: includes/Fields/BaseField.php:298
+#: includes/Fields/CheckboxField.php:342
+#: includes/Fields/CurrencyField.php:201
+#: includes/Fields/DateField.php:259
+#: includes/Fields/NameField.php:234
+#: includes/Fields/NameField.php:237
+#: includes/Fields/NameField.php:250
+#: includes/Fields/PostDataField.php:132
+#: includes/Fields/RadioField.php:295
+#: includes/Fields/RatingField.php:294
+#: includes/Fields/SelectField.php:307
+#: includes/Fields/SepaField.php:760
+#: includes/Fields/SepaField.php:776
+#: includes/Fields/SepaField.php:781
+#: includes/Fields/SepaField.php:786
+#: includes/Fields/SepaField.php:797
+#: includes/Fields/SepaField.php:815
+#: includes/Fields/SignatureField.php:338
+#: includes/Fields/SignatureField.php:363
+#: includes/Fields/SliderField.php:433
+#: includes/Fields/UploadField.php:572
+#: includes/Fields/UploadField.php:599
+#: includes/Fields/UploadField.php:671
+#: includes/Fields/_ExampleField.php:434
+msgid "[No entry]"
+msgstr "[Kein Eintrag]"
+
+#: includes/Admin/FieldTestPage.php:678
+#: includes/Admin/FieldTestPage.php:761
+#: includes/Fields/CheckboxField.php:350
+#: includes/Fields/RadioField.php:300
+#: includes/Fields/SelectField.php:312
+msgid "[Other]"
+msgstr "[Sonstiges]"
+
+#: includes/Admin/FieldTestPage.php:952
+#: includes/Fields/ConsentField.php:115
+msgid "I agree."
+msgstr "Ich stimme zu."
+
+#: includes/Admin/FieldTestPage.php:957
+#: includes/Fields/ConsentField.php:154
+msgid "Yes"
+msgstr "Ja"
+
+#: includes/Admin/FieldTestPage.php:958
+#: includes/Admin/FieldTestPage.php:959
+#: includes/Fields/ConsentField.php:154
+msgid "No"
+msgstr "Nein"
+
+#: includes/Admin/FieldTestPage.php:997
+#: includes/Fields/GdprField.php:174
+msgid "Privacy accepted"
+msgstr "Datenschutz akzeptiert"
+
+#: includes/Admin/FieldTestPage.php:998
+#: includes/Fields/GdprField.php:174
+msgid "Privacy not accepted"
+msgstr "Datenschutz nicht akzeptiert"
+
 #: includes/Admin/FormEditor.php:73
 msgid "FormForge Editor"
 msgstr "FormForge Bearbeitung"
@@ -58,7 +142,7 @@ msgstr "Neues Formular"
 #: includes/Admin/FormList.php:119
 #: includes/Admin/FormSelectList.php:90
 #: includes/Admin/FormSettings.php:95
-#: includes/Admin/PDFLayoutEditor.php:221
+#: includes/Admin/PDFLayoutEditor.php:222
 msgid "Permission denied."
 msgstr "Keine Berechtigung."
 
@@ -87,7 +171,7 @@ msgstr "Vorschau"
 #: includes/Admin/FormSelectList.php:225
 #: includes/Admin/FormSettings.php:322
 #: includes/Admin/FormSettings.php:962
-#: includes/Admin/PDFLayoutEditor.php:439
+#: includes/Admin/PDFLayoutEditor.php:440
 msgid "Save"
 msgstr "Speichern"
 
@@ -189,7 +273,7 @@ msgstr "Löschen"
 
 #: includes/Admin/FormList.php:155
 #: includes/Admin/FormSelectList.php:123
-#: includes/Admin/PDFLayoutEditor.php:494
+#: includes/Admin/PDFLayoutEditor.php:495
 msgid "Apply"
 msgstr "Übernehmen"
 
@@ -262,7 +346,7 @@ msgstr "Kopieren"
 
 #: includes/Admin/FormList.php:284
 #: includes/Admin/FormSettings.php:744
-#: includes/Admin/PDFLayoutEditor.php:465
+#: includes/Admin/PDFLayoutEditor.php:466
 #: includes/Admin/Verificationpage.php:864
 msgid "Close"
 msgstr "Schließen"
@@ -278,7 +362,8 @@ msgstr "Formular wirklich löschen?"
 #: includes/Admin/FormSettings.php:861
 #: includes/Admin/FormSettings.php:901
 #: includes/Admin/FormSettings.php:960
-#: includes/Admin/PDFLayoutEditor.php:492
+#: includes/Admin/PDFLayoutEditor.php:493
+#: includes/Admin/PDFLayoutEditor.php:1154
 msgid "Cancel"
 msgstr "Abbrechen"
 
@@ -780,6 +865,7 @@ msgid "A new PDF seal key has been created. Download the key file and store it s
 msgstr "Ein neuer PDF-Siegelschlüssel wurde erstellt. Laden Sie die Schlüsseldatei herunter und bewahren Sie sie sicher auf — z. B. in einem Passwort-Manager. Sie benötigen ihn, um alte PDFs nach einem vollständigen Serververlust erneut zu prüfen."
 
 #: includes/Admin/FormSettings.php:816
+#: pdf-templates/layout.php:235
 msgid "Created:"
 msgstr "Erstellt:"
 
@@ -953,166 +1039,166 @@ msgid "Legal notice"
 msgstr "Rechtlicher Hinweis"
 
 #: includes/Admin/PDFLayoutEditor.php:49
-#: includes/Admin/PDFLayoutEditor.php:415
+#: includes/Admin/PDFLayoutEditor.php:416
 msgid "Footer"
 msgstr "Fußzeile"
 
-#: includes/Admin/PDFLayoutEditor.php:153
+#: includes/Admin/PDFLayoutEditor.php:154
 msgid "PDF generation failed."
 msgstr "PDF-Generierung fehlgeschlagen."
 
-#: includes/Admin/PDFLayoutEditor.php:161
+#: includes/Admin/PDFLayoutEditor.php:162
 msgid "PDF could not be read."
 msgstr "PDF konnte nicht gelesen werden."
 
-#: includes/Admin/PDFLayoutEditor.php:196
+#: includes/Admin/PDFLayoutEditor.php:197
 msgid "FormForge PDF Layout"
 msgstr "FormForge PDF-Layout"
 
-#: includes/Admin/PDFLayoutEditor.php:197
-#: includes/Admin/PDFLayoutEditor.php:267
+#: includes/Admin/PDFLayoutEditor.php:198
+#: includes/Admin/PDFLayoutEditor.php:268
 msgid "PDF Layout"
 msgstr "PDF-Layout"
 
-#: includes/Admin/PDFLayoutEditor.php:242
+#: includes/Admin/PDFLayoutEditor.php:243
 msgid "DejaVu Sans (Default, sans-serif)"
 msgstr "DejaVu Sans (Standard, serifenlos)"
 
-#: includes/Admin/PDFLayoutEditor.php:243
+#: includes/Admin/PDFLayoutEditor.php:244
 msgid "DejaVu Serif (with serifs)"
 msgstr "DejaVu Serif (mit Serifen)"
 
-#: includes/Admin/PDFLayoutEditor.php:244
+#: includes/Admin/PDFLayoutEditor.php:245
 msgid "DejaVu Sans Mono (Fixed-width)"
 msgstr "DejaVu Sans Mono (Festbreit)"
 
-#: includes/Admin/PDFLayoutEditor.php:245
+#: includes/Admin/PDFLayoutEditor.php:246
 msgid "FreeMono (Typewriter)"
 msgstr "FreeMono (Schreibmaschine)"
 
-#: includes/Admin/PDFLayoutEditor.php:272
-#: includes/Admin/PDFLayoutEditor.php:1715
+#: includes/Admin/PDFLayoutEditor.php:273
+#: includes/Admin/PDFLayoutEditor.php:1716
 msgid "Layout saved."
 msgstr "Layout gespeichert."
 
-#: includes/Admin/PDFLayoutEditor.php:289
+#: includes/Admin/PDFLayoutEditor.php:290
 msgid "Header"
 msgstr "Kopfzeile"
 
-#: includes/Admin/PDFLayoutEditor.php:292
+#: includes/Admin/PDFLayoutEditor.php:293
 msgid "Arrange titles, logos and other content via drag & drop."
 msgstr "Titel, Logos und weitere Inhalte per Drag & Drop positionieren."
 
-#: includes/Admin/PDFLayoutEditor.php:296
-#: includes/Admin/PDFLayoutEditor.php:402
-#: includes/Admin/PDFLayoutEditor.php:463
+#: includes/Admin/PDFLayoutEditor.php:297
+#: includes/Admin/PDFLayoutEditor.php:403
+#: includes/Admin/PDFLayoutEditor.php:464
 msgid "Edit header"
 msgstr "Kopfzeile bearbeiten"
 
-#: includes/Admin/PDFLayoutEditor.php:302
+#: includes/Admin/PDFLayoutEditor.php:303
 msgid "Colors"
 msgstr "Farben"
 
-#: includes/Admin/PDFLayoutEditor.php:306
+#: includes/Admin/PDFLayoutEditor.php:307
 msgid "Accent color (thick dividers)"
 msgstr "Akzentfarbe (dicke Trennlinien)"
 
-#: includes/Admin/PDFLayoutEditor.php:307
+#: includes/Admin/PDFLayoutEditor.php:308
 msgid "Divider color (thin lines)"
 msgstr "Trennlinienfarbe (dünne Linien)"
 
-#: includes/Admin/PDFLayoutEditor.php:326
+#: includes/Admin/PDFLayoutEditor.php:327
 msgid "Typography"
 msgstr "Typografie"
 
-#: includes/Admin/PDFLayoutEditor.php:329
+#: includes/Admin/PDFLayoutEditor.php:330
 msgid "Font"
 msgstr "Schriftart"
 
-#: includes/Admin/PDFLayoutEditor.php:340
+#: includes/Admin/PDFLayoutEditor.php:341
 msgid "Base font size:"
 msgstr "Grundschriftgröße:"
 
-#: includes/Admin/PDFLayoutEditor.php:341
-#: includes/Admin/PDFLayoutEditor.php:349
+#: includes/Admin/PDFLayoutEditor.php:342
+#: includes/Admin/PDFLayoutEditor.php:350
 msgid "pt"
 msgstr "pt"
 
-#: includes/Admin/PDFLayoutEditor.php:348
+#: includes/Admin/PDFLayoutEditor.php:349
 msgid "Title size:"
 msgstr "Titelgröße:"
 
-#: includes/Admin/PDFLayoutEditor.php:358
+#: includes/Admin/PDFLayoutEditor.php:359
 msgid "Page margins (mm)"
 msgstr "Seitenränder (mm)"
 
-#: includes/Admin/PDFLayoutEditor.php:363
+#: includes/Admin/PDFLayoutEditor.php:364
 msgid "Top"
 msgstr "Oben"
 
-#: includes/Admin/PDFLayoutEditor.php:364
+#: includes/Admin/PDFLayoutEditor.php:365
 msgid "Right"
 msgstr "Rechts"
 
-#: includes/Admin/PDFLayoutEditor.php:365
+#: includes/Admin/PDFLayoutEditor.php:366
 msgid "Bottom"
 msgstr "Unten"
 
-#: includes/Admin/PDFLayoutEditor.php:366
+#: includes/Admin/PDFLayoutEditor.php:367
 msgid "Left"
 msgstr "Links"
 
-#: includes/Admin/PDFLayoutEditor.php:388
+#: includes/Admin/PDFLayoutEditor.php:389
 msgid "Sections"
 msgstr "Abschnitte"
 
-#: includes/Admin/PDFLayoutEditor.php:391
+#: includes/Admin/PDFLayoutEditor.php:392
 msgid "Eye icon to show/hide."
 msgstr "Augensymbol zum Ein-/Ausblenden."
 
-#: includes/Admin/PDFLayoutEditor.php:406
+#: includes/Admin/PDFLayoutEditor.php:407
 msgid "Show/Hide"
 msgstr "Ein-/Ausblenden"
 
-#: includes/Admin/PDFLayoutEditor.php:417
+#: includes/Admin/PDFLayoutEditor.php:418
 msgid "Footer text"
 msgstr "Fußzeilentext"
 
-#: includes/Admin/PDFLayoutEditor.php:419
+#: includes/Admin/PDFLayoutEditor.php:420
 msgid "e.g. Company name · Address · Phone"
 msgstr "z. B. Firmenname · Adresse · Telefon"
 
-#: includes/Admin/PDFLayoutEditor.php:436
+#: includes/Admin/PDFLayoutEditor.php:437
 msgid "Preview (A4)"
 msgstr "Vorschau (A4)"
 
-#: includes/Admin/PDFLayoutEditor.php:442
+#: includes/Admin/PDFLayoutEditor.php:443
 msgid "Open PDF"
 msgstr "PDF öffnen"
 
-#: includes/Admin/PDFLayoutEditor.php:470
+#: includes/Admin/PDFLayoutEditor.php:471
 #: includes/Fields/PostDataField.php:166
 msgid "Title"
 msgstr "Titel"
 
-#: includes/Admin/PDFLayoutEditor.php:472
+#: includes/Admin/PDFLayoutEditor.php:473
 #: includes/Fields/RatingField.php:356
 msgid "Image"
 msgstr "Bild"
 
-#: includes/Admin/PDFLayoutEditor.php:474
+#: includes/Admin/PDFLayoutEditor.php:475
 msgid "Height (rows of 5 mm):"
 msgstr "Höhe (Zeilen à 5 mm):"
 
-#: includes/Admin/PDFLayoutEditor.php:478
+#: includes/Admin/PDFLayoutEditor.php:479
 msgid "← Drag to position · Corners to resize · Del to delete"
 msgstr "← Ziehen zum Positionieren · Ecken zum Skalieren · Entf zum Löschen"
 
-#: includes/Admin/PDFLayoutEditor.php:487
+#: includes/Admin/PDFLayoutEditor.php:488
 msgid "Select element"
 msgstr "Element auswählen"
 
-#: includes/Admin/PDFLayoutEditor.php:487
+#: includes/Admin/PDFLayoutEditor.php:488
 msgid "to edit"
 msgstr "zum Bearbeiten"
 
@@ -1548,35 +1634,6 @@ msgstr "Land"
 msgid "%s: Required field."
 msgstr "%s: Pflichtfeld."
 
-#: includes/Fields/AddressField.php:233
-#: includes/Fields/AddressField.php:255
-#: includes/Fields/BaseField.php:298
-#: includes/Fields/CheckboxField.php:342
-#: includes/Fields/CurrencyField.php:201
-#: includes/Fields/DateField.php:259
-#: includes/Fields/NameField.php:234
-#: includes/Fields/NameField.php:237
-#: includes/Fields/NameField.php:250
-#: includes/Fields/PostDataField.php:132
-#: includes/Fields/RadioField.php:295
-#: includes/Fields/RatingField.php:294
-#: includes/Fields/SelectField.php:307
-#: includes/Fields/SepaField.php:760
-#: includes/Fields/SepaField.php:776
-#: includes/Fields/SepaField.php:781
-#: includes/Fields/SepaField.php:786
-#: includes/Fields/SepaField.php:797
-#: includes/Fields/SepaField.php:815
-#: includes/Fields/SignatureField.php:338
-#: includes/Fields/SignatureField.php:363
-#: includes/Fields/SliderField.php:433
-#: includes/Fields/UploadField.php:572
-#: includes/Fields/UploadField.php:599
-#: includes/Fields/UploadField.php:671
-#: includes/Fields/_ExampleField.php:434
-msgid "[No entry]"
-msgstr "[Kein Eintrag]"
-
 #: includes/Fields/AddressField.php:275
 msgid "Apartment, floor, c/o ..."
 msgstr "Apartment, Etage, c/o ..."
@@ -1713,12 +1770,6 @@ msgstr "Bitte wählen Sie eine gültige Option."
 msgid "Other"
 msgstr "Sonstiges"
 
-#: includes/Fields/CheckboxField.php:350
-#: includes/Fields/RadioField.php:300
-#: includes/Fields/SelectField.php:312
-msgid "[Other]"
-msgstr "[Sonstiges]"
-
 #: includes/Fields/CheckboxField.php:402
 #: includes/Fields/FieldRegistry.php:168
 #: includes/Fields/RadioField.php:342
@@ -1768,23 +1819,11 @@ msgstr "Leer = unbegrenzt"
 msgid "Consent"
 msgstr "Einwilligung"
 
-#: includes/Fields/ConsentField.php:115
-msgid "I agree."
-msgstr "Ich stimme zu."
-
 #. translators: %s: field label.
 #: includes/Fields/ConsentField.php:139
 #, php-format
 msgid "%s is required."
 msgstr "%s ist erforderlich."
-
-#: includes/Fields/ConsentField.php:154
-msgid "Yes"
-msgstr "Ja"
-
-#: includes/Fields/ConsentField.php:154
-msgid "No"
-msgstr "Nein"
 
 #: includes/Fields/ConsentField.php:164
 msgid "I agree to the terms."
@@ -1963,14 +2002,6 @@ msgstr "Ich habe die <a href=\"%1$s\" target=\"_blank\" rel=\"noopener\">%2$s</a
 #: includes/Fields/GdprField.php:159
 msgid "Please accept the privacy policy."
 msgstr "Bitte akzeptieren Sie die Datenschutzerklärung."
-
-#: includes/Fields/GdprField.php:174
-msgid "Privacy accepted"
-msgstr "Datenschutz akzeptiert"
-
-#: includes/Fields/GdprField.php:174
-msgid "Privacy not accepted"
-msgstr "Datenschutz nicht akzeptiert"
 
 #: includes/Fields/GdprField.php:204
 msgid "Privacy URL"
@@ -2178,18 +2209,23 @@ msgid "SEPA Direct Debit"
 msgstr "SEPA Lastschrift"
 
 #: includes/Fields/SepaField.php:439
+#: includes/Fields/SepaField.php:839
+#: includes/Fields/SepaField.php:842
 msgid "SEPA Direct Debit Mandate"
 msgstr "SEPA-Lastschriftmandat"
 
 #: includes/Fields/SepaField.php:442
+#: includes/Fields/SepaField.php:845
 msgid "IBAN:"
 msgstr "IBAN:"
 
 #: includes/Fields/SepaField.php:443
+#: includes/Fields/SepaField.php:846
 msgid "BIC:"
 msgstr "BIC:"
 
 #: includes/Fields/SepaField.php:444
+#: includes/Fields/SepaField.php:847
 msgid "Account holder:"
 msgstr "Kontoinhaber:"
 
@@ -2199,6 +2235,7 @@ msgstr "Ihre Mitgliedsnummer"
 
 #: includes/Fields/SepaField.php:447
 #: includes/Fields/SepaField.php:795
+#: includes/Fields/SepaField.php:850
 #: includes/Fields/SignatureField.php:114
 #: includes/Fields/SignatureField.php:260
 #: includes/Fields/SignatureField.php:314
@@ -2328,15 +2365,15 @@ msgstr "Unterschrift Höhe (px)"
 msgid "Stroke width"
 msgstr "Strichstärke"
 
-#: includes/Fields/SepaField.php:954
+#: includes/Fields/SepaField.php:975
 msgid "Andorra"
 msgstr "Andorra"
 
-#: includes/Fields/SepaField.php:954
+#: includes/Fields/SepaField.php:975
 msgid "United Arab Emirates"
 msgstr "Vereinigte Arab. Emirate"
 
-#: includes/Fields/SepaField.php:954
+#: includes/Fields/SepaField.php:975
 msgid "Albania"
 msgstr "Albanien"
 
@@ -2352,15 +2389,15 @@ msgstr "Aserbaidschan"
 msgid "Bosnia and Herzegovina"
 msgstr "Bosnien-Herzegowina"
 
-#: includes/Fields/SepaField.php:956
+#: includes/Fields/SepaField.php:977
 msgid "Belgium"
 msgstr "Belgien"
 
-#: includes/Fields/SepaField.php:956
+#: includes/Fields/SepaField.php:977
 msgid "Bulgaria"
 msgstr "Bulgarien"
 
-#: includes/Fields/SepaField.php:956
+#: includes/Fields/SepaField.php:977
 msgid "Bahrain"
 msgstr "Bahrain"
 
@@ -2712,10 +2749,6 @@ msgstr "Text"
 msgid "Time"
 msgstr "Uhrzeit"
 
-#: includes/Fields/TimeField.php:104
-msgid "Please enter a valid time."
-msgstr "Bitte geben Sie eine gültige Uhrzeit ein."
-
 #: includes/Fields/UploadField.php:153
 msgid "File upload"
 msgstr "Datei-Upload"
@@ -3004,3 +3037,108 @@ msgstr "Fehler: "
 #: includes/Utils/Assets.php:352
 msgid "Unknown server error"
 msgstr "Unbekannter Serverfehler"
+
+#: pdf-templates/layout.php:234
+msgid "Metadata"
+msgstr "Metadaten"
+
+#: pdf-templates/layout.php:236
+msgid "Form:"
+msgstr "Formular:"
+
+#: pdf-templates/layout.php:244
+msgid "Legal Notice:"
+msgstr "Rechtlicher Hinweis:"
+
+#: pdf-templates/layout.php:245
+msgid "This document represents the original. Any change, manipulation, or modification invalidates this document. This document was issued in electronic form and must be kept exclusively in electronic form. Any printout is merely a copy and has no legal validity."
+msgstr "Dieses Dokument stellt das Original dar. Jede Änderung, Manipulation oder Modifikation macht dieses Dokument ungültig. Dieses Dokument wurde in elektronischer Form ausgestellt und ist ausschließlich in elektronischer Form aufzubewahren. Jeder Ausdruck ist lediglich eine Kopie und hat keine Rechtsgültigkeit."
+
+#: includes/Admin/PDFLayoutEditor.php:1124
+msgid "Image URL:"
+msgstr "Bild-URL:"
+
+#: includes/Admin/PDFLayoutEditor.php:1128
+msgid "Select image"
+msgstr "Bild wählen"
+
+#: includes/Admin/PDFLayoutEditor.php:1128
+#: includes/Admin/PDFLayoutEditor.php:1152
+msgid "Insert"
+msgstr "Einfügen"
+
+#: includes/Admin/PDFLayoutEditor.php:1146
+msgid "Add image"
+msgstr "Bild hinzufügen"
+
+#: includes/Admin/PDFLayoutEditor.php:1148
+msgid "Choose from media library"
+msgstr "Aus Mediathek wählen"
+
+#: includes/Admin/PDFLayoutEditor.php:1149
+msgid "or"
+msgstr "oder"
+
+#: includes/Admin/PDFLayoutEditor.php:1150
+msgid "External URL"
+msgstr "Externe URL"
+
+#: includes/Fields/CaptchaField.php:174
+msgid "This field sends the visitor's CAPTCHA response and IP address to Google (reCAPTCHA) for verification on every submission. Reflect this third-party data transfer in your site's privacy policy."
+msgstr "Dieses Feld sendet bei jeder Übermittlung die CAPTCHA-Antwort und die IP-Adresse des Besuchers zur Überprüfung an Google (reCAPTCHA). Diese Datenübermittlung an Dritte sollte in Ihrer Datenschutzerklärung berücksichtigt werden."
+
+#: includes/Fields/SepaField.php:933
+msgid "When enabled, the visitor's IBAN is sent to the third-party service openiban.com as soon as it's fully typed — before the form is submitted — to look up the matching BIC. Disable this to have visitors enter the BIC manually instead, keeping IBAN data on your own site until submission."
+msgstr "Wenn aktiviert, wird die IBAN des Besuchers sofort nach vollständiger Eingabe – noch vor dem Absenden des Formulars – an den Drittanbieter-Dienst openiban.com gesendet, um die passende BIC zu ermitteln. Deaktivieren Sie diese Option, damit Besucher die BIC stattdessen manuell eingeben und die IBAN-Daten bis zur Übermittlung auf Ihrer eigenen Website verbleiben."
+
+#: includes/Fields/SepaField.php:931
+msgid "Auto-fill BIC via live IBAN lookup"
+msgstr "BIC automatisch per Live-IBAN-Abfrage ausfüllen"
+
+#: includes/Fields/UploadField.php:542
+msgid "File type \".%s\" is not permitted for this field."
+msgstr "Dateityp \".%s\" ist für dieses Feld nicht zulässig."
+
+#: includes/PDF/HashSeal.php:301
+msgid "At least 12 characters required."
+msgstr "Mindestens 12 Zeichen erforderlich."
+
+#: includes/PDF/HashSeal.php:304
+msgid "At least one uppercase letter required."
+msgstr "Mindestens ein Großbuchstabe erforderlich."
+
+#: includes/PDF/HashSeal.php:307
+msgid "At least one lowercase letter required."
+msgstr "Mindestens ein Kleinbuchstabe erforderlich."
+
+#: includes/PDF/HashSeal.php:310
+msgid "At least one digit required."
+msgstr "Mindestens eine Ziffer erforderlich."
+
+#: includes/PDF/HashSeal.php:313
+msgid "At least one special character required."
+msgstr "Mindestens ein Sonderzeichen erforderlich."
+
+#: includes/Fields/GdprField.php:137
+msgid "I have read and acknowledge the <a href=\"%1$s\" target=\"_blank\" rel=\"noopener\">%2$s</a>."
+msgstr "Ich habe die <a href=\"%1$s\" target=\"_blank\" rel=\"noopener\">%2$s</a> gelesen und zur Kenntnis genommen."
+
+#: includes/Fields/GdprField.php:164
+msgid "Please read and acknowledge the privacy policy."
+msgstr "Bitte lesen und bestätigen Sie die Datenschutzerklärung."
+
+#: includes/Fields/GdprField.php:186
+msgid "Privacy notice not acknowledged"
+msgstr "Datenschutzhinweis nicht zur Kenntnis genommen"
+
+#: includes/Fields/GdprField.php:192
+msgid "Acknowledged \"%1$s\" (%2$s) on %3$s"
+msgstr "\"%1$s\" (%2$s) zur Kenntnis genommen am %3$s"
+
+#: includes/Fields/ConsentField.php:160
+msgid "Not agreed"
+msgstr "Nicht zugestimmt"
+
+#: includes/Fields/ConsentField.php:165
+msgid "Agreed to \"%1$s\" on %2$s"
+msgstr "\"%1$s\" zugestimmt am %2$s"

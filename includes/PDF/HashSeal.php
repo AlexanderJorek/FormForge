@@ -298,19 +298,19 @@ class HashSeal
     {
         $errors = [];
         if (strlen($password) < 12) {
-            $errors[] = 'Mindestens 12 Zeichen erforderlich.';
+            $errors[] = __('At least 12 characters required.', 'form-forge');
         }
         if (!preg_match('/[A-Z]/', $password)) {
-            $errors[] = 'Mindestens ein Großbuchstabe erforderlich.';
+            $errors[] = __('At least one uppercase letter required.', 'form-forge');
         }
         if (!preg_match('/[a-z]/', $password)) {
-            $errors[] = 'Mindestens ein Kleinbuchstabe erforderlich.';
+            $errors[] = __('At least one lowercase letter required.', 'form-forge');
         }
         if (!preg_match('/[0-9]/', $password)) {
-            $errors[] = 'Mindestens eine Ziffer erforderlich.';
+            $errors[] = __('At least one digit required.', 'form-forge');
         }
         if (!preg_match('/[^A-Za-z0-9]/', $password)) {
-            $errors[] = 'Mindestens ein Sonderzeichen erforderlich.';
+            $errors[] = __('At least one special character required.', 'form-forge');
         }
         return $errors;
     }
@@ -327,7 +327,7 @@ class HashSeal
     {
         $errors = self::validatePassword($password);
         if (!empty($errors)) {
-            throw new \InvalidArgumentException(esc_html(implode(' ', $errors)));
+            throw new \InvalidArgumentException(implode(' ', $errors));
         }
 
         $user       = wp_get_current_user();
