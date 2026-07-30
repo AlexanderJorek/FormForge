@@ -25,6 +25,7 @@ class ComposerStaticInitc90aedc214588d74ca190ceb69b1b67c
         array (
             'Psr\\Log\\' => 8,
             'Psr\\Http\\Message\\' => 17,
+            'PHPCS_SecurityAudit\\' => 20,
             'PHPCSStandards\\Composer\\Plugin\\Installers\\PHPCodeSniffer\\' => 57,
         ),
         'M' =>
@@ -55,6 +56,10 @@ class ComposerStaticInitc90aedc214588d74ca190ceb69b1b67c
         'Psr\\Http\\Message\\' =>
         array (
             0 => __DIR__ . '/..' . '/psr/http-message/src',
+        ),
+        'PHPCS_SecurityAudit\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/pheromone/phpcs-security-audit/Security',
         ),
         'PHPCSStandards\\Composer\\Plugin\\Installers\\PHPCodeSniffer\\' =>
         array (

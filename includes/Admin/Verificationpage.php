@@ -589,7 +589,6 @@ final class Verificationpage
                     }
                     // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $push_payload is wp_json_encode() output with JSON_HEX_* flags, safe for inline <script> context.
                     echo "<script>
-                        console.log('PHP pushing PDF for verification');
                         window.FORGE_VERIFICATION_QUEUE = window.FORGE_VERIFICATION_QUEUE || [];
                         window.FORGE_VERIFICATION_QUEUE.push({$push_payload});
                         if (window.FORGE_VERIFICATION_PROCESS_PDF) {

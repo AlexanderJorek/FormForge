@@ -43,7 +43,7 @@ Similar to Forminator's drag-and-drop builder. Implementation approach is open a
 
 ## Security & Code-Quality Review Protocol
 
-Whenever reviewing or significantly modifying a file, silently evaluate it against the four frameworks below and report any findings (severity: Critical / High / Medium / Low). Provide file + line, violated standard, risk description, and a fixed code snippet for each finding.
+Whenever reviewing or significantly modifying a file, silently evaluate it against the frameworks below and report any findings (severity: Critical / High / Medium / Low). Provide file + line, violated standard, risk description, and a fixed code snippet for each finding.
 
 | Framework | Focus |
 |---|---|
@@ -51,6 +51,10 @@ Whenever reviewing or significantly modifying a file, silently evaluate it again
 | **OWASP Top 10** | Injection, broken access control, SSRF, XSS, CSRF, insecure deserialization, etc. |
 | **CERT Coding Standards** | Insecure constructs, undefined behaviour, input validation |
 | **NIST SSDF** | Protecting software, producing secure software, responding to vulnerabilities |
+| **OWASP ASVS** (Level 1–2) | Testable checklist version of Top 10 — auth/session, cryptography, business logic (rate limiting, replay), file/resource handling, config hygiene. Level 3 (nation-state threat model) is out of scope for this plugin. |
+| **WordPress Security Sniffs** | Nonce verification, output escaping, input sanitization, `$wpdb` preparation, capability checks — the `WordPress.Security.*`/`WordPress.DB.PreparedSQL*` sniff categories specifically, not general WPCS style rules (those belong to the day-to-day `.phpcs.xml` PSR-1/2 gate, not this review pass). |
+| **GDPR / Data-Protection-by-Design** | Data minimization, storage limitation, right-to-erasure, consent validity (freely-given vs. forced, timestamped/demonstrable per Art. 7(1)), third-party data flows (e.g. reCAPTCHA, IBAN lookups) and their disclosure. Compliance review, not a code-pattern check — flag findings even when no line of code is technically "wrong." |
+| **CWE Top 25** | Language-agnostic cross-check against OWASP/CERT: path traversal, command/code injection, integer overflow, uncontrolled resource consumption, unrestricted upload, null deref, unsafe deserialization, hardcoded credentials — via `pheromone/phpcs-security-audit`'s `BadFunctions`/`Misc` sniffs (Drupal-specific sniffs in that package are irrelevant here and excluded). |
 
 Output format for each finding:
 
@@ -62,6 +66,12 @@ Fix:
 ```
 
 After all findings: one paragraph of strategic recommendations for long-term NIST SSDF / CERT alignment.
+
+### Linters
+
+- `.phpcs.xml` — day-to-day PSR-1/PSR-2 style gate. Run: `vendor/bin/phpcs`.
+- `.phpcs-security.xml` — dedicated ruleset for the WordPress-Security and CWE-Top-25 parts of the table above (`wp-coding-standards/wpcs`'s security sniffs + `pheromone/phpcs-security-audit`, both installed as dev dependencies). Run: `vendor/bin/phpcs --standard=.phpcs-security.xml`. Expect warning noise — the security-audit sniffs flag *any* filesystem/callback call with a non-literal argument as a heuristic, not proof of a real issue — so treat its output as review material to triage, not a pass/fail gate; use targeted `phpcs:ignore` comments with a justification (matching the existing convention in this codebase) for confirmed false positives rather than restructuring sound code to satisfy the sniff.
+- No installable linter exists for OWASP ASVS or GDPR/data-protection-by-design — both are checklist/compliance frameworks, not code-pattern standards. Evaluate those manually per the table above.
 
 ### JS Assets
 

@@ -221,7 +221,11 @@ CSS;
     {
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
         $vals = isset($_POST[$field_id]) ? map_deep(wp_unslash($_POST[$field_id]), 'sanitize_text_field') : [];
-        $out  = is_array($vals) ? $vals : [];
+        // Cap the number of submitted values before further sanitizing/validating them —
+        // a crafted array-valued POST otherwise costs unbounded O(n) sanitize calls and
+        // O(n*m) validation work per submission with no limit of its own (max_selections
+        // only rejects afterward; PHP's max_input_vars ini setting isn't guaranteed).
+        $out  = is_array($vals) ? array_slice(array_values($vals), 0, 200) : [];
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
         if (in_array('__other__', $out, true) && isset($_POST[$field_id . '_other'])) {
             // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
@@ -241,8 +245,11 @@ CSS;
      */
     public function extractFromRaw(mixed $raw): mixed
     {
+        // Same element-count cap as extractValue() — this is the group-copy path
+        // (up to 100 copies per GroupField), so an uncapped array here multiplies
+        // the same unbounded-sanitize-cost issue across every copy.
         return is_array($raw)
-            ? array_map(static fn($v) => sanitize_text_field(wp_unslash($v)), $raw)
+            ? array_map(static fn($v) => sanitize_text_field(wp_unslash($v)), array_slice(array_values($raw), 0, 200))
             : [];
     }
 
@@ -291,7 +298,11 @@ CSS;
     {
         if (!empty($config['required'])) {
             $vals = is_array($value) ? self::selectedOptions($value) : [];
-            if (empty($vals)) {
+            // A selection consisting only of "__other__" with a blank companion text
+            // field is effectively no answer at all — don't let it satisfy "required".
+            $other_blank = in_array('__other__', $vals, true)
+                && trim((string)($value['__other_text__'] ?? '')) === '';
+            if (empty($vals) || ($other_blank && count($vals) === 1)) {
                 $label = $config['label'] ?? __('Field', 'form-forge');
                 // translators: %s: field label.
                 return sprintf(__('%s: Please select at least one option.', 'form-forge'), esc_html($label));

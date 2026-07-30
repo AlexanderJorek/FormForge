@@ -112,6 +112,7 @@ class Plugin
         ];
 
         foreach ($files as $file) {
+            // phpcs:ignore PHPCS_SecurityAudit.Misc.IncludeMismatch.ErrMiscIncludeMismatchNoExt -- $file is drawn from the hardcoded $files array above (every entry already ends in .php); nothing here is attacker- or request-influenced.
             include_once FORGE_FORMS_PATH . 'includes/' . $file;
         }
 
@@ -126,6 +127,7 @@ class Plugin
                 $adminFiles[] = 'Admin/FieldTestPage.php';
             }
             foreach ($adminFiles as $file) {
+                // phpcs:ignore PHPCS_SecurityAudit.Misc.IncludeMismatch.ErrMiscIncludeMismatchNoExt -- $file is drawn from the hardcoded $adminFiles array above (every entry already ends in .php); nothing here is attacker- or request-influenced.
                 include_once FORGE_FORMS_PATH . 'includes/' . $file;
             }
         }

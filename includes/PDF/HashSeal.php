@@ -327,6 +327,7 @@ class HashSeal
     {
         $errors = self::validatePassword($password);
         if (!empty($errors)) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- this is an exception message, not an HTML-output sink; esc_html() here would double-escape when the caller later echoes the caught message through its own esc_html() at render time. $errors is also entirely composed of this class's own __() strings (see validatePassword()), never user input.
             throw new \InvalidArgumentException(implode(' ', $errors));
         }
 

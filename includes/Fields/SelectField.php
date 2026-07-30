@@ -339,9 +339,18 @@ CSS;
             return true;
         }
         if ((string)$selected === '__other__') {
-            return !empty($config['other_option'])
-                ? true
-                : __('Please select a valid option.', 'form-forge');
+            if (empty($config['other_option'])) {
+                return __('Please select a valid option.', 'form-forge');
+            }
+            // "Other" selected with a blank companion text field is effectively no
+            // answer — don't let it satisfy a required field.
+            $other = is_array($value) ? trim((string)($value['__other_text__'] ?? '')) : '';
+            if (!empty($config['required']) && $other === '') {
+                $label = $config['label'] ?? __('Field', 'form-forge');
+                // translators: %s: field label.
+                return sprintf(__('%s is a required field.', 'form-forge'), esc_html($label));
+            }
+            return true;
         }
         $allowed = array_map(
             static fn($o) => (string)(is_array($o) ? ($o['value'] ?? '') : $o),

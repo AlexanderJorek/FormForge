@@ -29,8 +29,16 @@ defined('ABSPATH') || exit;
  * Replaces the get_transient()-then-set_transient() read-modify-write pattern used
  * previously, which is a classic TOCTOU race: concurrent requests can all read the
  * same pre-increment count before any of them writes the incremented value back,
- * letting an attacker with parallel connections exceed the intended cap. The counter
- * itself is incremented with a single atomic SQL statement, closing that race.
+ * letting an attacker with parallel connections exceed the intended cap.
+ *
+ * The count and its window-expiry are stored together as one "count|expiry" value
+ * in a single row, and the reset-or-increment decision is made inside one atomic
+ * INSERT ... ON DUPLICATE KEY UPDATE statement — not as a separate read-then-write
+ * followed by a separate atomic increment. Two separate atomic statements (reset,
+ * then increment) would still race with each other: a concurrent request could
+ * observe "expired" and unconditionally zero a sibling request's already-incremented
+ * count. Folding both decisions into one statement, executed under InnoDB's
+ * per-row lock, closes that gap.
  */
 class RateLimiter
 {
@@ -50,35 +58,51 @@ class RateLimiter
     {
         global $wpdb;
 
-        $value_opt  = 'forge_rl_' . $key;
-        $expiry_opt = $value_opt . '_exp';
+        $opt        = 'forge_rl_' . $key;
         $now        = time();
+        $new_expiry = $now + $window_seconds;
 
-        $expires = (int) get_option($expiry_opt, 0);
-        if ($expires <= $now) {
-            // (Re)start the window. A rare concurrent double-reset here only shortens
-            // the effective window slightly — unlike the read-modify-write race this
-            // replaces, it can't be used to bypass the cap, because the increment
-            // below is still a single atomic statement either way.
-            update_option($value_opt, 0, false);
-            update_option($expiry_opt, $now + $window_seconds, false);
-            wp_cache_delete($value_opt, 'options');
-            wp_cache_delete($expiry_opt, 'options');
-        }
-
-        // Atomic increment: a single SQL statement, not a read-then-write — concurrent
-        // requests can't all observe the same pre-increment value.
+        // Single atomic upsert: inserts the first-ever row for this key, or — on the
+        // existing row — atomically resets (if its stored expiry has passed) or
+        // increments (otherwise), all within one statement under one row lock, so no
+        // concurrent request can observe or overwrite an intermediate state.
+        //
+        // The new count is wrapped in LAST_INSERT_ID() (a general-purpose way to smuggle
+        // a computed value out of an INSERT/UPDATE, not related to auto_increment here)
+        // instead of using this codebase's earlier VALUES(option_value) draft — that
+        // form is deprecated since MySQL 8.0.20, and more importantly would still need a
+        // *separate* SELECT to read the new count back, and that separate read is its
+        // own small race: a sibling request's increment could land between this
+        // statement and that read, so the count returned to the caller could reflect
+        // more than this call's own increment (harmless — it can only over-block, never
+        // bypass the cap — but avoidable). LAST_INSERT_ID() is connection-scoped, so
+        // reading it back after this statement, on this same connection, is race-free
+        // by construction: no other request's connection can affect what >this< session
+        // sees for its own LAST_INSERT_ID().
         $wpdb->query(
             $wpdb->prepare(
-                "UPDATE {$wpdb->options} SET option_value = option_value + 1 WHERE option_name = %s",
-                $value_opt
+                "INSERT INTO {$wpdb->options} (option_name, option_value, autoload)
+                 VALUES (%s, CONCAT(LAST_INSERT_ID(1), '|', %d), 'no')
+                 ON DUPLICATE KEY UPDATE option_value = IF(
+                     CAST(SUBSTRING_INDEX(option_value, '|', -1) AS UNSIGNED) <= %d,
+                     CONCAT(LAST_INSERT_ID(1), '|', %d),
+                     CONCAT(
+                         LAST_INSERT_ID(CAST(SUBSTRING_INDEX(option_value, '|', 1) AS UNSIGNED) + 1),
+                         '|',
+                         SUBSTRING_INDEX(option_value, '|', -1)
+                     )
+                 )",
+                $opt,
+                $new_expiry,
+                $now,
+                $new_expiry
             )
         );
         // The direct query above bypasses WP's own cache invalidation, so the object
         // cache (if any, e.g. Redis/Memcached) must be explicitly told to drop its
         // stale copy or every subsequent get_option() on this key would return it.
-        wp_cache_delete($value_opt, 'options');
+        wp_cache_delete($opt, 'options');
 
-        return (int) get_option($value_opt, 0);
+        return (int) $wpdb->get_var('SELECT LAST_INSERT_ID()');
     }
 }
