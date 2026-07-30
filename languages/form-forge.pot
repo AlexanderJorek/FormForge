@@ -1713,6 +1713,14 @@ msgstr ""
 msgid "reCAPTCHA: Please enter the site key in the plugin settings."
 msgstr ""
 
+#: includes/Fields/CaptchaField.php:89
+msgid "Load CAPTCHA"
+msgstr ""
+
+#: includes/Fields/CaptchaField.php:92
+msgid "This loads a script from Google (reCAPTCHA) once activated."
+msgstr ""
+
 #: includes/Fields/CaptchaField.php:110
 #: includes/Fields/CaptchaField.php:127
 msgid "Please confirm the CAPTCHA."
@@ -1840,6 +1848,10 @@ msgstr ""
 
 #: includes/Fields/ConsentField.php:178
 msgid "Consent text"
+msgstr ""
+
+#: includes/Fields/ConsentField.php:198
+msgid "Be specific about what the visitor is agreeing to (e.g. name the processing purpose) — a generic phrase like \"I agree to the terms\" is not valid, informed consent under GDPR."
 msgstr ""
 
 #: includes/Fields/CurrencyField.php:44
@@ -2257,6 +2269,10 @@ msgstr ""
 
 #: includes/Fields/SepaField.php:529
 msgid "Mandate reference:"
+msgstr ""
+
+#: includes/Fields/SepaField.php:504
+msgid "Your IBAN is sent to a third-party service (openiban.com) to look up the BIC."
 msgstr ""
 
 #: includes/Fields/SepaField.php:566
@@ -3130,6 +3146,10 @@ msgstr ""
 
 #: includes/Fields/GdprField.php:137
 msgid "I have read and acknowledge the <a href=\"%1$s\" target=\"_blank\" rel=\"noopener\">%2$s</a>."
+msgstr ""
+
+#: includes/Fields/GdprField.php:154
+msgid "I have read and acknowledge the %s."
 msgstr ""
 
 #: includes/Fields/GdprField.php:164

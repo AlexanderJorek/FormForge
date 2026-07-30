@@ -1609,7 +1609,14 @@ function buildGeneralTab(idx, field, pal) {
                     }, schema_entry.hint);
             }(s));
         } else if (s.type === 'checkbox') {
-            spCheckbox(panel, s.key, s.label, !!cur, function (v) { change(s.key, v); }, s.disclaimer || '');
+            (function (schema_entry) {
+                spCheckbox(panel, schema_entry.key, schema_entry.label, !!cur, function (v) {
+                    change(schema_entry.key, v);
+                    if (schema_entry.rebuild) {
+                        buildGeneralTab(idx, state.fields[idx], findPaletteItem(state.fields[idx].type));
+                    }
+                }, schema_entry.disclaimer || '');
+            }(s));
         } else if (s.type === 'select') {
             spSelect(panel, s.key, s.label, s.options || [], cur, function (v) { change(s.key, v); });
         } else if (s.type === 'options_list' || s.type === 'options') {
@@ -3109,6 +3116,9 @@ function spLimitRow(parent, typeKey, label, countKey, typeVal, countVal, onChang
     var inp = document.createElement('input');
     inp.type        = 'number';
     inp.min         = '0';
+    /* Must match BaseField::OTHER_TEXT_HARD_CAP — a value configured above this
+       is silently clamped server-side, so don't let the admin set one here. */
+    inp.max         = '5000';
     inp.className   = 'forge-sp-input';
     inp.value       = countVal !== null && countVal !== undefined ? String(countVal) : '';
     inp.placeholder = '∞';

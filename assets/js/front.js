@@ -77,7 +77,8 @@
             return false;
         }
 
-        var skipTypes = window.ForgeSkipValidation || [];
+        var skipTypes      = window.ForgeSkipValidation || [];
+        var ignoreRequired = !!window.ForgeIgnoreRequired;
         scope.querySelectorAll('.forge-field').forEach(function (fieldEl) {
             var type = (fieldEl.className.match(/forge-field--(\S+)/) || [])[1] || '';
             if (skipTypes.indexOf(type) !== -1) return;
@@ -88,24 +89,26 @@
             var empty = fieldIsEmpty(fieldEl);
 
             /* 1 — Required check */
-            if (isRequired && empty) {
+            if (isRequired && empty && !ignoreRequired) {
                 hasRequired = true;
                 markError(fieldEl, 'Dieses Feld ist ein Pflichtfeld.');
                 return; /* skip format check on empty required field */
             }
 
             /* 2 — Per-sub-input required check (composite fields like address/name expanded) */
-            fieldEl.querySelectorAll('input[required], select[required], textarea[required]').forEach(function (inp) {
-                if (inp.type === 'hidden' || inp.value.trim()) return;
-                hasRequired = true;
-                var container = inp.parentNode;
-                var errEl = (container && container.querySelector('.forge-field-error'))
-                    || fieldEl.querySelector('.forge-field-error');
-                if (errEl && !errEl.textContent) {
-                    errEl.textContent = 'Dieses Feld ist ein Pflichtfeld.';
-                }
-                if (!firstError) firstError = fieldEl;
-            });
+            if (!ignoreRequired) {
+                fieldEl.querySelectorAll('input[required], select[required], textarea[required]').forEach(function (inp) {
+                    if (inp.type === 'hidden' || inp.value.trim()) return;
+                    hasRequired = true;
+                    var container = inp.parentNode;
+                    var errEl = (container && container.querySelector('.forge-field-error'))
+                        || fieldEl.querySelector('.forge-field-error');
+                    if (errEl && !errEl.textContent) {
+                        errEl.textContent = 'Dieses Feld ist ein Pflichtfeld.';
+                    }
+                    if (!firstError) firstError = fieldEl;
+                });
+            }
 
             /* 3 — Format/validity check (only when field has content) */
             if (!empty) {
@@ -456,6 +459,49 @@
         });
     }
 
+    /* ── CAPTCHA click-to-activate ───────────────────────────────────────────
+       The reCAPTCHA script (and the connection to Google it triggers) is only
+       requested once the visitor explicitly clicks the placeholder button —
+       not on page load — so the field doesn't load a third-party script
+       before the visitor has interacted with the form. */
+    var recaptchaLoading = false;
+    var recaptchaCallbacks = [];
+    function loadRecaptchaScript(cb) {
+        if (window.grecaptcha && window.grecaptcha.render) {
+            cb();
+            return;
+        }
+        recaptchaCallbacks.push(cb);
+        if (recaptchaLoading) {
+            return;
+        }
+        recaptchaLoading = true;
+        window.__forgeRecaptchaOnLoad = function () {
+            recaptchaCallbacks.forEach(function (fn) { fn(); });
+            recaptchaCallbacks = [];
+        };
+        var s = document.createElement('script');
+        s.src = 'https://www.google.com/recaptcha/api.js?onload=__forgeRecaptchaOnLoad&render=explicit';
+        s.async = true;
+        s.defer = true;
+        document.head.appendChild(s);
+    }
+    function initCaptchaGates(root) {
+        root.querySelectorAll('.forge-captcha-gate').forEach(function (gate) {
+            var btn = gate.querySelector('.forge-captcha-activate');
+            if (!btn) return;
+            btn.addEventListener('click', function () {
+                btn.disabled = true;
+                loadRecaptchaScript(function () {
+                    var widget = document.createElement('div');
+                    gate.innerHTML = '';
+                    gate.appendChild(widget);
+                    window.grecaptcha.render(widget, { sitekey: gate.dataset.sitekey });
+                });
+            });
+        });
+    }
+
     /* ── Boot ─────────────────────────────────────────────────────────────── */
 
     function init(root) {
@@ -465,6 +511,7 @@
         initPageBreaks(root);
         initConditions(root);
         initForms(root);
+        initCaptchaGates(root);
     }
 
     if (document.readyState === 'loading') {

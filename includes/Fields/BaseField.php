@@ -29,6 +29,141 @@ defined('ABSPATH') || exit;
 abstract class BaseField
 {
     /**
+     * Caps an array-valued raw POST value to at most $max_keys entries before
+     * it is handed to map_deep()/sanitize_text_field(). Composite fields (Name,
+     * Address, SEPA, ...) only ever read a handful of known subfield keys back
+     * out, so an attacker submitting a much larger array as $field_id[...] would
+     * otherwise cost an unbounded number of sanitize calls before that read
+     * happens — this must run BEFORE any map_deep()/recursive-sanitize pass,
+     * not after, or the uncapped array has already been walked in full.
+     *
+     * @param mixed $raw      Raw (still wp_unslash()-only) POST value.
+     * @param int   $max_keys Maximum number of array entries to keep.
+     *
+     * @return mixed The original scalar, or the array truncated to $max_keys entries.
+     */
+    protected static function capRawArray(mixed $raw, int $max_keys = 32): mixed
+    {
+        if (!is_array($raw)) {
+            return $raw;
+        }
+        return array_slice($raw, 0, $max_keys, true);
+    }
+
+    /**
+     * Hard security ceiling for the "Other" free-text companion value —
+     * independent of (and always at least as large as) the admin-configurable
+     * other_max_length. This must stay comfortably above any realistic
+     * configured limit: capOtherText() truncates before validateOtherText()
+     * ever runs, so if the hard cap were smaller than a configured limit, the
+     * configured "too long" error could never fire — the value would already
+     * be silently cut, not rejected. otherInputAttrs()/validateOtherText()
+     * both clamp the configured limit to this same ceiling so the two checks
+     * can never disagree.
+     */
+    private const OTHER_TEXT_HARD_CAP = 5000;
+
+    /**
+     * Shared cap for the free-text companion value of a "___other___" option
+     * (Select/Radio/Checkbox fields). Kept as one helper so the limit can't
+     * drift between the near-identical extractValue()/extractFromRaw()
+     * implementations of those three field types.
+     *
+     * @param mixed $raw Raw (still wp_unslash()-only) "_other" POST value.
+     *
+     * @return string Sanitized value truncated to self::OTHER_TEXT_HARD_CAP characters.
+     */
+    protected static function capOtherText(mixed $raw): string
+    {
+        return mb_substr(sanitize_text_field(wp_unslash($raw)), 0, self::OTHER_TEXT_HARD_CAP);
+    }
+
+    /**
+     * Returns the HTML attribute enforcing the configurable "Other" text limit
+     * (Select/Radio/Checkbox fields), mirroring TextField's char/word limit UI.
+     * Purely a client-side hint — validateOtherText() is the server-side backstop.
+     *
+     * @param array $config Field configuration.
+     *
+     * @return string HTML attribute string (possibly empty).
+     */
+    protected static function otherInputAttrs(array $config): string
+    {
+        $max = self::clampOtherMax((int)($config['other_max_length'] ?? 0));
+        if ($max <= 0) {
+            return '';
+        }
+        $type = $config['other_max_type'] ?? 'chars';
+        return $type === 'words' ? ' data-word-limit="' . $max . '"' : ' maxlength="' . $max . '"';
+    }
+
+    /**
+     * Validates the "Other" free-text companion value against the configurable
+     * other_max_type/other_max_length limit (Select/Radio/Checkbox fields).
+     *
+     * @param string $other  The trimmed "Other" text value.
+     * @param array  $config Field configuration.
+     *
+     * @return bool|string True on valid, error message string on invalid.
+     */
+    protected static function validateOtherText(string $other, array $config): bool|string
+    {
+        $max = self::clampOtherMax((int)($config['other_max_length'] ?? 0));
+        if ($max <= 0 || $other === '') {
+            return true;
+        }
+        if (($config['other_max_type'] ?? 'chars') === 'words') {
+            $count = count(preg_split('/\s+/', trim($other), -1, PREG_SPLIT_NO_EMPTY));
+            if ($count > $max) {
+                // translators: %1$d: maximum word count allowed, %2$d: current word count.
+                return sprintf(__('Please enter at most %1$d words for "Other" (currently: %2$d).', 'form-forge'), $max, $count);
+            }
+            return true;
+        }
+        $length = function_exists('mb_strlen') ? mb_strlen($other) : strlen($other);
+        if ($length > $max) {
+            // translators: %1$d: maximum character count allowed, %2$d: current character count.
+            return sprintf(__('Please enter at most %1$d characters for "Other" (currently: %2$d).', 'form-forge'), $max, $length);
+        }
+        return true;
+    }
+
+    /**
+     * Clamps an admin-configured other_max_length to self::OTHER_TEXT_HARD_CAP
+     * so a config value above the hard cap can never make validateOtherText()
+     * expect text longer than what capOtherText() would have already truncated.
+     *
+     * @param int $configured Admin-configured limit (0/negative = unlimited).
+     *
+     * @return int
+     */
+    private static function clampOtherMax(int $configured): int
+    {
+        return $configured > 0 ? min($configured, self::OTHER_TEXT_HARD_CAP) : $configured;
+    }
+
+    /**
+     * Returns the shared client-side validation rule enforcing the "Other" text
+     * word limit (the char limit is covered by the native maxlength attribute).
+     *
+     * @return array
+     */
+    protected static function otherTextClientRule(): array
+    {
+        return ['rule' => 'other-text-word-limit', 'fn' => <<<'JS'
+            function (fieldEl) {
+                var inp = fieldEl.querySelector('.forge-other-input[data-word-limit]');
+                if (!inp || !inp.value.trim()) return null;
+                var limit = parseInt(inp.dataset.wordLimit, 10);
+                if (!limit) return null;
+                var count = inp.value.trim().split(/\s+/).filter(Boolean).length;
+                return count <= limit ? null
+                    : 'Please enter at most ' + limit + ' words (currently: ' + count + ').';
+            }
+            JS];
+    }
+
+    /**
      * Returns the human-readable field type label.
      *
      * @return string
@@ -205,17 +340,27 @@ abstract class BaseField
     abstract public function render(array $config, string $field_id, mixed $value = null): string;
 
     /**
-     * Sanitizes a raw value already extracted from a group copy array.
+     * The extractValue() counterpart for a field living inside a repeatable
+     * Group. A normal field reads itself straight out of $_POST[$field_id].
+     * A field inside a Group copy can't do that: the browser submits it
+     * nested under the group's own key instead, e.g. for a "family members"
+     * group repeated twice, with a "name" child field:
      *
-     * Group fields submit as $_POST[$group_id][$copy_idx][$child_id], so
-     * FormProcessor reads the nested copy slice first, then calls this method
-     * on the child handler to sanitize correctly — the same way top-level
-     * fields use extractValue() but without direct $_POST/$_FILES access.
-     * The default handles both scalar (sanitize_text_field) and flat arrays.
-     * Override in fields that need a different sanitizer (textarea) or always
-     * return an array (checkbox).
+     *   $_POST['group-5'][0]['name'] = 'Alice'
+     *   $_POST['group-5'][1]['name'] = 'Bob'
      *
-     * @param mixed $raw The raw value from the group copy array.
+     * FormProcessor slices out each copy's raw value (e.g. 'Alice') and
+     * passes it here as $raw — extractFromRaw() then applies the exact same
+     * sanitizing extractValue() would have applied, just to a value handed
+     * in as a parameter instead of read from $_POST directly.
+     *
+     * Rule of thumb: whatever sanitizing you write in extractValue(), mirror
+     * it here so a field behaves identically whether it's used standalone
+     * or inside a Group. The default sanitizes a scalar or a flat array with
+     * sanitize_text_field() — override when extractValue() does something
+     * else (textarea sanitizer, always-array shape like checkboxes, etc.).
+     *
+     * @param mixed $raw The raw value already sliced out of the group copy array.
      *
      * @return mixed
      */
@@ -228,14 +373,22 @@ abstract class BaseField
     }
 
     /**
-     * Like extractFromRaw(), but also receives the sibling "{child_id}_other"
-     * raw value from the same group copy — needed by Checkbox/Radio/Select's
-     * "Other" free-text option, whose companion input isn't nested under the
-     * child's own key. Default ignores it and delegates to extractFromRaw();
-     * override in fields whose extractValue() attaches a '__other_text__' key.
+     * extractFromRaw() variant for Checkbox/Radio/Select's "Other" free-text
+     * option. Those fields submit the typed "Other" text as a *sibling*
+     * top-level key, not nested under the child's own key, e.g.:
      *
-     * @param mixed $raw       The raw value from the group copy array.
-     * @param mixed $other_raw The raw "{child_id}_other" value from the same copy, if any.
+     *   $_POST['group-5'][0]['choice']       = '__other__'
+     *   $_POST['group-5'][0]['choice_other'] = 'Something custom'
+     *
+     * extractFromRaw($raw) alone only ever sees the 'choice' slice — it has
+     * no way to reach the sibling 'choice_other' value. FormProcessor calls
+     * this method instead when both pieces need to be combined, passing the
+     * sibling in as $other_raw. Default ignores $other_raw and delegates to
+     * extractFromRaw(); override only in fields whose extractValue() also
+     * attaches a '__other_text__' key (mirror that shape here).
+     *
+     * @param mixed $raw       The raw value from the group copy array (same as extractFromRaw()).
+     * @param mixed $other_raw The raw "{child_id}_other" sibling value from the same copy, if any.
      *
      * @return mixed
      */

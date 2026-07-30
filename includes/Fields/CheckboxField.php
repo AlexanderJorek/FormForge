@@ -72,9 +72,7 @@ class CheckboxField extends BaseField
 .forge-checkbox-label input[type="checkbox"]:checked {
     border-color: var(--forge-accent);
     background-color: var(--forge-accent);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' \
-viewBox='0 0 12 10'%3E%3Cpolyline points='1,5 4.5,8.5 11,1' stroke='%23ffffff' \
-stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpolyline points='1,5 4.5,8.5 11,1' stroke='%23ffffff' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: center;
     background-size: 11px 9px;
@@ -130,7 +128,7 @@ CSS;
                 if (max > 0 && cnt > max) return (_i18n && _i18n.checkbox_max ? _i18n.checkbox_max.replace('%d', max) : 'Please select at most ' + max + ' option(s).');
                 return null;
             }
-            JS]];
+            JS], self::otherTextClientRule()];
     }
 
     /**
@@ -203,7 +201,8 @@ CSS;
             $show  = $other_chk ? '' : ' style="display:none"';
             $inner .= '<input type="text" name="' . esc_attr($field_id) . '_other"'
                 . ' class="forge-input forge-other-input" value="' . esc_attr($other_text) . '"'
-                . ' placeholder="' . esc_attr__('Please specify', 'form-forge') . '"' . $show . '>';
+                . ' placeholder="' . esc_attr__('Please specify', 'form-forge') . '"' . $show
+                . self::otherInputAttrs($config) . '>';
         }
         $inner .= '</div>';
 
@@ -219,17 +218,19 @@ CSS;
      */
     public function extractValue(string $field_id): mixed
     {
+        // Cap the number of submitted values BEFORE map_deep() walks them — a crafted
+        // array-valued POST otherwise costs unbounded O(n) sanitize calls (map_deep
+        // itself has no limit; slicing only after it ran would be too late).
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
-        $vals = isset($_POST[$field_id]) ? map_deep(wp_unslash($_POST[$field_id]), 'sanitize_text_field') : [];
-        // Cap the number of submitted values before further sanitizing/validating them —
-        // a crafted array-valued POST otherwise costs unbounded O(n) sanitize calls and
-        // O(n*m) validation work per submission with no limit of its own (max_selections
-        // only rejects afterward; PHP's max_input_vars ini setting isn't guaranteed).
-        $out  = is_array($vals) ? array_slice(array_values($vals), 0, 200) : [];
+        $vals = isset($_POST[$field_id])
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
+            ? map_deep(self::capRawArray(wp_unslash($_POST[$field_id]), 200), 'sanitize_text_field')
+            : [];
+        $out  = is_array($vals) ? array_values($vals) : [];
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
         if (in_array('__other__', $out, true) && isset($_POST[$field_id . '_other'])) {
             // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
-            $out['__other_text__'] = mb_substr(sanitize_text_field(wp_unslash($_POST[$field_id . '_other'])), 0, 500);
+            $out['__other_text__'] = self::capOtherText($_POST[$field_id . '_other']);
         }
         return $out;
     }
@@ -266,7 +267,7 @@ CSS;
     {
         $out = $this->extractFromRaw($raw);
         if (in_array('__other__', $out, true) && $other_raw !== null) {
-            $out['__other_text__'] = mb_substr(sanitize_text_field(wp_unslash($other_raw)), 0, 500);
+            $out['__other_text__'] = self::capOtherText($other_raw);
         }
         return $out;
     }
@@ -329,6 +330,11 @@ CSS;
                 if (empty($config['other_option'])) {
                     return __('Please select a valid option.', 'form-forge');
                 }
+                $other = is_array($value) ? trim((string)($value['__other_text__'] ?? '')) : '';
+                $check = self::validateOtherText($other, $config);
+                if ($check !== true) {
+                    return $check;
+                }
                 continue;
             }
             if (!in_array((string)$v, $allowed, true)) {
@@ -387,8 +393,10 @@ CSS;
         return array_merge(
             parent::getDefaultConfig(),
             [
-            'layout'         => true,
-            'other_option'   => false,
+            'layout'           => true,
+            'other_option'     => false,
+            'other_max_type'   => 'chars',
+            'other_max_length' => '',
             'min_selections' => '',
             'max_selections' => '',
             'options'        => [
@@ -421,9 +429,17 @@ CSS;
                 'label' => __('Description', 'form-forge'),
             ],
             [
-                'key'   => 'other_option',
-                'type'  => 'checkbox',
-                'label' => __('Show "Other" option', 'form-forge'),
+                'key'      => 'other_option',
+                'type'     => 'checkbox',
+                'label'    => __('Show "Other" option', 'form-forge'),
+                'rebuild'  => true,
+            ],
+            [
+                'key'         => 'other_max_type',
+                'type'        => 'limit_row',
+                'label'       => __('"Other" text limit', 'form-forge'),
+                'count_key'   => 'other_max_length',
+                'depends_on'  => ['other_option' => true],
             ],
             [
                 'key'   => 'options',

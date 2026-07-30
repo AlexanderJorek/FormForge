@@ -178,6 +178,15 @@ class Plugin
             wp_schedule_event(time() + HOUR_IN_SECONDS, 'hourly', 'forge_generator_sweep_tmp_dirs');
         }
 
+        /* Fallback sweep for expired forge_rl_* rate-limit rows — without this,
+           every distinct IP+form bucket that ever hits RateLimiter::increment()
+           leaves a permanent wp_options row (GDPR storage-limitation: the key
+           embeds a hash of the visitor's IP). */
+        add_action('forge_rl_sweep_expired', [Utils\RateLimiter::class, 'cronSweepExpired']);
+        if (!wp_next_scheduled('forge_rl_sweep_expired')) {
+            wp_schedule_event(time() + HOUR_IN_SECONDS, 'hourly', 'forge_rl_sweep_expired');
+        }
+
         /* Remove deleted forms from all FormSelect lists */
         add_action('before_delete_post', [Form\FormSelectModel::class, 'removeFormId'], 10, 1);
 

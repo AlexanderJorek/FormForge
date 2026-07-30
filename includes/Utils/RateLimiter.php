@@ -105,4 +105,30 @@ class RateLimiter
 
         return (int) $wpdb->get_var('SELECT LAST_INSERT_ID()');
     }
+
+    /**
+     * WP-Cron callback (hourly): deletes any forge_rl_* option row whose window
+     * has expired. Each distinct rate-limit bucket (IP+form combination) leaves
+     * a permanent wp_options row once written, since increment() only ever
+     * resets/increments a row in place and never deletes it — without this
+     * sweep, buckets accumulate forever.
+     *
+     * @return void
+     */
+    public static function cronSweepExpired(): void
+    {
+        global $wpdb;
+
+        $now = time();
+        $wpdb->query(
+            $wpdb->prepare(
+                "DELETE FROM {$wpdb->options}
+                 WHERE option_name LIKE %s
+                   AND CAST(SUBSTRING_INDEX(option_value, '|', -1) AS UNSIGNED) <= %d",
+                $wpdb->esc_like('forge_rl_') . '%',
+                $now
+            )
+        );
+        wp_cache_delete('alloptions', 'options');
+    }
 }

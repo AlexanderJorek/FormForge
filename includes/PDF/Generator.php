@@ -132,22 +132,32 @@ class Generator
             $safe_dir   = $upload_dir['basedir'] . '/forge-secure-pdf';
 
             if (!get_transient('forge_pdf_dirs_ready')) {
-                foreach (['', '/pdf', '/embed', '/mpdf'] as $sub) {
-                    $dir = $safe_dir . $sub;
-                    if (!is_dir($dir)) {
-                        wp_mkdir_p($dir);
-                        chmod($dir, 0750);
-                        file_put_contents($dir . '/index.php', '<?php // Silence is golden ?>');
-                        chmod($dir . '/index.php', 0640);
+                // A restrictive umask makes mkdir()/file_put_contents() create the
+                // dir/file at 0750/0640 from the moment they exist, instead of at
+                // the OS default (often 0755/0644) and only tightened by chmod()
+                // afterward — closing the brief window where a local unprivileged
+                // user could read submission PDFs before the chmod() call below runs.
+                $prev_umask = umask(0027);
+                try {
+                    foreach (['', '/pdf', '/embed', '/mpdf'] as $sub) {
+                        $dir = $safe_dir . $sub;
+                        if (!is_dir($dir)) {
+                            wp_mkdir_p($dir);
+                            chmod($dir, 0750);
+                            file_put_contents($dir . '/index.php', '<?php // Silence is golden ?>');
+                            chmod($dir . '/index.php', 0640);
+                        }
                     }
-                }
-                $htaccess = $safe_dir . '/.htaccess';
-                if (!file_exists($htaccess)) {
-                    file_put_contents(
-                        $htaccess,
-                        "Options -Indexes\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n"
-                    );
-                    chmod($htaccess, 0640);
+                    $htaccess = $safe_dir . '/.htaccess';
+                    if (!file_exists($htaccess)) {
+                        file_put_contents(
+                            $htaccess,
+                            "Options -Indexes\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n"
+                        );
+                        chmod($htaccess, 0640);
+                    }
+                } finally {
+                    umask($prev_umask);
                 }
                 set_transient('forge_pdf_dirs_ready', true, DAY_IN_SECONDS);
             }

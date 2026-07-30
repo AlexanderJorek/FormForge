@@ -537,7 +537,11 @@ CSS;
                     // translators: %s: rejected file extension.
                     return sprintf(__('File type ".%s" is not allowed for security reasons.', 'form-forge'), esc_html($ext));
                 }
-                if (!empty($allowed_exts) && !in_array($ext, $allowed_exts, true)) {
+                // Fail closed: an empty $allowed_exts means no type group (and no
+                // custom extension) is configured for this field, so nothing should
+                // be accepted — not "no restriction". Only skip the check for
+                // legacy/malformed configs is never correct here.
+                if (!in_array($ext, $allowed_exts, true)) {
                     // translators: %s: rejected file extension.
                     return sprintf(__('File type ".%s" is not permitted for this field.', 'form-forge'), esc_html($ext));
                 }

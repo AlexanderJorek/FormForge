@@ -173,7 +173,7 @@ CSS;
     public function extractValue(string $field_id): mixed
     {
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
-        $raw = isset($_POST[$field_id]) ? map_deep(wp_unslash($_POST[$field_id]), 'sanitize_text_field') : '';
+        $raw = isset($_POST[$field_id]) ? map_deep(self::capRawArray(wp_unslash($_POST[$field_id])), 'sanitize_text_field') : '';
         if (is_array($raw)) {
             return $raw;
         }

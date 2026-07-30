@@ -14,15 +14,25 @@
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * ════════════════════════════════════════════════════════════
- *  HOW TO ADD A NEW FIELD — read this file top to bottom
+ *  HOW TO ADD A NEW FIELD
  * ════════════════════════════════════════════════════════════
  *
  * This file is a teaching document — intentionally NOT registered in
  * FieldRegistry, so it has zero runtime effect.
  *
- * Every field extends BaseField (includes/Fields/BaseField.php), which
- * provides sensible defaults for every method. Field classes are fully
- * self-contained: no file outside includes/Fields/ branches on type slugs.
+ * First time? Read top to bottom once. After that, use the DECISION TREE
+ * below and jump straight to the section you need.
+ *
+ * QUICK START (5 min)
+ * ───────────────────
+ *   1. Copy this file, rename the class.
+ *   2. Implement getLabel(), getIcon(), render() — see MINIMUM VIABLE FIELD below.
+ *   3. Register it: FieldRegistry::registerDefaults() → add ['my-field' => MyField::class]
+ *   4. Done. Everything past MINIMUM VIABLE FIELD is optional reference material.
+ *
+ * Every field extends BaseField, which provides sensible defaults.
+ * Override only when your field needs different behavior. Field classes are
+ * fully self-contained: no file outside includes/Fields/ branches on type slugs.
  * If you find yourself writing if ($field['type'] === '...') elsewhere,
  * add a method to BaseField and override it in the field class instead.
  *
@@ -42,27 +52,28 @@
  *       }
  *   }
  *
- *   Then register it — one line, easy to forget:
+ *   ⚠ Don't forget to register it:
  *     FieldRegistry::registerDefaults() → add ['my-field' => MyField::class]
  *
- *   That's a complete, working field. Don't worry about what inputAttrs()
- *   and wrap() do internally yet — they generate the standard input
- *   attributes and the outer .forge-field wrapper (label, description,
- *   error placeholder). Every simple text-like field follows this exact
- *   pattern. BaseField already handles the required check, the default
- *   map() → string, and a plain-text PDF row — so the four methods above
- *   are all a simple field needs.
+ *   That's a complete, working field. Treat inputAttrs() and wrap() as black
+ *   boxes for now — they generate the standard input attributes and the
+ *   outer .forge-field wrapper (label, description, error placeholder).
+ *   Every simple text-like field follows this exact pattern. BaseField
+ *   already handles the required check, the default map() → string, and a
+ *   plain-text PDF row — so the four methods above are all a simple field needs.
  *
- *   Everything from here on is a reference for the optional pieces you
- *   reach for only when a field needs more than that: format validation,
- *   custom CSS/JS, non-text values, composite sub-inputs, or PDF images.
+ * ✓ STOP HERE if that's all your field needs.
+ *   Everything below is optional reference for the pieces you reach for only
+ *   when a field needs more: format validation, custom CSS/JS, non-text
+ *   values, composite sub-inputs, or PDF images. Jump to the section
+ *   matching your field.
  *
  * WHEN TO OVERRIDE — grouped by how often fields need it
  * ─────────────────────────────────────────────────────
  * Every field (always)
  *   getLabel(), getIcon(), render()
  *
- * Common (most fields)
+ * Most fields (~80%)
  *   validate() + getClientValidation()   format rules
  *   map()                                composite or formatted value → string
  *   getStyles()                          field-specific CSS
@@ -71,14 +82,16 @@
  *   getDefaultConfig()                   config keys the field uses
  *   getGeneralSchema()                   General settings tab controls
  *
- * Occasional (specialized fields)
+ * Some fields (~15%)
  *   extractValue()                       non-standard $_POST / $_FILES shape
  *   extractFromRaw()                     same field can appear inside a group
+ *   extractFromRawWithOther()            group copy + a "{child_id}_other" sibling value
+ *                                         (Checkbox/Radio/Select "Other" free-text option)
  *   mapNormalized()                      file uploads or multiple output entries
  *   pdfData()                            image embed or raw HTML in PDF
  *   hasTextPreview() → true              include in PDF token-picker preview
  *
- * Rare (framework features)
+ * Rare (~5%, framework features)
  *   skipValidation() → true              purely presentational, no user input
  *   includeInEmailSummary() → false      exclude from {all_fields} email block
  *   includeValueInSeal() → false         exclude value from HMAC integrity seal
@@ -96,8 +109,7 @@
  *   Reads $_FILES or a custom
  *     $_POST shape?                → extractValue() (+ extractFromRaw() for groups)
  *   Value is composite/array?      → map()
- *   Needs multiple output rows
- *     or materializes files?       → mapNormalized()
+ *   Multiple outputs or files?     → mapNormalized()
  *   Embeds an image / raw HTML
  *     in the PDF?                  → pdfData()
  *
@@ -116,13 +128,34 @@
  *                  needsMultipartEncoding()
  * TextareaField    extractValue(), extractFromRaw()
  * SignatureField   mapNormalized(), pdfData(), includeValueInSeal()
- * CheckboxField    extractValue(), extractFromRaw()
- * SepaField        extractValue(), mapNormalized()
+ * CheckboxField    extractValue(), extractFromRaw(), extractFromRawWithOther(),
+ *                  element-count capping (see NONCE / RESOURCE LIMITS note below)
+ * RadioField       extractValue() returning ['value' => ..., '__other_text__' => ...]
+ * SepaField        extractValue(), mapNormalized(), size cap on signature data URI
  * CaptchaField     enqueueFrontScripts(), validate()
  * GroupField       isGroupContainer(), openTag(), closeTag()
  * PageBreakField   isPageBreak(), renderBreak(), skipValidation(), includeInEmailSummary()
  * HtmlField        skipValidation(), includeInEmailSummary()
  * TextField        hasTextPreview()
+ *
+ * NONCE / RESOURCE-LIMIT CONVENTIONS — apply to every extractValue()/extractFromRaw() override
+ * ────────────────────────────────────────────────────────────────────────────────────────────
+ * Every direct $_POST/$_FILES read in extractValue()/extractFromRaw() needs:
+ *   // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified
+ *   // once in FormProcessor::handle() before field extraction runs.
+ * immediately above the line touching the superglobal — the nonce check already
+ * happened once upstream, this silences the (correct) per-line sniff warning.
+ *
+ * If your field accepts an array-valued POST field (checkboxes, repeatable groups),
+ * cap the element count with array_slice() BEFORE sanitizing/validating each entry —
+ * an unbounded array otherwise costs unbounded O(n) sanitize calls and O(n*m)
+ * validation work per submission (see CheckboxField::extractValue()). If your field
+ * accepts a data-URI/binary value (signature, upload), cap its byte length in
+ * validate() the same way regardless of whether the field is required (see
+ * SepaField::validate() / SignatureField::validate()).
+ *
+ * Every sprintf()/__() pairing that has a %s/%d placeholder needs a `// translators:`
+ * comment on the line directly above explaining what each placeholder is.
  */
 
 namespace ForgeForms\Fields;
@@ -137,8 +170,8 @@ class ExampleField extends BaseField
     // ═══════════════════════════════════════════════════════
     //  MANDATORY — getLabel() and getIcon() are trivial one-liners.
     //  render() is the only method every field must meaningfully
-    //  implement because every field has unique HTML. Most complete
-    //  field implementations are under 100 lines total.
+    //  implement because every field has unique HTML. Most fields are
+    //  under 100 lines.
     // ═══════════════════════════════════════════════════════
 
     /**
@@ -194,24 +227,25 @@ class ExampleField extends BaseField
         // required class/asterisk, and data-validate attribute automatically.
         // Almost every field should call wrap() — do not reproduce those pieces manually.
         return $this->wrap($field_id, $config, '<input' . $attrs . '>');
+    }
 
+    // ✓ Simple field complete — everything below in this file is optional reference.
 
-        // ── STOP HERE for simple fields. ────────────────────────────────────
-        // Everything below is only needed for composite fields that have
-        // multiple independent sub-inputs (like Address, Name, or SEPA).
-
-        // ── Composite field (multiple sub-inputs, each with its own required) ──
-        // Use this pattern when each sub-part can independently be required
-        // (like Address / Name in expanded mode).
-        //
-        // Rules:
-        //  • Put `required` HTML attr on each individual <input>/<select>
-        //  • Add a .forge-field-error.forge-sub-error div after each input
-        //    (front.js will write the error message there)
-        //  • Add $req_star so the label shows a red *
-        //  • Pass $wrapper_config with required=false to wrap() so the
-        //    global * on the field label is suppressed
-        /*
+    /**
+     * EXAMPLE (unused) — composite field with multiple independent sub-inputs,
+     * each with its own required flag (like Address / Name in expanded mode).
+     * Body of render() would return this instead of the single <input> above.
+     *
+     * Rules:
+     *  • Put `required` HTML attr on each individual <input>/<select>
+     *  • Add a .forge-field-error.forge-sub-error div after each input
+     *    (front.js will write the error message there)
+     *  • Add $req_star so the label shows a red *
+     *  • Pass $wrapper_config with required=false to wrap() so the
+     *    global * on the field label is suppressed
+     */
+    private function exampleRenderComposite(array $config, string $field_id): string
+    {
         $inner = '<div class="forge-example-group">';
         foreach (['part_a', 'part_b'] as $k) {
             $label = esc_html($config[$k . '_label'] ?? $k);
@@ -233,7 +267,6 @@ class ExampleField extends BaseField
         $wrapper_config             = $config;
         $wrapper_config['required'] = false;
         return $this->wrap($field_id, $wrapper_config, $inner);
-        */
     }
 
 
@@ -258,9 +291,14 @@ class ExampleField extends BaseField
     public function getStyles(): string
     {
         return ''; // no custom CSS needed for this field
+    }
 
-        // Override example — custom wrapper with responsive behaviour:
-        /*
+    /**
+     * EXAMPLE (unused) — custom wrapper with responsive behaviour.
+     * getStyles() would return this instead of ''.
+     */
+    private function exampleStylesComposite(): string
+    {
         return <<<'CSS'
         .forge-example-group {
             display: flex;
@@ -274,7 +312,6 @@ class ExampleField extends BaseField
             .forge-example-group { flex-direction: column; }
         }
         CSS;
-        */
     }
 
 
@@ -307,18 +344,25 @@ class ExampleField extends BaseField
     //      • parallel arrays  → a gallery field: files[] + desc[] as separate keys
     //      • sanitize_textarea_field instead of sanitize_text_field → TextareaField
     //
-    //  Override example — parallel file + caption arrays:
-    //
-    //      public function extractValue(string $field_id): mixed
-    //      {
-    //          return [
-    //              'files' => $_FILES[$field_id]          ?? [],
-    //              'desc'  => $_POST[$field_id . '_desc'] ?? [],
-    //          ];
-    //      }
+    //  See "NONCE / RESOURCE-LIMIT CONVENTIONS" at the top of this file for the
+    //  phpcs:ignore comment and array element-count capping this method needs.
     //
     //  If you override extractValue(), check whether your field can appear inside a
     //  group and override extractFromRaw() as well so group copies sanitize correctly.
+
+    /**
+     * EXAMPLE (unused) — parallel file + caption arrays. Would replace the
+     * inherited BaseField::extractValue() as a real override.
+     */
+    private function exampleExtractParallelArrays(string $field_id): mixed
+    {
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is
+        // verified once in FormProcessor::handle() before field extraction runs.
+        return [
+            'files' => $_FILES[$field_id]          ?? [],
+            'desc'  => $_POST[$field_id . '_desc'] ?? [],
+        ];
+    }
 
     // ═══════════════════════════════════════════════════════
     //  VALIDATE — server-side validation, runs after form submission
@@ -357,6 +401,16 @@ class ExampleField extends BaseField
             return __('Please enter a five-digit number.', 'form-forge');
         }
         return true;
+    }
+
+    /**
+     * EXAMPLE (unused) — an error message with a %s/%d placeholder always
+     * needs a translators comment directly above the sprintf()/__() pairing.
+     */
+    private function exampleValidateRequiredMessage(string $label): string
+    {
+        // translators: %s: field label.
+        return sprintf(__('%s is a required field.', 'form-forge'), esc_html($label));
     }
 
 
@@ -466,9 +520,14 @@ class ExampleField extends BaseField
     public function getClientInit(): string
     {
         return ''; // no client-side interaction needed
+    }
 
-        // Override example — attach a click handler to every widget instance:
-        /*
+    /**
+     * EXAMPLE (unused) — attach a click handler to every widget instance.
+     * getClientInit() would return this instead of ''.
+     */
+    private function exampleClientInitClickHandler(): string
+    {
         return <<<'JS'
         function (root) {
             root.querySelectorAll('.forge-example-widget').forEach(function (widget) {
@@ -478,7 +537,6 @@ class ExampleField extends BaseField
             });
         }
         JS;
-        */
     }
 
 
@@ -508,9 +566,15 @@ class ExampleField extends BaseField
     public function getClientEmptyCheck(): array
     {
         return []; // generic fallback: first visible input non-empty
+    }
 
-        // Override example — field is empty when no checkbox is checked:
-        // return ['fn' => "function(f){ return !f.querySelector('input[type=\"checkbox\"]:checked'); }"];
+    /**
+     * EXAMPLE (unused) — field is empty when no checkbox is checked.
+     * getClientEmptyCheck() would return this instead of [].
+     */
+    private function exampleClientEmptyCheckCheckboxGroup(): array
+    {
+        return ['fn' => "function(f){ return !f.querySelector('input[type=\"checkbox\"]:checked'); }"];
     }
 
     /**
@@ -521,9 +585,18 @@ class ExampleField extends BaseField
     public function getClientValidation(): array
     {
         return []; // no format validation needed
+    }
 
-        // Override example — five-digit number:
-        /*
+    /**
+     * EXAMPLE (unused) — five-digit number format check. getClientValidation()
+     * would return this instead of [].
+     *
+     * Rule keys must be globally unique — prefix with the field type if unsure.
+     * The function receives the outer .forge-field wrapper element, not the input.
+     * Return null = valid, return string = error message shown below the field.
+     */
+    private function exampleClientValidationZip(): array
+    {
         return [['rule' => 'example-zip', 'fn' => <<<'JS'
             function (fieldEl) {
                 var inp = fieldEl.querySelector('input');
@@ -532,10 +605,6 @@ class ExampleField extends BaseField
                     ? null : 'Please enter a five-digit number.';
             }
             JS]];
-        */
-        // Rule keys must be globally unique — prefix with the field type if unsure.
-        // The function receives the outer .forge-field wrapper element, not the input.
-        // Return null = valid, return string = error message shown below the field.
     }
 
 
@@ -571,26 +640,27 @@ class ExampleField extends BaseField
     //  ->build()
     //    Returns the array Generator consumes. Always call last.
 
-    // Example — a field that also renders a QR code image of its value:
-    /*
-    public function pdfData(array $field): array
+    /**
+     * EXAMPLE (unused) — a field that also renders a QR code image of its value.
+     * Would replace the inherited BaseField::pdfData() as a real override.
+     */
+    private function examplePdfDataQrCode(array $field): array
     {
         $binary = $this->generateQrPng((string)($field['value'] ?? ''));
         return $this->pdf($field)
             ->attachImage($binary, 'qr.png')
             ->build();
     }
-    */
 
-    // Example — a field whose value is raw HTML (like HtmlField):
-    /*
-    public function pdfData(array $field): array
+    /**
+     * EXAMPLE (unused) — a field whose value is raw HTML (like HtmlField).
+     */
+    private function examplePdfDataRawHtml(array $field): array
     {
         return $this->pdf($field)
             ->rawHtml((string)($field['value'] ?? ''))
             ->build();
     }
-    */
 
 
     // ═══════════════════════════════════════════════════════
@@ -601,7 +671,11 @@ class ExampleField extends BaseField
     //  Assets::enqueueFront() collects these into window.ForgeSkipValidation. Default (BaseField): false. Almost every field should leave this alone.
     //  FormProcessor also checks skipValidation() — returning true skips both server-side validation and value extraction for the field.
 
-    // public function skipValidation(): bool { return true; }
+    /** EXAMPLE (unused) — would replace the inherited BaseField::skipValidation(). */
+    private function exampleSkipValidation(): bool
+    {
+        return true;
+    }
 
 
     // ═══════════════════════════════════════════════════════
@@ -614,8 +688,6 @@ class ExampleField extends BaseField
     //    MailSender checks this before building each row. HtmlField and
     //    PageBreakField return false.
     //
-    //      public function includeInEmailSummary(): bool { return false; }
-    //
     //  includeValueInSeal(): bool
     //    Default: true. Return false when the field value is a data URI,
     //    binary blob, or otherwise non-text content that must be excluded
@@ -623,15 +695,29 @@ class ExampleField extends BaseField
     //    sets the value to '' for any field returning false. SignatureField
     //    returns false (the image binary is sealed separately via its hash).
     //
-    //      public function includeValueInSeal(): bool { return false; }
-    //
     //  hasTextPreview(): bool
     //    Default: false. Return true when the field produces a short plain-text
     //    string that is meaningful as a sample in the PDF layout token-picker
     //    preview. PDFLayoutEditor filters dummyFields() using this flag.
     //    Only TextField, EmailField, and TextareaField return true.
-    //
-    //      public function hasTextPreview(): bool { return true; }
+
+    /** EXAMPLE (unused) — would replace the inherited BaseField::includeInEmailSummary(). */
+    private function exampleIncludeInEmailSummary(): bool
+    {
+        return false;
+    }
+
+    /** EXAMPLE (unused) — would replace the inherited BaseField::includeValueInSeal(). */
+    private function exampleIncludeValueInSeal(): bool
+    {
+        return false;
+    }
+
+    /** EXAMPLE (unused) — would replace the inherited BaseField::hasTextPreview(). */
+    private function exampleHasTextPreview(): bool
+    {
+        return true;
+    }
 
 
     // ═══════════════════════════════════════════════════════
@@ -646,17 +732,10 @@ class ExampleField extends BaseField
     //    fields and adds enctype="multipart/form-data" to the <form> tag when any
     //    returns true. Default: false. Only UploadField returns true.
     //
-    //      public function needsMultipartEncoding(): bool { return true; }
-    //
     //  enqueueFrontScripts(): void
     //    Called once per unique field type present in a form before rendering.
     //    Call wp_enqueue_script() here for any third-party library your field
     //    requires (e.g. Google reCAPTCHA). Default: no-op. Only CaptchaField overrides this.
-    //
-    //      public function enqueueFrontScripts(): void
-    //      {
-    //          wp_enqueue_script('my-lib', 'https://example.com/lib.js', [], null, true);
-    //      }
     //
     //  isPageBreak(): bool
     //    FormRenderer calls renderBreak(array $config, int $page): string on the field
@@ -669,6 +748,18 @@ class ExampleField extends BaseField
     //    $config['children'] to render child fields inline. You must also implement
     //    openTag() and closeTag() when returning true. Default: false.
     //    Only GroupField returns true.
+
+    /** EXAMPLE (unused) — would replace the inherited BaseField::needsMultipartEncoding(). */
+    private function exampleNeedsMultipartEncoding(): bool
+    {
+        return true;
+    }
+
+    /** EXAMPLE (unused) — would replace the inherited BaseField::enqueueFrontScripts(). */
+    private function exampleEnqueueFrontScripts(): void
+    {
+        wp_enqueue_script('my-lib', 'https://example.com/lib.js', [], null, true);
+    }
 
 
     // ═══════════════════════════════════════════════════════

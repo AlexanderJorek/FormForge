@@ -1704,6 +1704,14 @@ msgstr "CAPTCHA"
 msgid "reCAPTCHA: Please enter the site key in the plugin settings."
 msgstr "reCAPTCHA: Bitte Site-Key in den Plugin-Einstellungen hinterlegen."
 
+#: includes/Fields/CaptchaField.php:89
+msgid "Load CAPTCHA"
+msgstr "CAPTCHA laden"
+
+#: includes/Fields/CaptchaField.php:92
+msgid "This loads a script from Google (reCAPTCHA) once activated."
+msgstr "Dies lädt nach Aktivierung ein Skript von Google (reCAPTCHA)."
+
 #: includes/Fields/CaptchaField.php:110
 #: includes/Fields/CaptchaField.php:127
 msgid "Please confirm the CAPTCHA."
@@ -1832,6 +1840,10 @@ msgstr "Ich stimme den Bedingungen zu."
 #: includes/Fields/ConsentField.php:178
 msgid "Consent text"
 msgstr "Zustimmungstext"
+
+#: includes/Fields/ConsentField.php:198
+msgid "Be specific about what the visitor is agreeing to (e.g. name the processing purpose) — a generic phrase like \"I agree to the terms\" is not valid, informed consent under GDPR."
+msgstr "Formulieren Sie konkret, wozu der Besucher zustimmt (z. B. den Verarbeitungszweck nennen) — eine allgemeine Formulierung wie „Ich stimme den Bedingungen zu“ stellt keine gültige, informierte Einwilligung im Sinne der DSGVO dar."
 
 #: includes/Fields/CurrencyField.php:44
 #: includes/Fields/CurrencyField.php:242
@@ -2249,6 +2261,10 @@ msgstr "Gläubiger-Identifikationsnummer:"
 #: includes/Fields/SepaField.php:529
 msgid "Mandate reference:"
 msgstr "Mandatsreferenz:"
+
+#: includes/Fields/SepaField.php:504
+msgid "Your IBAN is sent to a third-party service (openiban.com) to look up the BIC."
+msgstr "Ihre IBAN wird zur Ermittlung der BIC an einen externen Dienst (openiban.com) übermittelt."
 
 #: includes/Fields/SepaField.php:566
 #: includes/Fields/SignatureField.php:263
@@ -3122,6 +3138,10 @@ msgstr "Mindestens ein Sonderzeichen erforderlich."
 #: includes/Fields/GdprField.php:137
 msgid "I have read and acknowledge the <a href=\"%1$s\" target=\"_blank\" rel=\"noopener\">%2$s</a>."
 msgstr "Ich habe die <a href=\"%1$s\" target=\"_blank\" rel=\"noopener\">%2$s</a> gelesen und zur Kenntnis genommen."
+
+#: includes/Fields/GdprField.php:154
+msgid "I have read and acknowledge the %s."
+msgstr "Ich habe die %s gelesen und zur Kenntnis genommen."
 
 #: includes/Fields/GdprField.php:164
 msgid "Please read and acknowledge the privacy policy."

@@ -952,6 +952,16 @@ class PDFLayoutEditor
     var hbProps  = document.getElementById('forge-hb-props');
 
     function hbEsc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    /* Strips <script>, on*="" handlers and javascript:/vbscript: URIs before the
+       live (unsaved) header-builder preview assigns element html into innerHTML.
+       sanitizeHeaderLayout() is the server-side authority on save; this is just
+       defense-in-depth for the in-browser preview of not-yet-saved content. */
+    function hbSanitizePreviewHtml(html){
+        html = String(html||'').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+        html = html.replace(/[\s\/]+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+        html = html.replace(/\b(href|src)\s*=\s*(["'])\s*(?:javascript|vbscript)\s*:[^"']*\2/gi, '$1=$2#$2');
+        return html;
+    }
     function hbGetEl(id){ return hbLayout.elements.find(function(e){ return e.id===id; }); }
 
     function hbOpen(){
@@ -1014,7 +1024,7 @@ class PDFLayoutEditor
                 +'<span style="width:100%;font-size:'+(el.size||18)+'pt;color:'+hbEsc(el.color||'#1d2327')+';text-align:'+hbEsc(el.align||'left')+';">'
                 +tcnt+'</span></div>';
         } else if(el.type==='html'){
-            inner.innerHTML = el.html || '<span style="color:#aaa;font-size:10px;padding:4px">[HTML]</span>';
+            inner.innerHTML = el.html ? hbSanitizePreviewHtml(el.html) : '<span style="color:#aaa;font-size:10px;padding:4px">[HTML]</span>';
         } else {
             inner.innerHTML = '<span style="color:#aaa;font-size:10px;padding:4px">['+el.type+']</span>';
         }

@@ -237,9 +237,18 @@ class HashSeal
      *
      * @return void
      */
+    /**
+     * How long a rotated/new plaintext key may sit waiting for the admin to
+     * open the download page before it expires. Stored as a transient (not a
+     * plain option) specifically so it self-expires even if the admin never
+     * visits the download page — a plain wp_options row would otherwise keep
+     * the plaintext key indefinitely.
+     */
+    private const PENDING_DOWNLOAD_TTL = HOUR_IN_SECONDS;
+
     private static function setPendingDownload(string $uuid, string $plaintext_key): void
     {
-        update_option(
+        set_transient(
             'forge_forms_seal_key_pending_download',
             wp_json_encode(
                 [
@@ -248,7 +257,7 @@ class HashSeal
                 'created_at' => gmdate('Y-m-d H:i:s') . ' UTC',
                 ]
             ),
-            false
+            self::PENDING_DOWNLOAD_TTL
         );
     }
 
@@ -325,6 +334,14 @@ class HashSeal
      */
     public static function rotateKey(string $password, bool $compromised): array
     {
+        // Defense-in-depth: this class has no other guard of its own against
+        // being invoked from an unguarded path — don't rely solely on the
+        // caller (currently the admin key-rotation page) to gate access to
+        // seal-key rotation.
+        if (!current_user_can('manage_options')) {
+            throw new \RuntimeException('Insufficient permissions to rotate the seal key.');
+        }
+
         $errors = self::validatePassword($password);
         if (!empty($errors)) {
             // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- this is an exception message, not an HTML-output sink; esc_html() here would double-escape when the caller later echoes the caught message through its own esc_html() at render time. $errors is also entirely composed of this class's own __() strings (see validatePassword()), never user input.
@@ -374,11 +391,11 @@ class HashSeal
      */
     public static function claimPendingDownload(): ?array
     {
-        $raw = get_option('forge_forms_seal_key_pending_download');
+        $raw = get_transient('forge_forms_seal_key_pending_download');
         if (!$raw) {
             return null;
         }
-        delete_option('forge_forms_seal_key_pending_download');
+        delete_transient('forge_forms_seal_key_pending_download');
         $record = json_decode((string) $raw, true);
         if (is_array($record) && isset($record['uuid'], $record['key'])) {
             return $record;

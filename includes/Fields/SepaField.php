@@ -138,6 +138,7 @@ class SepaField extends BaseField
 .forge-sepa-title { font-size: 16px; font-weight: 700; margin: 0 0 14px; color: var(--forge-text); }
 .forge-sepa-text { font-size: 14px; line-height: 1.65; color: var(--forge-text); margin-bottom: 10px; }
 .forge-sepa-note { font-size: 12px; color: var(--forge-text-muted); margin-bottom: 20px; line-height: 1.55; }
+.forge-sepa-lookup-notice { font-size: 11px; color: var(--forge-text-muted); margin: 4px 0 0; line-height: 1.4; }
 .forge-sepa-creditor {
     background: var(--forge-bg-subtle);
     border: 1px solid var(--forge-border);
@@ -494,6 +495,17 @@ CSS;
             . $filter_attr
             . ' value="' . $iban_val . '">';
         $html .= '<div class="forge-field-hint"></div>';
+        if ($live_lookup) {
+            // GDPR Art. 13 transparency: live_iban_lookup sends the IBAN to the
+            // third-party openiban.com service as soon as it's fully typed, before
+            // submission — disclose this to the visitor, not just the admin
+            // configuring the field.
+            $html .= '<p class="forge-sepa-lookup-notice">'
+                . esc_html__(
+                    'Your IBAN is sent to a third-party service (openiban.com) to look up the BIC.',
+                    'form-forge'
+                ) . '</p>';
+        }
         $html .= '<div class="forge-field-error" id="' . esc_attr($field_id) . '-iban-error" role="alert"></div>';
         $html .= '</div>';
 
@@ -601,7 +613,10 @@ CSS;
     public function extractValue(string $field_id): mixed
     {
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
-        $raw = isset($_POST[$field_id]) ? map_deep(wp_unslash($_POST[$field_id]), 'sanitize_text_field') : [];
+        $raw = isset($_POST[$field_id])
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
+            ? map_deep(self::capRawArray(wp_unslash($_POST[$field_id])), 'sanitize_text_field')
+            : [];
         if (!is_array($raw)) {
             return null;
         }

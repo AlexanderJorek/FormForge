@@ -422,18 +422,8 @@ class FormEditor
 /* ── Skip-required toggle ── */
 var cb = document.getElementById("fpt-skip-required");
 if (cb) {
-    var origSkip = (window.ForgeSkipValidation || []).slice();
     cb.addEventListener("change", function () {
-        if (this.checked) {
-            var types = [];
-            document.querySelectorAll(".forge-field").forEach(function (f) {
-                var m = f.className.match(/forge-field--(\S+)/);
-                if (m && types.indexOf(m[1]) === -1) types.push(m[1]);
-            });
-            window.ForgeSkipValidation = types;
-        } else {
-            window.ForgeSkipValidation = origSkip;
-        }
+        window.ForgeIgnoreRequired = this.checked;
     });
 }
 
@@ -708,6 +698,15 @@ window.fetch = function (url, opts) {
             'script-open'   => '/<script\b[^>]*>/i',
             'script-close'  => '/<\/script\s*>/i',
             'script-tags'   => '/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/is',
+            // Active/embeddable content tags have no legitimate use in an email
+            // body and some webmail/desktop clients do render them, so strip
+            // the whole element rather than relying on attribute-level passes.
+            'iframe-tags'   => '/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>|<iframe\b[^>]*\/?>/is',
+            'object-tags'   => '/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/is',
+            'embed-tags'    => '/<embed\b[^>]*\/?>/i',
+            // Meta refresh is a classic open-redirect/auto-navigate vector in
+            // rendered HTML mail and has no legitimate use in a notification body.
+            'meta-refresh'  => '/<meta\b[^>]*http-equiv\s*=\s*["\']?\s*refresh[^>]*>/i',
             // HTML5 allows "/" as an attribute boundary (e.g. <img/onerror=...>),
             // not just whitespace — match both so this can't be sidestepped.
             'event-handlers' =>
@@ -730,6 +729,10 @@ window.fetch = function (url, opts) {
             'script-open'       => '',
             'script-close'      => '',
             'script-tags'       => '',
+            'iframe-tags'       => '',
+            'object-tags'       => '',
+            'embed-tags'        => '',
+            'meta-refresh'      => '',
             'event-handlers'    => '',
             'js-uris-unquoted'  => '$1=""',
             'css-js-uris'       => '$1$2$2',

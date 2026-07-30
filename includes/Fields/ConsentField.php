@@ -62,9 +62,7 @@ class ConsentField extends BaseField
 .forge-consent-label input[type="checkbox"]:checked {
     border-color: var(--forge-accent);
     background: var(--forge-accent);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' \
-viewBox='0 0 12 10'%3E%3Cpolyline points='1,5 4.5,8.5 11,1' stroke='%23ffffff' \
-stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpolyline points='1,5 4.5,8.5 11,1' stroke='%23ffffff' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: center;
     background-size: 11px 9px;
@@ -187,9 +185,17 @@ CSS;
     {
         return [
             [
-                'key'   => 'consent_text',
-                'type'  => 'textarea',
-                'label' => __('Consent text', 'form-forge'),
+                'key'         => 'consent_text',
+                'type'        => 'textarea',
+                'label'       => __('Consent text', 'form-forge'),
+                // GDPR Art. 7(1)/Art. 4(11): valid consent must be specific and
+                // informed. A generic placeholder left unedited by the site owner
+                // doesn't name what's being agreed to, so warn at config time
+                // rather than only flagging it in a security review.
+                'description' => __(
+                    'Be specific about what the visitor is agreeing to (e.g. name the processing purpose) — a generic phrase like "I agree to the terms" is not valid, informed consent under GDPR.',
+                    'form-forge'
+                ),
             ],
         ];
     }

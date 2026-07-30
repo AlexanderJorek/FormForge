@@ -674,6 +674,26 @@ class FieldTestPage
         self::run('validate optional empty', fn() => self::expectOk('', $cfg, $h));
         // SelectField has no server-side option-list validation — any value passes
         self::run('validate any value passes', fn() => self::expectOk('a', $cfg, $h));
+        self::run('render other_max_length chars → maxlength attr', function () use ($h, $cfg) {
+            $c = array_merge($cfg, ['other_option'=>true,'other_max_type'=>'chars','other_max_length'=>'20']);
+            return self::contains($h->render($c, 'f1'), 'maxlength="20"');
+        });
+        self::run('render other_max_length words → data-word-limit attr', function () use ($h, $cfg) {
+            $c = array_merge($cfg, ['other_option'=>true,'other_max_type'=>'words','other_max_length'=>'5']);
+            return self::contains($h->render($c, 'f1'), 'data-word-limit="5"');
+        });
+        self::run('validate __other__ text within char limit → ok', function () use ($h, $cfg) {
+            $c = array_merge($cfg, ['other_option'=>true,'other_max_type'=>'chars','other_max_length'=>'20']);
+            return self::expectOk(['value'=>'__other__','__other_text__'=>'short text'], $c, $h);
+        });
+        self::run('validate __other__ text exceeding char limit → error', function () use ($h, $cfg) {
+            $c = array_merge($cfg, ['other_option'=>true,'other_max_type'=>'chars','other_max_length'=>'5']);
+            return self::expectError(['value'=>'__other__','__other_text__'=>'this is way too long'], $c, $h);
+        });
+        self::run('validate __other__ text exceeding word limit → error', function () use ($h, $cfg) {
+            $c = array_merge($cfg, ['other_option'=>true,'other_max_type'=>'words','other_max_length'=>'2']);
+            return self::expectError(['value'=>'__other__','__other_text__'=>'one two three'], $c, $h);
+        });
         self::run('map known value → label', fn() => self::expectMap('a', $cfg, $h, 'Alpha'));
         self::run('map __other__ → [Other]', fn() => self::expectMapContains('__other__', $cfg, $h, __('[Other]', 'form-forge')));
         self::run('map unknown value → raw', fn() => self::expectMap('unknown', $cfg, $h, 'unknown'));
@@ -716,6 +736,30 @@ class FieldTestPage
         self::run('validate required empty', fn() => self::expectError('', array_merge($cfg, ['required'=>true]), $h));
         // RadioField has no server-side option-list validation — any value passes
         self::run('validate any value passes', fn() => self::expectOk('x', $cfg, $h));
+        self::run('render other_max_length chars → maxlength attr', function () use ($h, $cfg) {
+            $c = array_merge($cfg, ['other_option'=>true,'other_max_type'=>'chars','other_max_length'=>'20']);
+            return self::contains($h->render($c, 'f1'), 'maxlength="20"');
+        });
+        self::run('render other_max_length words → data-word-limit attr', function () use ($h, $cfg) {
+            $c = array_merge($cfg, ['other_option'=>true,'other_max_type'=>'words','other_max_length'=>'5']);
+            return self::contains($h->render($c, 'f1'), 'data-word-limit="5"');
+        });
+        self::run('validate __other__ text within char limit → ok', function () use ($h, $cfg) {
+            $c = array_merge($cfg, ['other_option'=>true,'other_max_type'=>'chars','other_max_length'=>'20']);
+            return self::expectOk(['value'=>'__other__','__other_text__'=>'short text'], $c, $h);
+        });
+        self::run('validate __other__ text exceeding char limit → error', function () use ($h, $cfg) {
+            $c = array_merge($cfg, ['other_option'=>true,'other_max_type'=>'chars','other_max_length'=>'5']);
+            return self::expectError(['value'=>'__other__','__other_text__'=>'this is way too long'], $c, $h);
+        });
+        self::run('validate __other__ text exceeding word limit → error', function () use ($h, $cfg) {
+            $c = array_merge($cfg, ['other_option'=>true,'other_max_type'=>'words','other_max_length'=>'2']);
+            return self::expectError(['value'=>'__other__','__other_text__'=>'one two three'], $c, $h);
+        });
+        self::run('getClientValidation includes other-text-word-limit rule', function () use ($h) {
+            $rules = array_column($h->getClientValidation(), 'rule');
+            return in_array('other-text-word-limit', $rules, true) ? true : 'rule missing: '.implode(',', $rules);
+        });
         self::run('map known value → label', fn() => self::expectMap('x', $cfg, $h, 'X-Ray'));
         self::run('map unknown value → raw', fn() => self::expectMap('unknown', $cfg, $h, 'unknown'));
         self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
@@ -760,6 +804,30 @@ class FieldTestPage
         self::run('map known values has Zwei', fn() => self::expectMapContains(['one','two'], $cfg, $h, 'Zwei'));
         self::run('map __other__ → [Other]', fn() => self::expectMapContains(['__other__'], $cfg, $h, __('[Other]', 'form-forge')));
         self::run('map empty → Kein Eintrag', fn() => self::expectMapContains([], $cfg, $h, __('[No entry]', 'form-forge')));
+        self::run('render other_max_length chars → maxlength attr', function () use ($h, $cfg) {
+            $c = array_merge($cfg, ['other_option'=>true,'other_max_type'=>'chars','other_max_length'=>'20']);
+            return self::contains($h->render($c, 'f1'), 'maxlength="20"');
+        });
+        self::run('render other_max_length words → data-word-limit attr', function () use ($h, $cfg) {
+            $c = array_merge($cfg, ['other_option'=>true,'other_max_type'=>'words','other_max_length'=>'5']);
+            return self::contains($h->render($c, 'f1'), 'data-word-limit="5"');
+        });
+        self::run('validate __other__ text within char limit → ok', function () use ($h, $cfg) {
+            $c = array_merge($cfg, ['other_option'=>true,'other_max_type'=>'chars','other_max_length'=>'20']);
+            return self::expectOk(['__other__','__other_text__'=>'short text'], $c, $h);
+        });
+        self::run('validate __other__ text exceeding char limit → error', function () use ($h, $cfg) {
+            $c = array_merge($cfg, ['other_option'=>true,'other_max_type'=>'chars','other_max_length'=>'5']);
+            return self::expectError(['__other__','__other_text__'=>'this is way too long'], $c, $h);
+        });
+        self::run('validate __other__ text exceeding word limit → error', function () use ($h, $cfg) {
+            $c = array_merge($cfg, ['other_option'=>true,'other_max_type'=>'words','other_max_length'=>'2']);
+            return self::expectError(['__other__','__other_text__'=>'one two three'], $c, $h);
+        });
+        self::run('getClientValidation includes other-text-word-limit rule', function () use ($h) {
+            $rules = array_column($h->getClientValidation(), 'rule');
+            return in_array('other-text-word-limit', $rules, true) ? true : 'rule missing: '.implode(',', $rules);
+        });
     }
 
     private static function testUpload(): void
@@ -954,9 +1022,12 @@ class FieldTestPage
         self::run('validate required empty', fn() => self::expectError('', array_merge($cfg, ['required'=>true]), $h));
         self::run('validate required checked', fn() => self::expectOk('1', array_merge($cfg, ['required'=>true]), $h));
         self::run('validate optional empty', fn() => self::expectOk('', $cfg, $h));
-        self::run('map checked → Yes', fn() => self::expectMap('1', $cfg, $h, __('Yes', 'form-forge')));
-        self::run('map unchecked → No', fn() => self::expectMap('', $cfg, $h, __('No', 'form-forge')));
-        self::run('map 0 → No', fn() => self::expectMap('0', $cfg, $h, __('No', 'form-forge')));
+        self::run('map checked → includes consent text', fn() => self::expectMapContains('1', $cfg, $h, 'Ich stimme zu'));
+        self::run('map checked → includes timestamp (demonstrable per Art. 7(1))', function () use ($h, $cfg) {
+            return self::expectMapContains('1', $cfg, $h, current_time('mysql'));
+        });
+        self::run('map unchecked → Not agreed', fn() => self::expectMap('', $cfg, $h, __('Not agreed', 'form-forge')));
+        self::run('map 0 → Not agreed', fn() => self::expectMap('0', $cfg, $h, __('Not agreed', 'form-forge')));
         self::run('sanitize keeps <a> in text', function () use ($h) {
             $out = $h->sanitizeConfigValue('consent_text', '<a href="https://x.com">Link</a>');
             return str_contains($out, '<a') ? true : 'link stripped: '.$out;
@@ -994,8 +1065,11 @@ class FieldTestPage
         // GDPR always errors when unchecked, regardless of required config flag
         self::run('validate unchecked required=true → error', fn() => self::expectError('', array_merge($cfg, ['required'=>true]), $h));
         self::run('validate unchecked required=false → error', fn() => self::expectError('', array_merge($cfg, ['required'=>false]), $h));
-        self::run('map checked → Privacy accepted', fn() => self::expectMapContains('1', $cfg, $h, __('Privacy accepted', 'form-forge')));
-        self::run('map unchecked → Privacy not accepted', fn() => self::expectMapContains('', $cfg, $h, __('Privacy not accepted', 'form-forge')));
+        self::run('map checked → includes policy text', fn() => self::expectMapContains('1', $cfg, $h, 'Datenschutz'));
+        self::run('map checked → includes timestamp (demonstrable per Art. 7(1))', function () use ($h, $cfg) {
+            return self::expectMapContains('1', $cfg, $h, current_time('mysql'));
+        });
+        self::run('map unchecked → Privacy notice not acknowledged', fn() => self::expectMap('', $cfg, $h, __('Privacy notice not acknowledged', 'form-forge')));
     }
 
     private static function testHtml(): void

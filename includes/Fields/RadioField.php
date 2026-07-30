@@ -188,13 +188,14 @@ CSS;
                 . ' value="__other__" autocomplete="off"' . $other_chk . $req . '> '
                 . esc_html__('Other…', 'form-forge') . '</label>';
         }
-        $inner .= '</div>';
         if (!empty($config['other_option'])) {
             $show = (string)($value ?? '') === '__other__' ? '' : ' style="display:none"';
             $inner .= '<input type="text" name="' . esc_attr($field_id) . '_other"'
                 . ' class="forge-input forge-other-input" value="' . esc_attr($other_text) . '"'
-                . ' placeholder="' . esc_attr__('Please specify', 'form-forge') . '"' . $show . '>';
+                . ' placeholder="' . esc_attr__('Please specify', 'form-forge') . '"' . $show
+                . self::otherInputAttrs($config) . '>';
         }
+        $inner .= '</div>';
 
         return $this->wrap($field_id, $config, $inner);
     }
@@ -216,7 +217,7 @@ CSS;
             return [
                 'value'          => $selected,
                 // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
-                '__other_text__' => mb_substr(sanitize_text_field(wp_unslash($_POST[$field_id . '_other'])), 0, 500),
+                '__other_text__' => self::capOtherText($_POST[$field_id . '_other']),
             ];
         }
         return $selected;
@@ -252,7 +253,7 @@ CSS;
                 // translators: %s: field label.
                 return sprintf(__('%s is a required field.', 'form-forge'), esc_html($label));
             }
-            return true;
+            return self::validateOtherText($other, $config);
         }
         $allowed = array_map(
             static fn($o) => (string)(is_array($o) ? ($o['value'] ?? '') : $o),
@@ -279,7 +280,7 @@ CSS;
         if ($selected === '__other__' && $other_raw !== null) {
             return [
                 'value'          => $selected,
-                '__other_text__' => sanitize_text_field(wp_unslash($other_raw)),
+                '__other_text__' => self::capOtherText($other_raw),
             ];
         }
         return $selected;
@@ -327,8 +328,10 @@ CSS;
         return array_merge(
             parent::getDefaultConfig(),
             [
-            'layout'       => true,
-            'other_option' => false,
+            'layout'          => true,
+            'other_option'    => false,
+            'other_max_type'  => 'chars',
+            'other_max_length' => '',
             'options'      => [
                 ['value' => 'option-1', 'label' => 'Option 1', 'default' => false],
                 ['value' => 'option-2', 'label' => 'Option 2', 'default' => false],
@@ -359,9 +362,17 @@ CSS;
                 'label' => __('Description', 'form-forge'),
             ],
             [
-                'key'   => 'other_option',
-                'type'  => 'checkbox',
-                'label' => __('Show "Other" option', 'form-forge'),
+                'key'      => 'other_option',
+                'type'     => 'checkbox',
+                'label'    => __('Show "Other" option', 'form-forge'),
+                'rebuild'  => true,
+            ],
+            [
+                'key'         => 'other_max_type',
+                'type'        => 'limit_row',
+                'label'       => __('"Other" text limit', 'form-forge'),
+                'count_key'   => 'other_max_length',
+                'depends_on'  => ['other_option' => true],
             ],
             [
                 'key'   => 'options',
@@ -369,5 +380,15 @@ CSS;
                 'label' => __('Options', 'form-forge'),
             ],
         ];
+    }
+
+    /**
+     * Returns client-side validation rules.
+     *
+     * @return array
+     */
+    public function getClientValidation(): array
+    {
+        return [self::otherTextClientRule()];
     }
 }

@@ -62,9 +62,7 @@ class GdprField extends BaseField
 .forge-gdpr-label input[type="checkbox"]:checked {
     border-color: var(--forge-accent);
     background: var(--forge-accent);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' \
-viewBox='0 0 12 10'%3E%3Cpolyline points='1,5 4.5,8.5 11,1' stroke='%23ffffff' \
-stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpolyline points='1,5 4.5,8.5 11,1' stroke='%23ffffff' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: center;
     background-size: 11px 9px;
@@ -127,17 +125,34 @@ CSS;
         $policy_url  = esc_url($config['privacy_policy_url'] ?? get_privacy_policy_url());
         $policy_text = esc_html($config['privacy_policy_text'] ?? __('Privacy policy', 'form-forge'));
 
-        $text = sprintf(
-            // translators: %1$s: privacy policy URL, %2$s: privacy policy link text.
-            // This is framed as an acknowledgment of having read the notice (lawful under
-            // GDPR Art. 13 without needing consent mechanics), not a freely-given "consent" —
-            // use ConsentField instead for cases that need genuine opt-in consent (e.g.
-            // marketing use), since that field already supports a non-forced, per-form
-            // required toggle.
-            __('I have read and acknowledge the <a href="%1$s" target="_blank" rel="noopener">%2$s</a>.', 'form-forge'),
-            $policy_url,
-            $policy_text
-        );
+        if ($policy_url !== '') {
+            $text = sprintf(
+                // translators: %1$s: privacy policy URL, %2$s: privacy policy link text.
+                // This is framed as an acknowledgment of having read the notice (lawful under
+                // GDPR Art. 13 without needing consent mechanics), not a freely-given "consent" —
+                // use ConsentField instead for cases that need genuine opt-in consent (e.g.
+                // marketing use), since that field already supports a non-forced, per-form
+                // required toggle.
+                __('I have read and acknowledge the <a href="%1$s" target="_blank" rel="noopener">%2$s</a>.', 'form-forge'),
+                $policy_url,
+                $policy_text
+            );
+        } else {
+            // No WP privacy page is configured and no per-field override was set —
+            // an href="" link would just reload the current page, silently
+            // rendering the checkbox non-functional. Fall back to plain text and
+            // surface the misconfiguration to admins in the log rather than
+            // shipping a broken link to visitors.
+            \ForgeForms\forge_log(
+                'ForgeForms GdprField: no privacy_policy_url configured and no'
+                . ' WP privacy policy page is set — rendering acknowledgment text without a link.'
+            );
+            $text = sprintf(
+                // translators: %s: privacy policy link text (rendered without a link since no URL is configured).
+                __('I have read and acknowledge the %s.', 'form-forge'),
+                $policy_text
+            );
+        }
 
         $inner = '<label class="forge-consent-label forge-gdpr-label">'
             . '<input type="checkbox" id="' . esc_attr($field_id)

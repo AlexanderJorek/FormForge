@@ -49,17 +49,25 @@ class CaptchaField extends BaseField
     }
 
     /**
-     * Enqueues the Google reCAPTCHA v2 script required by this field.
+     * Does NOT enqueue the reCAPTCHA script — see render(). Loading
+     * google.com/recaptcha/api.js unconditionally would connect the visitor's
+     * browser to Google on every page load containing this field, before any
+     * interaction or consent (GDPR Art. 13 third-party disclosure). Instead the
+     * widget is loaded on demand, from a click-to-activate placeholder rendered
+     * in render().
      *
      * @return void
      */
     public function enqueueFrontScripts(): void
     {
-        wp_enqueue_script('google-recaptcha', 'https://www.google.com/recaptcha/api.js', [], false, true);
     }
 
     /**
      * Renders the field HTML.
+     *
+     * Renders a click-to-activate placeholder rather than the live widget: the
+     * reCAPTCHA script (and the connection to Google it triggers) is only
+     * loaded once the visitor explicitly clicks to enable it, not on page load.
      *
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
@@ -76,7 +84,14 @@ class CaptchaField extends BaseField
                 . '</div>';
         }
 
-        $inner = '<div class="g-recaptcha" data-sitekey="' . esc_attr($site_key) . '"></div>';
+        $inner = '<div class="forge-captcha-gate" data-sitekey="' . esc_attr($site_key) . '">'
+            . '<button type="button" class="forge-captcha-activate">'
+            . esc_html__('Load CAPTCHA', 'form-forge')
+            . '</button>'
+            . '<p class="forge-field-hint">'
+            . esc_html__('This loads a script from Google (reCAPTCHA) once activated.', 'form-forge')
+            . '</p>'
+            . '</div>';
         return $this->wrap($field_id, $config, $inner);
     }
 

@@ -7,6 +7,20 @@
  * FormForge — PDF Verification Page
  */
 
+/* Strips <script>, on*="" handlers and javascript:/vbscript: URIs from a
+   server-rendered HTML fragment before it's assigned to innerHTML. The
+   fragment is already expected to be escaped/kses'd server-side in
+   Verificationpage.php — this is defense-in-depth so this file doesn't
+   depend entirely on that other file/language never missing a spot for a
+   future field type, mirroring the same mitigation used for admin-authored
+   HTML previews elsewhere in this codebase. */
+function _forgeSanitizeFragment(html) {
+    html = String(html || '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    html = html.replace(/[\s\/]+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+    html = html.replace(/\b(href|src)\s*=\s*(["'])\s*(?:javascript|vbscript)\s*:[^"']*\2/gi, '$1=$2#$2');
+    return html;
+}
+
 /* ── Particle canvas on the PHP-rendered canvas element ── */
 document.addEventListener('DOMContentLoaded', function () {
     var canvas = document.getElementById('forge-particle-canvas');
@@ -257,9 +271,10 @@ window.FORGE_VERIFICATION_PROCESS_PDF = async function processPdf(pdfInfo) {
 
             if (json.success === true && json.data && typeof json.data.html === 'string') {
                 // Server-rendered fragment: every dynamic value in it is passed through
-                // esc_html()/wp_kses() in Verificationpage.php before reaching here.
+                // esc_html()/wp_kses() in Verificationpage.php before reaching here;
+                // _forgeSanitizeFragment() is an additional client-side backstop.
                 const tmp = document.createElement('div');
-                tmp.innerHTML = json.data.html;
+                tmp.innerHTML = _forgeSanitizeFragment(json.data.html);
                 card.parentNode.replaceChild(tmp.firstElementChild || tmp, card);
             } else {
                 console.error('[FormForge] Server returned error:', json);

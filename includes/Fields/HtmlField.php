@@ -159,6 +159,27 @@ CSS;
             },
             $html
         );
+        // <source src>/<track src> (added to the allow-list above for <audio>/
+        // <video>) legitimately need to point at remote media, unlike <use
+        // href> — but must still be restricted to http(s)/relative paths, not
+        // javascript:/data:/vbscript:/file: schemes.
+        $html = preg_replace_callback(
+            '/<(source|track)\b[^>]*>/i',
+            static function ($m) {
+                return preg_replace_callback(
+                    '/\ssrc\s*=\s*(["\'])([^"\']*)\1/i',
+                    static function ($sm) {
+                        $val = html_entity_decode($sm[2], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                        if (preg_match('#^\s*(?:javascript|vbscript|data|file)\s*:#i', $val)) {
+                            return '';
+                        }
+                        return $sm[0];
+                    },
+                    $m[0]
+                );
+            },
+            $html
+        );
         return $html;
     }
 
@@ -224,11 +245,84 @@ CSS;
     public function pdfData(array $field): array
     {
         // $field['value'] is already sanitized via self::kses() in mapNormalized().
-        $desc = $this->pdf($field)->rawHtml((string)($field['value'] ?? ''), true);
+        // mPDF fetches any non-local <img src>/CSS url() it encounters via its own
+        // AssetFetcher — with no host allow-list of its own — as a server-side HTTP
+        // request (vendor/mpdf/mpdf/src/AssetFetcher.php:fetchRemoteContent()). Unlike
+        // the header/logo path (which resolves only local media-library attachments),
+        // this field's content is form-builder-authored HTML with an unrestricted
+        // <img src>, so it must not be allowed to make mPDF fetch an attacker-chosen
+        // URL (SSRF against internal hosts/cloud metadata endpoints) on every PDF
+        // generation. Strip any remote resource reference before it reaches mPDF.
+        $html = self::stripRemoteResourcesForPdf((string)($field['value'] ?? ''));
+        $desc = $this->pdf($field)->rawHtml($html, true);
         if (empty($field['label'])) {
             $desc->unlabeled();
         }
         return $desc->build();
+    }
+
+    /**
+     * Removes any <img src>/CSS url() reference mPDF would otherwise fetch as a
+     * remote resource, keeping only same-origin (site) URLs, relative paths,
+     * and data: URIs. Used only on the PDF-render path — the live on-page
+     * render (render()/self::kses()) is unaffected since a browser fetching a
+     * remote image is normal, safe behaviour with no server-side SSRF risk.
+     *
+     * @param string $html Already wp_kses()-sanitized HTML (self::kses() output).
+     *
+     * @return string HTML with disallowed remote resource references stripped.
+     */
+    private static function stripRemoteResourcesForPdf(string $html): string
+    {
+        $home_host = wp_parse_url(home_url(), PHP_URL_HOST) ?: '';
+
+        $is_allowed = static function (string $url) use ($home_host): bool {
+            $url = trim(html_entity_decode($url, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            if ($url === '' || str_starts_with($url, '#')) {
+                return true;
+            }
+            if (stripos($url, 'data:') === 0) {
+                return true;
+            }
+            // Relative/local paths (no scheme, no leading //) resolve on this
+            // server's filesystem via mPDF's local-path handling, not a remote fetch.
+            if (!preg_match('#^([a-z][a-z0-9+.\-]*:)?//#i', $url) && !preg_match('#^[a-z][a-z0-9+.\-]*:#i', $url)) {
+                return true;
+            }
+            $host = wp_parse_url($url, PHP_URL_HOST);
+            return $host !== null && $home_host !== '' && strcasecmp($host, $home_host) === 0;
+        };
+
+        $html = preg_replace_callback(
+            '/<img\b[^>]*>/i',
+            static function ($m) use ($is_allowed) {
+                return preg_replace_callback(
+                    '/\ssrc\s*=\s*(["\'])([^"\']*)\1/i',
+                    static function ($sm) use ($is_allowed) {
+                        return $is_allowed($sm[2]) ? $sm[0] : '';
+                    },
+                    $m[0]
+                );
+            },
+            $html
+        );
+
+        $html = preg_replace_callback(
+            '/\bstyle\s*=\s*(["\'])((?:(?!\1).)*)\1/is',
+            static function ($m) use ($is_allowed) {
+                $style = preg_replace_callback(
+                    '/url\(\s*(["\']?)([^"\')]+)\1\s*\)/i',
+                    static function ($um) use ($is_allowed) {
+                        return $is_allowed($um[2]) ? $um[0] : 'none';
+                    },
+                    $m[2]
+                );
+                return ' style=' . $m[1] . $style . $m[1];
+            },
+            $html
+        );
+
+        return $html;
     }
 
     /**
