@@ -404,12 +404,31 @@ class FormSettings
 
                         <div class="forge-settings-field">
                             <label for="recaptcha_secret"><?php echo esc_html__('Secret Key', 'form-forge'); ?></label>
-                            <input type="text" id="recaptcha_secret" name="recaptcha_secret"
+                            <input type="password" id="recaptcha_secret" name="recaptcha_secret"
                                    value="<?php echo esc_attr($recaptcha_secret); ?>"
                                    placeholder="6Le…"
-                                   autocomplete="off" data-lpignore="true"
+                                   autocomplete="new-password" data-lpignore="true"
                                    data-1p-ignore data-bwignore spellcheck="false">
                         </div>
+                    </div>
+
+                    <div class="forge-settings-card">
+                        <h2 class="forge-settings-card-title">
+                            <i class="fa-solid fa-user-shield"></i> <?php echo esc_html__('Privacy Policy Text', 'form-forge'); ?>
+                        </h2>
+                        <p class="forge-settings-hint">
+                            <?php
+                            echo esc_html__(
+                                'If you use SEPA IBAN lookups (openiban.com) or the CAPTCHA '
+                                    . 'field (Google reCAPTCHA), your privacy policy needs to '
+                                    . 'disclose that.',
+                                'form-forge'
+                            );
+                            ?>
+                        </p>
+                        <button type="button" class="button" id="forge-privacy-text-trigger" style="margin-top:10px;">
+                            <i class="fa-solid fa-file-lines"></i> <?php echo esc_html__('Show example text', 'form-forge'); ?>
+                        </button>
                     </div>
                     <?php endif; ?>
 
@@ -480,10 +499,10 @@ class FormSettings
 
                     <?php
                     $setup_done       = $setup_done_early;
-                    $key_history      = \ForgeForms\PDF\HashSeal::getHistory();
+                    $key_history      = $is_full_admin ? \ForgeForms\PDF\HashSeal::getHistory() : [];
                     $rotate_nonce     = wp_create_nonce('forge_rotate_key');
                     $setup_nonce      = wp_create_nonce('forge_seal_setup');
-                    $pending_download = $setup_done
+                    $pending_download = ($setup_done && $is_full_admin)
                         ? \ForgeForms\PDF\HashSeal::claimPendingDownload()
                         : null;
                     $enc_enabled      = \ForgeForms\PDF\HashSeal::isEncryptionEnabled();
@@ -657,6 +676,7 @@ class FormSettings
         </div>
 
         <!-- Key-view modal -->
+        <?php if ($is_full_admin) : ?>
         <div id="forge-key-view-overlay" class="forge-reset-overlay" hidden>
             <div class="forge-modal-box forge-key-view-modal"
                  role="dialog" aria-modal="true" aria-labelledby="forge-key-view-title">
@@ -679,9 +699,8 @@ class FormSettings
                     <?php foreach (array_reverse($key_history) as $entry) :
                         $raw_entry_key = (string)($entry['key'] ?? '');
                         $fp_mid        = '';
-                        if (strlen($raw_entry_key) >= 6) {
-                            $mid_pos = (int)floor(strlen($raw_entry_key) / 2) - 3;
-                            $fp_mid  = substr($raw_entry_key, $mid_pos, 6);
+                        if ($raw_entry_key !== '') {
+                            $fp_mid = substr(hash('sha256', $raw_entry_key), 0, 6);
                         }
                         $uuid      = esc_html((string)($entry['uuid'] ?? '—'));
                         $sta       = (string)($entry['status'] ?? 'rotated');
@@ -745,6 +764,92 @@ class FormSettings
                 </div>
             </div>
         </div>
+
+        <!-- Privacy policy text modal -->
+        <div id="forge-privacy-text-overlay" class="forge-reset-overlay" hidden>
+            <div class="forge-modal-box forge-privacy-text-modal"
+                 role="dialog" aria-modal="true" aria-labelledby="forge-privacy-text-title">
+                <h2 id="forge-privacy-text-title" class="forge-key-view-title">
+                    <i class="fa-solid fa-user-shield"></i> <?php echo esc_html__('Privacy Policy Text', 'form-forge'); ?>
+                </h2>
+                <?php
+                $privacy_disclaimer_sentences = [
+                    __(
+                        'Here is an example disclaimer you should add to your privacy '
+                            . 'policy if you use SEPA IBAN lookups (openiban.com) or the '
+                            . 'CAPTCHA field (Google reCAPTCHA).',
+                        'form-forge'
+                    ),
+                    __(
+                        'This example is provided for convenience only — it is not '
+                            . 'legal advice, may be incomplete or out of date, and is '
+                            . 'not a substitute for your own review.',
+                        'form-forge'
+                    ),
+                    __(
+                        'You are solely responsible for the accuracy and completeness '
+                            . 'of your privacy policy.',
+                        'form-forge'
+                    ),
+                    __(
+                        'Copy it in yourself wherever it belongs — nothing here is '
+                            . 'added automatically.',
+                        'form-forge'
+                    ),
+                ];
+                foreach ($privacy_disclaimer_sentences as $sentence) :
+                    ?>
+                    <p class="forge-settings-hint forge-privacy-text-disclaimer">
+                        <?php echo esc_html($sentence); ?>
+                    </p>
+                    <?php
+                endforeach;
+                ?>
+                <?php
+                $privacy_langs = \ForgeForms\Plugin::availablePrivacyLanguages();
+                $privacy_texts = [];
+                foreach ($privacy_langs as $lang_code => $lang_name) {
+                    $privacy_texts[$lang_code] = \ForgeForms\Plugin::privacyPolicyPlainText($lang_code);
+                }
+                $privacy_default_lang = isset($privacy_langs['en']) ? 'en' : array_key_first($privacy_langs);
+                ?>
+                <div class="forge-settings-field forge-settings-field--inline">
+                    <label for="forge-privacy-text-lang-input"><?php echo esc_html__('Language:', 'form-forge'); ?></label>
+                    <div class="forge-combobox" id="forge-privacy-lang-combobox">
+                        <input type="text" id="forge-privacy-text-lang-input" class="forge-combobox-input"
+                               autocomplete="off" role="combobox" aria-expanded="false"
+                               aria-controls="forge-privacy-lang-list"
+                               value="<?php echo esc_attr($privacy_langs[$privacy_default_lang] ?? ''); ?>"
+                               data-value="<?php echo esc_attr($privacy_default_lang); ?>">
+                        <i class="fa-solid fa-chevron-down forge-combobox-arrow"></i>
+                        <ul class="forge-combobox-list" id="forge-privacy-lang-list" hidden role="listbox">
+                            <?php foreach ($privacy_langs as $lang_code => $lang_name) : ?>
+                                <li class="forge-combobox-option<?php echo $lang_code === $privacy_default_lang ? ' is-selected' : ''; ?>"
+                                    role="option" data-value="<?php echo esc_attr($lang_code); ?>">
+                                    <?php echo esc_html($lang_name); ?>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                </div>
+                <textarea id="forge-privacy-text-box" class="forge-privacy-text-box" readonly rows="10"
+                          data-privacy-texts="<?php echo esc_attr(wp_json_encode($privacy_texts)); ?>"
+                ><?php echo esc_textarea($privacy_texts[$privacy_default_lang] ?? ''); ?></textarea>
+
+                <div class="forge-reset-actions" style="margin-top:20px;">
+                    <span>
+                        <button type="button" class="button" id="forge-privacy-text-copy">
+                            <i class="fa-solid fa-copy"></i> <?php echo esc_html__('Copy to clipboard', 'form-forge'); ?>
+                        </button>
+                        <span id="forge-privacy-text-copied" style="display:none;color:#00a32a;margin-left:8px;">
+                            <i class="fa-solid fa-check"></i> <?php echo esc_html__('Copied!', 'form-forge'); ?>
+                        </span>
+                    </span>
+                    <button type="button" id="forge-privacy-text-close" class="button"><?php echo esc_html__('Close', 'form-forge'); ?></button>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <!-- Factory-reset modal -->
         <div id="forge-reset-overlay" class="forge-reset-overlay" hidden>
@@ -1009,11 +1114,11 @@ class FormSettings
         ?>
         <script>
         window._forgeIsFullAdmin       = <?php echo wp_json_encode($is_full_admin); ?>;
-        window._forgePendingDownload    = <?php echo wp_json_encode($pending_download ?? null); ?>;
         window._forgeSetupDone         = <?php echo wp_json_encode($setup_done); ?>;
         window._forgeSetupNonce        = <?php echo wp_json_encode($setup_nonce); ?>;
         window._forgeLegacyKeyNonce    = <?php echo wp_json_encode(wp_create_nonce('forge_add_legacy_key')); ?>;
         <?php if ($is_full_admin) : ?>
+        window._forgePendingDownload    = <?php echo wp_json_encode($pending_download ?? null); ?>;
         window._forgeAccessNonce       = <?php echo wp_json_encode(wp_create_nonce('forge_access_settings')); ?>;
         window._forgeAccessData        = <?php echo wp_json_encode($access_inline_data); ?>;
         <?php endif; ?>
@@ -1125,7 +1230,7 @@ $('.forge-iris-input').wpColorPicker({
                 }
 
                 confirmBtn.disabled = true;
-                confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Resetting…';
+                confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <?php echo esc_js(__('Resetting…', 'form-forge')); ?>';
 
                 $.post(ajaxurl, {
                     action:    'forge_forms_factory_reset',
@@ -1138,23 +1243,24 @@ $('.forge-iris-input').wpColorPicker({
                     } else {
                         confirmed = false;
                         confirmBtn.disabled = false;
-                        confirmBtn.innerHTML = 'Error — try again';
+                        confirmBtn.innerHTML = '<?php echo esc_js(__('Error — try again', 'form-forge')); ?>';
                     }
                 });
             });
 
             function startCountdown() {
                 var sec = 10;
+                var confirmLabel = '<?php echo esc_js(__('Are you sure? (%d)', 'form-forge')); ?>';
                 confirmBtn.disabled = true;
-                confirmBtn.innerHTML = 'Are you sure? (' + sec + ')';
+                confirmBtn.innerHTML = confirmLabel.replace('%d', sec);
                 countdownTimer = setInterval(function () {
                     sec--;
                     if (sec <= 0) {
                         clearInterval(countdownTimer);
                         confirmBtn.disabled = false;
-                        confirmBtn.innerHTML = '<i class="fa-solid fa-check"></i> Yes, reset';
+                        confirmBtn.innerHTML = '<i class="fa-solid fa-check"></i> <?php echo esc_js(__('Yes, reset', 'form-forge')); ?>';
                     } else {
-                        confirmBtn.innerHTML = 'Are you sure? (' + sec + ')';
+                        confirmBtn.innerHTML = confirmLabel.replace('%d', sec);
                     }
                 }, 1000);
             }
@@ -1163,7 +1269,7 @@ $('.forge-iris-input').wpColorPicker({
                 clearInterval(countdownTimer);
                 confirmed = false;
                 confirmBtn.disabled = false;
-                confirmBtn.innerHTML = 'Reset';
+                confirmBtn.innerHTML = '<?php echo esc_js(__('Reset', 'form-forge')); ?>';
             }
 
             function closeModal() {
@@ -1704,12 +1810,124 @@ $('.forge-iris-input').wpColorPicker({
             });
         }());
 
+        /* ── Privacy policy text: language switch (instant, no round-trip — every
+           language's text is pre-rendered server-side into the data attribute)
+           and copy-to-clipboard ── */
+        (function () {
+            var overlay  = document.getElementById('forge-privacy-text-overlay');
+            var trigger  = document.getElementById('forge-privacy-text-trigger');
+            var closeBtn = document.getElementById('forge-privacy-text-close');
+            var box      = document.getElementById('forge-privacy-text-box');
+            var input    = document.getElementById('forge-privacy-text-lang-input');
+            var list     = document.getElementById('forge-privacy-lang-list');
+            /* Trigger/overlay markup is only rendered server-side for full admins;
+               bail out for everyone else instead of throwing on the null ref. */
+            if (!overlay || !trigger || !closeBtn || !box || !input || !list) { return; }
+
+            function openModal()  { overlay.hidden = false; }
+            function closeModal() { overlay.hidden = true; closeCombobox(); }
+
+            trigger.addEventListener('click', openModal);
+            closeBtn.addEventListener('click', closeModal);
+            overlay.addEventListener('click', function (e) {
+                if (e.target === overlay) { closeModal(); }
+            });
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && !overlay.hidden) { closeModal(); }
+            });
+
+            var texts = {};
+            try { texts = JSON.parse(box.dataset.privacyTexts || '{}'); } catch (e) { texts = {}; }
+
+            /* ── Searchable language combobox ── */
+            var options = Array.prototype.slice.call(list.querySelectorAll('.forge-combobox-option'));
+
+            function selectLanguage(opt) {
+                input.value = opt.textContent.trim();
+                input.dataset.value = opt.dataset.value;
+                options.forEach(function (o) { o.classList.toggle('is-selected', o === opt); });
+                box.value = texts[opt.dataset.value] || '';
+                closeCombobox();
+            }
+
+            function openCombobox() {
+                list.hidden = false;
+                input.setAttribute('aria-expanded', 'true');
+            }
+            function closeCombobox() {
+                list.hidden = true;
+                input.setAttribute('aria-expanded', 'false');
+                // Snap back to the currently selected language's label — filtering
+                // may have left a partial search string in the input.
+                var selected = options.filter(function (o) { return o.dataset.value === input.dataset.value; })[0];
+                if (selected) { input.value = selected.textContent.trim(); }
+                options.forEach(function (o) { o.hidden = false; });
+            }
+            function filterOptions() {
+                var q = input.value.trim().toLowerCase();
+                options.forEach(function (o) {
+                    o.hidden = q !== '' && o.textContent.trim().toLowerCase().indexOf(q) === -1;
+                });
+            }
+
+            input.addEventListener('focus', openCombobox);
+            input.addEventListener('click', openCombobox);
+            input.addEventListener('input', function () {
+                openCombobox();
+                filterOptions();
+            });
+            input.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    closeCombobox();
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    var visible = options.filter(function (o) { return !o.hidden; });
+                    if (visible.length) { selectLanguage(visible[0]); }
+                }
+            });
+            options.forEach(function (opt) {
+                opt.addEventListener('mousedown', function (e) {
+                    // mousedown (not click) fires before the input's blur, so the
+                    // option is still in the DOM/visible when this runs.
+                    e.preventDefault();
+                    selectLanguage(opt);
+                });
+            });
+            document.addEventListener('click', function (e) {
+                if (!list.hidden && !e.target.closest('#forge-privacy-lang-combobox')) {
+                    closeCombobox();
+                }
+            });
+
+            var copyBtn  = document.getElementById('forge-privacy-text-copy');
+            var copiedEl = document.getElementById('forge-privacy-text-copied');
+            if (copyBtn) {
+                copyBtn.addEventListener('click', function () {
+                    var done = function () {
+                        if (!copiedEl) { return; }
+                        copiedEl.style.display = '';
+                        setTimeout(function () { copiedEl.style.display = 'none'; }, 2000);
+                    };
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(box.value).then(done);
+                    } else {
+                        box.focus();
+                        box.select();
+                        document.execCommand('copy');
+                        done();
+                    }
+                });
+            }
+        }());
+
         /* ── Key-view modal ── */
         (function () {
             var viewOverlay = document.getElementById('forge-key-view-overlay');
             var viewTrigger = document.getElementById('forge-key-view-trigger');
             var viewClose   = document.getElementById('forge-key-view-close');
-            if (!viewTrigger) { return; }
+            /* viewOverlay markup is only rendered server-side for full admins;
+               bail out for everyone else instead of throwing on the null ref. */
+            if (!viewTrigger || !viewOverlay || !viewClose) { return; }
 
             function openView()  { viewOverlay.hidden = false; }
             function closeView() { viewOverlay.hidden = true; }
@@ -2097,7 +2315,7 @@ $('.forge-iris-input').wpColorPicker({
                 e.preventDefault();
                 var btn = form.querySelector('button[type="submit"]');
                 var origHtml = btn ? btn.innerHTML : '';
-                if (btn) { btn.disabled = true; btn.innerHTML = '<span class="forge-spinner"></span> Saving…'; }
+                if (btn) { btn.disabled = true; btn.innerHTML = '<span class="forge-spinner"></span> <?php echo esc_js(__('Saving…', 'form-forge')); ?>'; }
                 var fd = new FormData(form);
                 fd.set('action', 'forge_save_general_settings');
                 requestAnimationFrame(function(){ requestAnimationFrame(function(){
@@ -2129,7 +2347,7 @@ $('.forge-iris-input').wpColorPicker({
      */
     public static function handleSaveGeneralSettings(): void
     {
-        if (!\ForgeForms\Plugin::userCan('settings') || !current_user_can('manage_options')) {
+        if (!\ForgeForms\Plugin::userCan('settings')) {
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
         check_ajax_referer('forge_forms_settings', 'forge_settings_nonce');
@@ -2286,8 +2504,8 @@ $('.forge-iris-input').wpColorPicker({
         }
         check_ajax_referer('forge_rotate_key', 'nonce');
 
-        $password = sanitize_text_field(wp_unslash($_POST['key_password']         ?? ''));
-        $confirm  = sanitize_text_field(wp_unslash($_POST['key_password_confirm'] ?? ''));
+        $password = (string) wp_unslash($_POST['key_password']         ?? '');
+        $confirm  = (string) wp_unslash($_POST['key_password_confirm'] ?? '');
         $compromised = !empty($_POST['key_compromised']) && $_POST['key_compromised'] === '1';
 
         if ($password === '' || $password !== $confirm) {
@@ -2301,7 +2519,7 @@ $('.forge-iris-input').wpColorPicker({
             return;
         }
 
-        $new_key = \ForgeForms\PDF\HashSeal::rotateKey($password, $compromised);
+        $new_key = \ForgeForms\PDF\HashSeal::rotateKey($password, $compromised, true);
         wp_send_json_success(
             [
             'message'    => __('Key rotated successfully.', 'form-forge'),
@@ -2546,7 +2764,8 @@ $('.forge-iris-input').wpColorPicker({
             $uuid,
             $key,
             $incoming_created,
-            $key_status
+            $key_status,
+            true
         );
         wp_send_json_success(['message' => __('Legacy key added successfully.', 'form-forge')]);
     }

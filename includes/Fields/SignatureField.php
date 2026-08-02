@@ -109,6 +109,11 @@ CSS;
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'signature';
+    }
+
     public function getLabel(): string
     {
         return __('Signature', 'form-forge');
@@ -307,10 +312,8 @@ CSS;
     public function validate(mixed $value, array $config): bool|string
     {
         if (!empty($config['required'])) {
-            $prefix = ($config['export_format'] ?? 'png') === 'jpeg'
-                ? 'data:image/jpeg;base64,'
-                : 'data:image/png;base64,';
-            if (empty($value) || !str_starts_with((string)$value, $prefix)) {
+            $format = ($config['export_format'] ?? 'png') === 'jpeg' ? 'jpeg' : 'png';
+            if (empty($value) || !self::isSignatureDataUri((string)$value, $format)) {
                 $label = $config['label'] ?? __('Signature', 'form-forge');
                 // translators: %s: field label.
                 return sprintf(__('%s is a required field.', 'form-forge'), esc_html($label));

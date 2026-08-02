@@ -33,6 +33,11 @@ class EmailField extends BaseField
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'email';
+    }
+
     public function getLabel(): string
     {
         return __('Email', 'form-forge');
@@ -125,6 +130,10 @@ class EmailField extends BaseField
         }
         if ($value === null || $value === '') {
             return true;
+        }
+        $hard = self::validateTextHardCap((string) $value);
+        if ($hard !== true) {
+            return $hard;
         }
         $v = strtolower(trim((string)$value));
         if ($config['validate_format'] ?? true) {

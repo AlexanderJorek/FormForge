@@ -85,9 +85,10 @@ class Assets
             'forge-forms-front',
             'ForgeForms',
             [
-            'ajaxUrl'    => \admin_url('admin-ajax.php'),
-            'ibanBicUrl' => \admin_url('admin-ajax.php'),
-            'i18n'       => [
+            'ajaxUrl'      => \admin_url('admin-ajax.php'),
+            'ibanBicUrl'   => \admin_url('admin-ajax.php'),
+            'ibanBicNonce' => \wp_create_nonce('forge_iban_bic'),
+            'i18n'         => [
                 'submitting'              => __('Sending…', 'form-forge'),
                 'error_server'            => __('Server error. Please try again.', 'form-forge'),
                 // Upload field
@@ -342,6 +343,9 @@ class Assets
                     // translators: %1$d: current page number, %2$d: total page count (both substituted client-side).
                     'page_reading'     => __('Reading page %1$d of %2$d…', 'form-forge'),
                     'text_extracted'   => __('Text extracted — server analyzing…', 'form-forge'),
+                    // translators: %1$d: seconds remaining before this PDF's verification request is sent (substituted client-side).
+                    'queued'           => __('Waiting in queue (%1$ds)…', 'form-forge'),
+                    'rate_limited_retry' => __('Rate limited — retrying…', 'form-forge'),
                     'processing'       => __('Processing response…', 'form-forge'),
                     'done'             => __('Done', 'form-forge'),
                     // translators: %d: HTTP status code (substituted client-side).

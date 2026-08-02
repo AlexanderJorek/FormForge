@@ -67,6 +67,11 @@ CSS;
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'date';
+    }
+
     public function getLabel(): string
     {
         return __('Date', 'form-forge');
@@ -168,7 +173,11 @@ CSS;
             . ' class="forge-input forge-date-text"'
             . ' placeholder="' . esc_attr__('DD.MM.YYYY', 'form-forge') . '"'
             . ' maxlength="10"'
-            . ' autocomplete="bday"'
+            // Not every DateField instance represents a birthdate (appointment date,
+            // deadline, etc.) — "bday" would signal browsers to auto-suggest/auto-fill
+            // the visitor's real birthdate into an unrelated field. No per-field config
+            // exists to distinguish the two cases, so disable autofill outright.
+            . ' autocomplete="off"'
             . ' value="' . esc_attr((string)($value ?? '')) . '"'
             . $prefill . $req . '>';
 

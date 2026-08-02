@@ -63,6 +63,15 @@ class PdfDescriptor
     private $sealedUploads = [];
 
     /**
+     * Whether rawHtml() was called with $trusted = true — i.e. the cell HTML
+     * was already sanitized upstream by the field's own (wider) kses pass and
+     * should not be re-narrowed by Generator.php's default value-only allowlist.
+     *
+     * @var bool
+     */
+    private $trustedRichHtml = false;
+
+    /**
      * @param string $defaultCellHtml Escaped value text — the starting cell content.
      */
     public function __construct(string $defaultCellHtml)
@@ -101,6 +110,7 @@ class PdfDescriptor
     public function rawHtml(string $html, bool $trusted = false): static
     {
         $this->cellHtml = $trusted ? $html : wp_kses_post($html);
+        $this->trustedRichHtml = $trusted;
         return $this;
     }
 
@@ -165,10 +175,11 @@ class PdfDescriptor
     public function build(): array
     {
         return [
-            'cell_html'      => $this->cellHtml,
-            'labeled'        => $this->labeled,
-            'image_vars'     => $this->imageVars,
-            'sealed_uploads' => $this->sealedUploads,
+            'cell_html'         => $this->cellHtml,
+            'labeled'           => $this->labeled,
+            'image_vars'        => $this->imageVars,
+            'sealed_uploads'    => $this->sealedUploads,
+            'trusted_rich_html' => $this->trustedRichHtml,
         ];
     }
 }

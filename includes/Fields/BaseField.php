@@ -143,6 +143,77 @@ abstract class BaseField
     }
 
     /**
+     * Hard security ceiling for Text/Textarea field content, applied even when
+     * the admin has left limit_max unset (0 = "no limit"). Unlike
+     * OTHER_TEXT_HARD_CAP, this exists to bound worst-case PDF-generation and
+     * PDF-verification cost — decompressed text volume drives the verifier's
+     * parse-time budget (see Verificationpage.php) independently of the final
+     * PDF's byte size, since text compresses well but must still be fully
+     * decompressed and regex-scanned during verification. 100k characters is
+     * generous for any legitimate single-field answer.
+     */
+    private const TEXT_FIELD_HARD_CAP = 100000;
+
+    /**
+     * Clamps an admin-configured limit_max to self::TEXT_FIELD_HARD_CAP, and
+     * substitutes the hard cap itself when no limit is configured (0/negative),
+     * so render()'s maxlength hint and validate()'s server-side backstop can
+     * never disagree, and a Text/Textarea field can never be truly unbounded.
+     *
+     * @param int $configured Admin-configured limit_max (0/negative = unset).
+     *
+     * @return int
+     */
+    protected static function clampTextMax(int $configured): int
+    {
+        return $configured > 0 ? min($configured, self::TEXT_FIELD_HARD_CAP) : self::TEXT_FIELD_HARD_CAP;
+    }
+
+    /**
+     * Absolute server-side character-count backstop for Text/Textarea fields,
+     * enforced regardless of the admin's configured limit_type/limit_max — a
+     * "words" limit doesn't bound character length (a single "word" can be
+     * arbitrarily long), so this always checks raw character count against
+     * self::TEXT_FIELD_HARD_CAP independent of that configured limit.
+     *
+     * @param string $value Submitted field value.
+     *
+     * @return bool|string True if within the hard cap, error message string otherwise.
+     */
+    protected static function validateTextHardCap(string $value): bool|string
+    {
+        $length = function_exists('mb_strlen') ? mb_strlen($value) : strlen($value);
+        if ($length > self::TEXT_FIELD_HARD_CAP) {
+            // translators: %1$d: absolute maximum character count allowed, %2$d: current character count.
+            return sprintf(__('Please enter at most %1$d characters (currently: %2$d).', 'form-forge'), self::TEXT_FIELD_HARD_CAP, $length);
+        }
+        return true;
+    }
+
+    /**
+     * Checks whether $value looks like a real signature-canvas data URI.
+     *
+     * Shared by SignatureField and SepaField so the two fields' "does this look
+     * like real image data" prefix checks can't silently drift apart again —
+     * both fields independently re-verify real PNG/JPEG magic bytes via
+     * materializeSignature() before trusting either, so this is a cheap format
+     * sanity check, not the security boundary.
+     *
+     * @param string $value           Submitted value.
+     * @param string $expected_format Optional exact format ('png'|'jpeg'); when
+     *                                 empty, any 'data:image/' prefix is accepted.
+     *
+     * @return bool
+     */
+    protected static function isSignatureDataUri(string $value, string $expected_format = ''): bool
+    {
+        if ($expected_format !== '') {
+            return str_starts_with($value, 'data:image/' . $expected_format . ';base64,');
+        }
+        return str_starts_with($value, 'data:image/');
+    }
+
+    /**
      * Returns the shared client-side validation rule enforcing the "Other" text
      * word limit (the char limit is covered by the native maxlength attribute).
      *
@@ -162,6 +233,21 @@ abstract class BaseField
             }
             JS];
     }
+
+    /**
+     * Returns the field type slug used to identify this field in forms and the registry.
+     *
+     * IMPORTANT: FieldRegistry::registerDefaults() instantiates every declared
+     * BaseField subclass in this namespace (via `new $class()`) purely to read
+     * this value during plugin bootstrap. Field constructors — including any
+     * constructor added to BaseField itself — must therefore stay free of side
+     * effects (no DB/HTTP calls, no static-state mutation). If that constraint
+     * ever needs to be relaxed, switch registerDefaults() to a static type()
+     * method on each field class instead of instantiating.
+     *
+     * @return string
+     */
+    abstract public function getType(): string;
 
     /**
      * Returns the human-readable field type label.
@@ -567,6 +653,26 @@ abstract class BaseField
     }
 
     /**
+     * Config keys that are always rendered as plain text (esc_html()/esc_attr()
+     * at output time, never as raw/rich HTML) across every field type that
+     * defines them — confirmed by inspecting every render()/wrap()/inputAttrs()
+     * usage of these keys in includes/Fields/*.php. Kept deliberately small and
+     * conservative: any key not on this list keeps the wp_kses_post() default
+     * below, including known rich-text keys (consent_text, mandate_text,
+     * mandate_note, html_content — the latter has its own sanitizeConfigValue()
+     * override in HtmlField) and any key not fully audited across all
+     * consumers (email/PDF templates), per-field sub-labels, etc.
+     *
+     * Note: FormEditor::sanitizeFields() already treats 'label'/'placeholder'/
+     * 'description' as plain text via its own $plaintext_keys list before this
+     * method is ever reached on that save path — this allowlist exists so
+     * sanitizeConfigValue() is independently correct for any other caller.
+     *
+     * @var string[]
+     */
+    private const PLAIN_TEXT_CONFIG_KEYS = ['label', 'placeholder', 'description'];
+
+    /**
      * Sanitizes a single string config value for this field type.
      * Override in subclasses that need a different allowlist (e.g. HtmlField).
      *
@@ -577,6 +683,9 @@ abstract class BaseField
      */
     public function sanitizeConfigValue(string $key, string $value): string
     {
+        if (in_array($key, self::PLAIN_TEXT_CONFIG_KEYS, true)) {
+            return \sanitize_text_field($value);
+        }
         return \wp_kses_post($value);
     }
 

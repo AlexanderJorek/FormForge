@@ -17,18 +17,21 @@
  *  HOW TO ADD A NEW FIELD
  * ════════════════════════════════════════════════════════════
  *
- * This file is a teaching document — intentionally NOT registered in
- * FieldRegistry, so it has zero runtime effect.
+ * This file is a teaching document — its leading underscore causes Plugin.php
+ * to skip it during auto-discovery, so it has zero runtime effect.
  *
  * First time? Read top to bottom once. After that, use the DECISION TREE
  * below and jump straight to the section you need.
  *
  * QUICK START (5 min)
  * ───────────────────
- *   1. Copy this file, rename the class.
- *   2. Implement getLabel(), getIcon(), render() — see MINIMUM VIABLE FIELD below.
- *   3. Register it: FieldRegistry::registerDefaults() → add ['my-field' => MyField::class]
- *   4. Done. Everything past MINIMUM VIABLE FIELD is optional reference material.
+ *   1. Copy this file, rename the class (remove the leading _).
+ *   2. Implement getType(), getLabel(), getIcon(), render() — see MINIMUM VIABLE FIELD below.
+ *   3. Drop the file in includes/Fields/.
+ *   4. Add one line to FieldRegistry::FIELD_MAP: 'MyField' => 'group:my-field'
+ *      (group = input/choice/personal/advanced/layout/system). This both
+ *      allowlists the file for loading and sets its palette placement.
+ *   5. Done. Everything past MINIMUM VIABLE FIELD is optional reference material.
  *
  * Every field extends BaseField, which provides sensible defaults.
  * Override only when your field needs different behavior. Field classes are
@@ -40,6 +43,7 @@
  * ──────────────────────────────────────────────────────────────────
  *   class MyField extends BaseField
  *   {
+ *       public function getType(): string { return 'my-field'; }
  *       public function getLabel(): string { return __('My field', 'form-forge'); }
  *       public function getIcon(): string { return 'fa-solid fa-star'; }
  *
@@ -52,9 +56,7 @@
  *       }
  *   }
  *
- *   ⚠ Don't forget to register it:
- *     FieldRegistry::registerDefaults() → add ['my-field' => MyField::class]
- *
+ *   Drop the file in includes/Fields/ — Plugin.php auto-discovers it via getType().
  *   That's a complete, working field. Treat inputAttrs() and wrap() as black
  *   boxes for now — they generate the standard input attributes and the
  *   outer .forge-field wrapper (label, description, error placeholder).
@@ -71,7 +73,7 @@
  * WHEN TO OVERRIDE — grouped by how often fields need it
  * ─────────────────────────────────────────────────────
  * Every field (always)
- *   getLabel(), getIcon(), render()
+ *   getType(), getLabel(), getIcon(), render()
  *
  * Most fields (~80%)
  *   validate() + getClientValidation()   format rules
@@ -168,11 +170,21 @@ defined('ABSPATH') || exit;
 class ExampleField extends BaseField
 {
     // ═══════════════════════════════════════════════════════
-    //  MANDATORY — getLabel() and getIcon() are trivial one-liners.
+    //  MANDATORY — getType(), getLabel(), and getIcon() are trivial one-liners.
     //  render() is the only method every field must meaningfully
     //  implement because every field has unique HTML. Most fields are
     //  under 100 lines.
     // ═══════════════════════════════════════════════════════
+
+    /**
+     * Returns the unique type slug used by FieldRegistry auto-discovery.
+     *
+     * @return string
+     */
+    public function getType(): string
+    {
+        return 'example';
+    }
 
     /**
      * Returns the label shown in the field palette and builder panel header.
@@ -360,6 +372,8 @@ class ExampleField extends BaseField
         // verified once in FormProcessor::handle() before field extraction runs.
         return [
             'files' => $_FILES[$field_id]          ?? [],
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is
+            // verified once in FormProcessor::handle() before field extraction runs.
             'desc'  => $_POST[$field_id . '_desc'] ?? [],
         ];
     }

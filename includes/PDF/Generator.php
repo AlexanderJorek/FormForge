@@ -25,6 +25,7 @@ use Mpdf\Mpdf;
 use Mpdf\MpdfException;
 use Mpdf\HTMLParserMode;
 use ForgeForms\Fields\FieldRegistry;
+use ForgeForms\Fields\HtmlField;
 
 defined('ABSPATH') || exit;
 
@@ -74,16 +75,40 @@ class Generator
                 continue;
             }
 
-            $field_id = 'field_' . $key;
+            // Sanitize to a safe charset: this id only ever comes from admin-authored
+            // form config today, not $_POST, but nothing enforces that invariant at
+            // this call site — a crafted form-JSON import with a `]`/`<` in a field
+            // key could otherwise break Verificationpage's marker-parsing regex or
+            // inject markup into the invisible marker span below.
+            $field_id = 'field_' . preg_replace('/[^A-Za-z0-9_-]/', '_', (string) $key);
             $handler  = FieldRegistry::get($field['type'] ?? '');
             $pdf      = $handler ? $handler->pdfData($field) : [
-                'cell_html'      => esc_html((string)($field['value'] ?? '')),
-                'labeled'        => true,
-                'image_vars'     => [],
-                'sealed_uploads' => [],
+                'cell_html'         => esc_html((string)($field['value'] ?? '')),
+                'labeled'           => true,
+                'image_vars'        => [],
+                'sealed_uploads'    => [],
+                'trusted_rich_html' => false,
             ];
 
-            $cell_html = $pdf['cell_html'];
+            // Defense-in-depth: sanitize the field renderer's own output here, before it
+            // gets wrapped below with the invisible marker spans and <img> tags that
+            // Generator.php itself constructs — running wp_kses() after that wrapping
+            // would strip those trusted structural tags too (they're not in the
+            // value-only allowlist), which is exactly what made the markers render at
+            // full size instead of staying invisible.
+            //
+            // Fields that build PdfDescriptor::rawHtml($html, true) (currently only
+            // HtmlField) have already run their content through their own — wider —
+            // kses pass upstream (see HtmlField::kses()/pdfData()) specifically so
+            // rich markup (headings, tables, local/data: images, inline SVG) survives.
+            // Applying the narrow value-only allowlist to that content here would
+            // silently strip it back down to bare text, so such fields get the same
+            // wider allowlist their own sanitizer already enforced instead. Anything
+            // not marked trusted still gets the narrow default.
+            $allowed_tags = ($pdf['trusted_rich_html'] ?? false)
+                ? HtmlField::trustedPdfAllowedTags()
+                : PDF_ALLOWED_VALUE_TAGS;
+            $cell_html = wp_kses($pdf['cell_html'], $allowed_tags);
             foreach (array_keys($pdf['image_vars']) as $var) {
                 $cell_html .= $layout['image']($var);
             }
@@ -92,7 +117,7 @@ class Generator
             $sealed_uploads = array_merge($sealed_uploads, $pdf['sealed_uploads']);
 
             $start     = '<span style="font-size:0.1px;line-height:0.1px;color:#000;position:absolute;">'
-                . '[FORGE_PDF_FIELD_' . $field_id . ']</span>';
+                . '[FORGE_PDF_FIELD_' . esc_html($field_id) . ']</span>';
             $end       = '<span style="font-size:0.1px;line-height:0.1px;color:#000;position:absolute;">'
                 . '[FORGE_PDF_FIELD_END]</span>';
             $cell_html = $start . $cell_html . $end;
@@ -191,6 +216,18 @@ class Generator
                 'margin_bottom' => $margin_bottom,
                 'margin_header' => 3,
                 'margin_footer' => $footer_margin,
+                // Always embed the complete font file — never a per-render subset.
+                // PASS 1 and PASS 2 below are two independent mPDF render() calls;
+                // PASS 2 has the invisible base64 seal text appended that PASS 1
+                // doesn't. If subsetting were left on, that extra text can pull in
+                // glyphs PASS 1 never rendered, making the two passes embed
+                // byte-different font programs for the exact same font — which
+                // Verificationpage::hashFontProgramStreams() (comparing against
+                // PASS 1's hashes, captured into the seal below) would then flag
+                // as "undeclared/modified fonts" on a completely unmodified PDF.
+                // Forcing full embedding in both passes makes the font streams
+                // identical regardless of which glyphs either pass happens to use.
+                'percentSubset' => 0,
             ];
 
             /* ---- PASS 1: font discovery ---- */
@@ -397,15 +434,12 @@ class Generator
                 . $pageno . '</div>';
         }
 
-        $safe_text = str_replace("\r\n", "\n", $user_text);
-        $safe_text = str_replace("\r", "\n", $safe_text);
-        $safe_text = implode(
-            '<br>',
-            array_map(
-                static fn(string $line) => str_replace(' ', '&nbsp;', esc_html($line)),
-                explode("\n", $safe_text)
-            )
-        );
+        // $user_text already passed through wp_kses(PDF_HEADER_TITLE_ALLOWED_TAGS) in
+        // layout.php's footer() closure — it is safe HTML, not plain text. Re-escaping
+        // it here would turn already-permitted tags (<strong>, <em>, <span>, ...) into
+        // visible literal text, silently defeating that allowlist.
+        $safe_text = str_replace(["\r\n", "\r"], "\n", $user_text);
+        $safe_text = str_replace("\n", '<br>', $safe_text);
         return '<table style="width:100%;border-collapse:collapse;' . $border . 'font-size:8pt;">'
             . '<tr>'
             . '<td style="text-align:left;color:#888;vertical-align:bottom;">' . $safe_text . '</td>'

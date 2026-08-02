@@ -33,6 +33,11 @@ class WebsiteField extends BaseField
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'website';
+    }
+
     public function getLabel(): string
     {
         return __('Website', 'form-forge');
@@ -97,6 +102,12 @@ class WebsiteField extends BaseField
         $base = parent::validate($value, $config);
         if ($base !== true) {
             return $base;
+        }
+        if ($value !== null && $value !== '') {
+            $hard = self::validateTextHardCap((string) $value);
+            if ($hard !== true) {
+                return $hard;
+            }
         }
         if ($value !== null && $value !== '' && !empty($config['validate_url'])) {
             if (!filter_var((string)$value, FILTER_VALIDATE_URL) || !preg_match('#^https?://#i', (string)$value)) {

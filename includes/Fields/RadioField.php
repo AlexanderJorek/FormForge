@@ -91,6 +91,11 @@ CSS;
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'radio';
+    }
+
     public function getLabel(): string
     {
         return __('Radio', 'form-forge');

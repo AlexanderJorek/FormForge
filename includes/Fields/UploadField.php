@@ -44,11 +44,19 @@ class UploadField extends BaseField
     // image/svg+xml is explicitly denied even though it reports as "image/*" — SVG is XML and can
     // carry <script>/XXE payloads that mPDF's SVG renderer would parse when embedding the file.
     private const BLOCKED_MIME_TYPES = [
-        'text/html', 'application/x-httpd-php', 'application/x-php',
+        'text/html', 'application/x-httpd-php', 'application/x-php', 'text/x-php',
         'application/x-sh', 'application/x-msdownload', 'application/x-executable',
         'text/x-shellscript', 'text/x-python', 'text/x-perl',
+        'text/javascript', 'application/javascript', 'application/java-archive',
         'image/svg+xml', 'application/xml', 'text/xml',
     ];
+
+    // Hard ceiling on the admin-configurable max_size_mb, independent of whatever
+    // value the admin leaves configured. mapNormalized() calls file_get_contents()
+    // on the full upload and base64-encodes it in memory, so memory cost scales
+    // directly with whatever byte limit is actually enforced here — mirrors
+    // BaseField's TEXT_FIELD_HARD_CAP/OTHER_TEXT_HARD_CAP backstop pattern.
+    private const MAX_SIZE_MB_HARD_CAP = 100;
 
     private const TYPE_GROUPS = [
         'images'    => ['jpg','jpeg','png','gif','bmp','tiff','webp'],
@@ -149,6 +157,11 @@ CSS;
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'upload';
+    }
+
     public function getLabel(): string
     {
         return __('File upload', 'form-forge');
@@ -371,7 +384,7 @@ CSS;
         $accept   = $this->buildAccept($config);
         $acc_attr = $accept !== '' ? ' accept="' . esc_attr($accept) . '"' : '';
 
-        $max      = (int)($config['max_size_mb'] ?? 10);
+        $max      = self::maxSizeMb($config);
         // Cap client-side hint to the server's actual max_file_uploads ini limit — no point
         // letting the user pick more files than PHP will accept from the multipart request
         $max_files = $multiple ? max(1, (int)(ini_get('max_file_uploads') ?: 20)) : 1;
@@ -402,6 +415,21 @@ CSS;
             . sprintf(__('Maximum file size: %s MB', 'form-forge'), $max) . '</p>';
 
         return $this->wrap($field_id, $config, $inner);
+    }
+
+    /**
+     * Returns the effective max file size in MB, clamping the admin-configured
+     * max_size_mb against self::MAX_SIZE_MB_HARD_CAP so the value used to compute
+     * the actual byte limit can never exceed the hard ceiling, regardless of what
+     * is stored in the field config.
+     *
+     * @param array $config Field configuration.
+     *
+     * @return int
+     */
+    private static function maxSizeMb(array $config): int
+    {
+        return min((int)($config['max_size_mb'] ?? 10), self::MAX_SIZE_MB_HARD_CAP);
     }
 
     /**
@@ -520,7 +548,7 @@ CSS;
             $names     = is_array($file['name']) ? $file['name'] : [$file['name']];
             $tmp_names = is_array($file['tmp_name'] ?? null) ? $file['tmp_name'] : [$file['tmp_name'] ?? ''];
             $sizes     = is_array($file['size'] ?? null) ? $file['size'] : [$file['size'] ?? 0];
-            $max_bytes = (int)($config['max_size_mb'] ?? 10) * 1024 * 1024;
+            $max_bytes = self::maxSizeMb($config) * 1024 * 1024;
             $finfo     = new \finfo(FILEINFO_MIME_TYPE);
             // Enforce the admin-configured allow-list server-side too — the <input accept>
             // attribute built by buildAccept() only constrains the browser's file picker,
@@ -550,7 +578,7 @@ CSS;
                         // translators: %1$s: file name, %2$d: maximum allowed file size in megabytes.
                         __('"%1$s" exceeds the maximum file size of %2$d MB.', 'form-forge'),
                         esc_html((string)$name),
-                        (int)($config['max_size_mb'] ?? 10)
+                        self::maxSizeMb($config)
                     );
                 }
                 $tmp = $tmp_names[$i] ?? '';

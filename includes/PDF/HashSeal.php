@@ -244,7 +244,7 @@ class HashSeal
      * visits the download page — a plain wp_options row would otherwise keep
      * the plaintext key indefinitely.
      */
-    private const PENDING_DOWNLOAD_TTL = HOUR_IN_SECONDS;
+    private const PENDING_DOWNLOAD_TTL = 10 * MINUTE_IN_SECONDS;
 
     private static function setPendingDownload(string $uuid, string $plaintext_key): void
     {
@@ -309,6 +309,9 @@ class HashSeal
         if (strlen($password) < 12) {
             $errors[] = __('At least 12 characters required.', 'form-forge');
         }
+        if (strlen($password) > 256) {
+            $errors[] = __('Password must not exceed 256 characters.', 'form-forge');
+        }
         if (!preg_match('/[A-Z]/', $password)) {
             $errors[] = __('At least one uppercase letter required.', 'form-forge');
         }
@@ -327,12 +330,16 @@ class HashSeal
     /**
      * Rotates the active seal key, optionally protecting it with a password.
      *
-     * @param string $password    Password used to derive the new key via PBKDF2.
-     * @param bool   $compromised True to flag the retiring key as compromised.
+     * @param string $password       Password used to derive the new key via PBKDF2.
+     * @param bool   $compromised    True to flag the retiring key as compromised.
+     * @param bool   $nonce_verified True when the caller has already verified a CSRF
+     *                               nonce for this request (e.g. via check_ajax_referer()
+     *                               in an AJAX handler). When false, this method performs
+     *                               its own fallback nonce check.
      *
      * @return array{uuid: string, key: string, created_at: string}
      */
-    public static function rotateKey(string $password, bool $compromised): array
+    public static function rotateKey(string $password, bool $compromised, bool $nonce_verified = false): array
     {
         // Defense-in-depth: this class has no other guard of its own against
         // being invoked from an unguarded path — don't rely solely on the
@@ -340,6 +347,13 @@ class HashSeal
         // seal-key rotation.
         if (!current_user_can('manage_options')) {
             throw new \RuntimeException('Insufficient permissions to rotate the seal key.');
+        }
+
+        // Defense-in-depth: mirror the capability check above — don't rely solely on
+        // the caller (currently FormSettings::handleRotateKey()) to have already
+        // verified a CSRF nonce for this request.
+        if (!$nonce_verified && check_ajax_referer('forge_rotate_key', 'nonce', false) === false) {
+            throw new \RuntimeException('Invalid or missing security token.');
         }
 
         $errors = self::validatePassword($password);
@@ -391,6 +405,14 @@ class HashSeal
      */
     public static function claimPendingDownload(): ?array
     {
+        // Defense-in-depth: this class has no other guard of its own against
+        // being invoked from an unguarded path — don't rely solely on the
+        // caller (currently the admin key-setup/rotation pages) to gate access
+        // to the pending plaintext seal key download.
+        if (!current_user_can('manage_options')) {
+            throw new \RuntimeException('Insufficient permissions to claim the pending seal key download.');
+        }
+
         $raw = get_transient('forge_forms_seal_key_pending_download');
         if (!$raw) {
             return null;
@@ -465,6 +487,14 @@ class HashSeal
      */
     public static function getHistory(): array
     {
+        // Defense-in-depth: this class has no other guard of its own against
+        // being invoked from an unguarded path — don't rely solely on the
+        // caller (currently the admin key-rotation page) to gate access to
+        // seal-key history, which includes decrypted plaintext keys.
+        if (!current_user_can('manage_options')) {
+            throw new \RuntimeException('Insufficient permissions to view the seal key history.');
+        }
+
         $history = get_option('forge_forms_seal_key_history', []);
         if (!is_array($history)) {
             return [];
@@ -491,8 +521,12 @@ class HashSeal
      *
      * @param string $uuid       UUID of the key to import.
      * @param string $key_value  Raw key value (hex string).
-     * @param string $created_at ISO 8601 creation timestamp, or empty for now.
-     * @param string $status     One of 'rotated-legacy' or 'compromised-legacy'.
+     * @param string $created_at     ISO 8601 creation timestamp, or empty for now.
+     * @param string $status         One of 'rotated-legacy' or 'compromised-legacy'.
+     * @param bool   $nonce_verified True when the caller has already verified a CSRF
+     *                               nonce for this request (e.g. via check_ajax_referer()
+     *                               in an AJAX handler). When false, this method performs
+     *                               its own fallback nonce check.
      *
      * @return void
      */
@@ -500,8 +534,23 @@ class HashSeal
         string $uuid,
         string $key_value,
         string $created_at = '',
-        string $status = 'rotated-legacy'
+        string $status = 'rotated-legacy',
+        bool $nonce_verified = false
     ): void {
+        // Defense-in-depth: mirror rotateKey()'s own guard rather than relying
+        // solely on the caller (currently FormSettings::handleImportLegacyKey) to
+        // gate access to seal-key-history mutation.
+        if (!current_user_can('manage_options')) {
+            throw new \RuntimeException('Insufficient permissions to import a legacy seal key.');
+        }
+
+        // Defense-in-depth: mirror the capability check above — don't rely solely on
+        // the caller (currently FormSettings::handleAddLegacyKey()) to have already
+        // verified a CSRF nonce for this request.
+        if (!$nonce_verified && check_ajax_referer('forge_add_legacy_key', 'nonce', false) === false) {
+            throw new \RuntimeException('Invalid or missing security token.');
+        }
+
         $allowed_statuses = ['rotated-legacy', 'compromised-legacy'];
         $safe_status      = in_array($status, $allowed_statuses, true) ? $status : 'rotated-legacy';
         $compromised      = $safe_status === 'compromised-legacy';
@@ -529,6 +578,15 @@ class HashSeal
 
     /**
      * Generates an HMAC-SHA256 seal over the given data payload.
+     *
+     * Note: this seal is a deterministic keyed fingerprint of the full payload —
+     * the same payload sealed with the same active key always produces the same
+     * seal value. That determinism makes it an unintended cross-submission
+     * correlation primitive for as long as a given key stays active (two
+     * submissions with identical content are trivially linkable by anyone who
+     * can compare seals). Do not treat the seal as safe for public/third-party
+     * disclosure, and consider a shorter key-rotation cadence for
+     * higher-sensitivity forms.
      *
      * @param array $data Payload to seal.
      *

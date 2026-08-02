@@ -400,6 +400,10 @@ class FormSelectList
         if (!is_array($items_raw)) {
             wp_send_json_error(['message' => 'Ungültige Daten.']);
         }
+        if (count($items_raw) > 200) {
+            wp_send_json_error(['message' => 'Too many items.']);
+            return;
+        }
 
         $new_id = FormSelectModel::save(['title' => $title, 'items' => $items_raw], $id);
         $fsel   = FormSelectModel::get($new_id);

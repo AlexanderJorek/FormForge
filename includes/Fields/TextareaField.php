@@ -33,6 +33,11 @@ class TextareaField extends BaseField
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'textarea';
+    }
+
     public function getLabel(): string
     {
         return __('Text area', 'form-forge');
@@ -59,12 +64,12 @@ class TextareaField extends BaseField
      */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
-        $req   = !empty($config['required']) ? ' required aria-required="true"' : '';
-        $ph    = esc_attr($config['placeholder'] ?? '');
-        $rows  = (int)($config['rows'] ?? 5);
-        $max   = (int)($config['limit_max'] ?? 0);
-        $wlim  = ($config['limit_type'] ?? 'chars') === 'words' && $max > 0 ? ' data-word-limit="' . $max . '"' : '';
-        $clim  = ($config['limit_type'] ?? 'chars') === 'chars' && $max > 0 ? ' maxlength="' . $max . '"' : '';
+        $req        = !empty($config['required']) ? ' required aria-required="true"' : '';
+        $ph         = esc_attr($config['placeholder'] ?? '');
+        $rows       = (int)($config['rows'] ?? 5);
+        $configured = (int)($config['limit_max'] ?? 0);
+        $wlim       = ($config['limit_type'] ?? 'chars') === 'words' && $configured > 0 ? ' data-word-limit="' . $configured . '"' : '';
+        $clim       = ($config['limit_type'] ?? 'chars') === 'chars' ? ' maxlength="' . self::clampTextMax($configured) . '"' : '';
         $inner = '<textarea id="' . esc_attr($field_id) . '" name="' . esc_attr($field_id) . '" '
             . 'class="forge-input forge-textarea" rows="' . $rows . '" placeholder="' . $ph . '"'
             . $clim . $wlim . $req . '>'
@@ -112,6 +117,16 @@ class TextareaField extends BaseField
         $base = parent::validate($value, $config);
         if ($base !== true) {
             return $base;
+        }
+        // Absolute hard-cap backstop, checked first — applies even under a "words"
+        // limit (a single "word" isn't bounded in length) or when no limit_max is
+        // configured at all. Runs before any per-value processing below so
+        // worst-case cost is bounded up front (defense-in-depth ordering).
+        if ($value !== null && $value !== '') {
+            $hard = self::validateTextHardCap((string)$value);
+            if ($hard !== true) {
+                return $hard;
+            }
         }
         $max  = (int)($config['limit_max'] ?? 0);
         $type = $config['limit_type'] ?? 'chars';

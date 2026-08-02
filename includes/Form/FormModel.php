@@ -63,12 +63,17 @@ class FormModel
     /**
      * Creates or updates a form. Returns the form ID on success or WP_Error on failure.
      *
-     * @param array $data    Keys: title, fields, notifications, settings.
-     * @param int   $form_id Existing post ID to update, or 0 to create.
+     * @param array $data           Keys: title, fields, notifications, settings.
+     * @param int   $form_id        Existing post ID to update, or 0 to create.
+     * @param bool  $nonce_verified Whether the caller already verified its own
+     *                              (action-specific) nonce before calling this method.
+     *                              When false (the default), a generic internal nonce
+     *                              check is performed as a backstop — see
+     *                              {@see self::nonceVerifiedOrCheck()}.
      *
      * @return int|\WP_Error
      */
-    public static function save(array $data, int $form_id = 0): int|\WP_Error
+    public static function save(array $data, int $form_id = 0, bool $nonce_verified = false): int|\WP_Error
     {
         // Defense-in-depth: every current admin call site already gates on
         // Plugin::userCan('edit_forms') before reaching here, but this model
@@ -77,6 +82,9 @@ class FormModel
         // a full privilege-escalation/CSRF path with no second line of defense.
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
             return new \WP_Error('forbidden', __('Insufficient permissions.', 'form-forge'));
+        }
+        if (!self::nonceVerifiedOrCheck($nonce_verified)) {
+            return new \WP_Error('invalid_nonce', __('Security check failed. Please reload and try again.', 'form-forge'));
         }
         $title = sanitize_text_field(\ForgeForms\Utils\Sanitize::str($data['title'] ?? null, 'Untitled Form'));
 
@@ -112,11 +120,14 @@ class FormModel
     /**
      * Creates a copy of an existing form.
      *
-     * @param int $form_id The post ID of the form to duplicate.
+     * @param int  $form_id        The post ID of the form to duplicate.
+     * @param bool $nonce_verified Whether the caller already verified its own
+     *                             (action-specific) nonce before calling this method.
+     *                             Forwarded to save() — see its docblock.
      *
      * @return int|\WP_Error New form post ID, or WP_Error on failure.
      */
-    public static function duplicate(int $form_id): int|\WP_Error
+    public static function duplicate(int $form_id, bool $nonce_verified = false): int|\WP_Error
     {
         $source = self::get($form_id);
         if (!$source) {
@@ -124,24 +135,35 @@ class FormModel
         }
         return self::save(
             [
-            'title'         => $source->title . ' (Kopie)',
+            /* translators: %s: original form title. */
+            'title'         => sprintf(__('%s (Copy)', 'form-forge'), $source->title),
             'fields'        => $source->fields,
             'notifications' => $source->notifications,
             'settings'      => $source->settings,
-            ]
+            ],
+            0,
+            $nonce_verified
         );
     }
 
     /**
      * Permanently deletes a form post.
      *
-     * @param int $form_id The post ID of the form to delete.
+     * @param int  $form_id        The post ID of the form to delete.
+     * @param bool $nonce_verified Whether the caller already verified its own
+     *                             (action-specific) nonce before calling this method.
+     *                             When false (the default), a generic internal nonce
+     *                             check is performed as a backstop — see
+     *                             {@see self::nonceVerifiedOrCheck()}.
      *
      * @return bool True on success, false on failure.
      */
-    public static function delete(int $form_id): bool
+    public static function delete(int $form_id, bool $nonce_verified = false): bool
     {
-        if (!\ForgeForms\Plugin::userCan('edit_forms')) {
+        if (!\ForgeForms\Plugin::userCan('edit_forms') && !current_user_can('manage_options')) {
+            return false;
+        }
+        if (!self::nonceVerifiedOrCheck($nonce_verified)) {
             return false;
         }
         return (bool)wp_delete_post($form_id, true);
@@ -150,10 +172,19 @@ class FormModel
     /**
      * Returns all forge_form posts as model instances.
      *
+     * Gated on view_forms (the least-privilege FormForge capability for read
+     * access) rather than edit_forms — every current call site (FormList.php's
+     * and FormSelectList.php's admin listing pages) is already an admin screen
+     * gated on view_forms before it ever reaches this method, so this mirrors
+     * that without narrowing legitimate access.
+     *
      * @return self[]
      */
     public static function getAll(): array
     {
+        if (!\ForgeForms\Plugin::userCan('view_forms')) {
+            return [];
+        }
         $posts = get_posts(
             [
             'post_type'      => 'forge_form',
@@ -196,9 +227,33 @@ class FormModel
             return $raw;
         }
         if (is_string($raw) && $raw !== '') {
-            $decoded = json_decode($raw, true);
+            $decoded = json_decode($raw, true, 64, JSON_BIGINT_AS_STRING);
             return is_array($decoded) ? $decoded : [];
         }
         return [];
+    }
+
+    /**
+     * CSRF backstop for save()/duplicate()/delete().
+     *
+     * Every current admin call site (FormEditor.php, FormList.php) already
+     * performs its own, more specific nonce check — a per-form action like
+     * 'forge_forms_delete_{id}', or the shared 'forge_forms_admin_nonce' for
+     * save/import — before calling into this model, and passes
+     * $nonce_verified: true to acknowledge that so this method is a no-op for
+     * them. If a future (or forgotten) call site omits $nonce_verified, this
+     * falls back to checking the shared admin AJAX nonce so the request is
+     * never silently accepted without any CSRF check at all.
+     *
+     * @param bool $nonce_verified Whether the caller already verified its own nonce.
+     *
+     * @return bool True if the request may proceed.
+     */
+    private static function nonceVerifiedOrCheck(bool $nonce_verified): bool
+    {
+        if ($nonce_verified) {
+            return true;
+        }
+        return (bool) check_ajax_referer('forge_forms_admin_nonce', 'nonce', false);
     }
 }

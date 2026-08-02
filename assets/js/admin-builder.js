@@ -9,6 +9,11 @@
 (function () {
 'use strict';
 
+/* Field types that can never live inside a group's children list: 'group'
+   (no nested groups) and the structural page-flow fields, which only make
+   sense as direct top-level siblings of the page divs they act on. */
+var NO_GROUP_TYPES = ['group', 'pagebreak', 'page-header'];
+
 /* ── Drag-to-reorder ──────────────────────────────────────────────────────── *
  * makeSortable(list, handleSel, rowSel, onReorder)
  *   list       – container element
@@ -754,7 +759,7 @@ function buildGroupRow(field, idx) {
                 /* Side-drop: main canvas field → group child as 2-col pair */
                 if (dragSrcIdx !== null && childDropSideMode !== null && childDropTgtIdx === ci) {
                     var srcF = state.fields[dragSrcIdx];
-                    if (!srcF || srcF.type === 'group') return;
+                    if (!srcF || NO_GROUP_TYPES.indexOf(srcF.type) !== -1) return;
                     e.preventDefault(); e.stopPropagation();
                     hideDropLine(); zone.classList.remove('forge-group-zone--hover');
                     var from  = dragSrcIdx;
@@ -834,7 +839,7 @@ function buildGroupRow(field, idx) {
     zone.addEventListener('dragover', function (e) {
         if (dragSrcIdx !== null) {
             var srcField = state.fields[dragSrcIdx];
-            if (!srcField || srcField.type === 'group') return;
+            if (!srcField || NO_GROUP_TYPES.indexOf(srcField.type) !== -1) return;
             e.preventDefault(); e.stopPropagation();
             dropLineTarget = null; /* prevent applyDropLine from overriding group line */
             zone.classList.add('forge-group-zone--hover');
@@ -865,7 +870,7 @@ function buildGroupRow(field, idx) {
 
         if (dragSrcIdx !== null) {
             var srcField = state.fields[dragSrcIdx];
-            if (!srcField || srcField.type === 'group') return;
+            if (!srcField || NO_GROUP_TYPES.indexOf(srcField.type) !== -1) return;
             /* Side drops on child rows are already handled by child drop (stopPropagation) */
             e.preventDefault(); e.stopPropagation();
             var from     = dragSrcIdx;
@@ -1329,7 +1334,7 @@ function renderFieldPickerGroups(query) {
         var isGroupCtx = fieldPickerTargetGroup !== null;
         if (!fieldPickerCachedBody || fieldPickerCacheIsGroupCtx !== isGroupCtx) {
             fieldPickerCachedBody = buildPickerFragment(PALETTE_GROUPS, function (item) {
-                return !(isGroupCtx && item.type === 'group');
+                return !(isGroupCtx && NO_GROUP_TYPES.indexOf(item.type) !== -1);
             });
             fieldPickerCacheIsGroupCtx = isGroupCtx;
         }
@@ -1338,7 +1343,7 @@ function renderFieldPickerGroups(query) {
         }
     } else {
         var frag = buildPickerFragment(PALETTE_GROUPS, function (item) {
-            if (fieldPickerTargetGroup !== null && item.type === 'group') return false;
+            if (fieldPickerTargetGroup !== null && NO_GROUP_TYPES.indexOf(item.type) !== -1) return false;
             return item.label.toLowerCase().indexOf(q) !== -1 || item.type.toLowerCase().indexOf(q) !== -1;
         });
         if (frag) {
@@ -1621,6 +1626,8 @@ function buildGeneralTab(idx, field, pal) {
             spSelect(panel, s.key, s.label, s.options || [], cur, function (v) { change(s.key, v); });
         } else if (s.type === 'options_list' || s.type === 'options') {
             spOptionsList(panel, s.key, s.label, Array.isArray(cur) ? cur : [], function (v) { change(s.key, v); });
+        } else if (s.type === 'page_names_list') {
+            spPageNamesList(panel, s.key, s.label, Array.isArray(cur) ? cur : [], function (v) { change(s.key, v); }, s.hint, idx);
         } else if (s.type === 'bool_seg') {
             (function (schema_entry) {
                 spBoolSeg(panel, schema_entry.key, schema_entry.label, !!cur,
@@ -2418,6 +2425,64 @@ function spTextarea(parent, key, label, value, onChange, hint) {
     ta.value     = value || '';
     ta.addEventListener('input', function () { onChange(this.value); });
     row.appendChild(ta);
+    if (hint) {
+        var h = document.createElement('p');
+        h.className   = 'forge-sp-hint';
+        h.textContent = hint;
+        row.appendChild(h);
+    }
+    parent.appendChild(row);
+}
+
+/* One plain-text input per page this step bar actually owns. A page break
+   BEFORE the bar's own position doesn't count — that lets an admin put a
+   small entry page ahead of it (e.g. "Continue" splash) that the bar has no
+   knowledge of, then have it number/step only the pages from its own
+   position onward. */
+function spPageNamesList(parent, key, label, values, onChange, hint, fieldIdx) {
+    var row = document.createElement('div');
+    row.className = 'forge-sp-row';
+
+    var lbl = document.createElement('div');
+    lbl.className   = 'forge-sp-label';
+    lbl.textContent = label;
+    row.appendChild(lbl);
+
+    var pageBreaksFromHere = state.fields
+        .slice(fieldIdx)
+        .filter(function (f) { return f.type === 'pagebreak'; }).length;
+    var pageCount = pageBreaksFromHere + 1;
+    var names     = values.slice(0, pageCount);
+    while (names.length < pageCount) { names.push(''); }
+
+    var listEl = document.createElement('div');
+    listEl.className = 'forge-sp-page-names-list';
+    for (var i = 0; i < pageCount; i++) {
+        (function (idx) {
+            var itemRow = document.createElement('div');
+            itemRow.className = 'forge-sp-page-name-row';
+
+            var numTag = document.createElement('span');
+            numTag.className   = 'forge-sp-page-name-num';
+            numTag.textContent = String(idx + 1);
+            itemRow.appendChild(numTag);
+
+            var inp = document.createElement('input');
+            inp.type        = 'text';
+            inp.className   = 'forge-sp-input';
+            inp.value       = names[idx] || '';
+            inp.placeholder = 'Seite ' + (idx + 1);
+            inp.addEventListener('input', function () {
+                names[idx] = this.value;
+                onChange(names.slice());
+            });
+            itemRow.appendChild(inp);
+
+            listEl.appendChild(itemRow);
+        }(i));
+    }
+    row.appendChild(listEl);
+
     if (hint) {
         var h = document.createElement('p');
         h.className   = 'forge-sp-hint';
@@ -4672,7 +4737,6 @@ function bindPreview() {
     var btn = document.getElementById('forge-preview-btn');
     if (!btn) return;
     btn.addEventListener('click', function () {
-        if (!FORM_ID) return;
         btn.disabled = true;
         btn.innerHTML = '<span class="forge-spinner"></span> Vorschau';
         var fd = new FormData();

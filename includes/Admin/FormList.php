@@ -845,10 +845,10 @@ class FormList
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
         $form_id = isset($_POST['form_id']) ? absint(wp_unslash($_POST['form_id'])) : 0;
-        if (!$form_id || !wp_verify_nonce(sanitize_key($_POST['nonce'] ?? ''), 'forge_forms_delete_' . $form_id)) {
+        if (!$form_id || !check_ajax_referer('forge_forms_delete_' . $form_id, 'nonce', false)) {
             wp_send_json_error(['message' => 'Nonce verification failed.'], 403);
         }
-        FormModel::delete($form_id);
+        FormModel::delete($form_id, true);
         wp_send_json_success(['message' => __('Form deleted.', 'form-forge')]);
     }
 
@@ -937,10 +937,10 @@ class FormList
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
         $form_id = isset($_POST['form_id']) ? absint(wp_unslash($_POST['form_id'])) : 0;
-        if (!$form_id || !wp_verify_nonce(sanitize_key($_POST['nonce'] ?? ''), 'forge_forms_duplicate_' . $form_id)) {
+        if (!$form_id || !check_ajax_referer('forge_forms_duplicate_' . $form_id, 'nonce', false)) {
             wp_send_json_error(['message' => 'Nonce verification failed.'], 403);
         }
-        $result = FormModel::duplicate($form_id);
+        $result = FormModel::duplicate($form_id, true);
         if (is_wp_error($result)) {
             wp_send_json_error(['message' => $result->get_error_message()], 500);
         }
@@ -966,16 +966,21 @@ class FormList
         if (!is_array($ids) || !is_array($nonces)) {
             wp_send_json_error(['message' => 'Invalid data.'], 400);
         }
+        $ids     = array_slice((array)$ids, 0, 200, true);
+        $nonces  = array_slice((array)$nonces, 0, 200, true);
         $deleted = [];
         // $ids and $nonces are positionally paired (same index = same form) rather
         // than keyed by id, since each row has its own per-id delete nonce.
         foreach ($ids as $i => $raw_id) {
+            if (!is_scalar($raw_id)) {
+                continue;
+            }
             $form_id = (int)$raw_id;
             $nonce   = sanitize_key($nonces[$i] ?? '');
             if (!$form_id || !wp_verify_nonce($nonce, 'forge_forms_delete_' . $form_id)) {
                 continue;
             }
-            FormModel::delete($form_id);
+            FormModel::delete($form_id, true);
             $deleted[] = $form_id;
         }
         wp_send_json_success(['deleted' => $deleted]);
@@ -996,14 +1001,19 @@ class FormList
         if (!is_array($ids) || !is_array($nonces)) {
             wp_send_json_error(['message' => 'Invalid data.'], 400);
         }
+        $ids     = array_slice((array)$ids, 0, 200, true);
+        $nonces  = array_slice((array)$nonces, 0, 200, true);
         $created = [];
         foreach ($ids as $i => $raw_id) {
+            if (!is_scalar($raw_id)) {
+                continue;
+            }
             $form_id = (int)$raw_id;
             $nonce   = sanitize_key($nonces[$i] ?? '');
             if (!$form_id || !wp_verify_nonce($nonce, 'forge_forms_duplicate_' . $form_id)) {
                 continue;
             }
-            $result = FormModel::duplicate($form_id);
+            $result = FormModel::duplicate($form_id, true);
             if (!is_wp_error($result)) {
                 $created[] = $result;
             }
@@ -1108,7 +1118,9 @@ class FormList
             'settings'      => \ForgeForms\Admin\FormEditor::sanitizeSettings(
                 is_array($payload['s'] ?? null) ? $payload['s'] : []
             ),
-            ]
+            ],
+            0,
+            true
         );
         if (is_wp_error($result)) {
             wp_send_json_error(['message' => $result->get_error_message()], 500);

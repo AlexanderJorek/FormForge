@@ -93,6 +93,11 @@ CSS;
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'checkbox';
+    }
+
     public function getLabel(): string
     {
         return __('Checkboxes', 'form-forge');

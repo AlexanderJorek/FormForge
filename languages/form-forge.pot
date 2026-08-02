@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-07-25T00:26:31+00:00\n"
+"POT-Creation-Date: 2026-08-01T00:00:00+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: form-forge\n"
@@ -644,6 +644,46 @@ msgstr ""
 msgid "Secret Key"
 msgstr ""
 
+#: includes/Admin/FormSettings.php:417 includes/Admin/FormSettings.php:773
+msgid "Privacy Policy Text"
+msgstr ""
+
+#: includes/Admin/FormSettings.php:422
+msgid "If you use SEPA IBAN lookups (openiban.com) or the CAPTCHA field (Google reCAPTCHA), your privacy policy needs to disclose that."
+msgstr ""
+
+#: includes/Admin/FormSettings.php:430
+msgid "Show example text"
+msgstr ""
+
+#: includes/Admin/FormSettings.php:778
+msgid "Here is an example disclaimer you should add to your privacy policy if you use SEPA IBAN lookups (openiban.com) or the CAPTCHA field (Google reCAPTCHA)."
+msgstr ""
+
+#: includes/Admin/FormSettings.php:784
+msgid "This example is provided for convenience only — it is not legal advice, may be incomplete or out of date, and is not a substitute for your own review."
+msgstr ""
+
+#: includes/Admin/FormSettings.php:790
+msgid "You are solely responsible for the accuracy and completeness of your privacy policy."
+msgstr ""
+
+#: includes/Admin/FormSettings.php:795
+msgid "Copy it in yourself wherever it belongs — nothing here is added automatically."
+msgstr ""
+
+#: includes/Admin/FormSettings.php:817
+msgid "Language:"
+msgstr ""
+
+#: includes/Admin/FormSettings.php:842
+msgid "Copy to clipboard"
+msgstr ""
+
+#: includes/Admin/FormSettings.php:845
+msgid "Copied!"
+msgstr ""
+
 #: includes/Admin/FormSettings.php:417
 msgid "Backend"
 msgstr ""
@@ -723,6 +763,46 @@ msgstr ""
 
 #: includes/Admin/FormSettings.php:576
 msgid "Reset to factory defaults"
+msgstr ""
+
+#: includes/Admin/FormSettings.php:1132
+msgid "Resetting…"
+msgstr ""
+
+#: includes/Admin/FormSettings.php:1145
+msgid "Error — try again"
+msgstr ""
+
+#. translators: %d: seconds remaining in the countdown
+#: includes/Admin/FormSettings.php:1152
+#, php-format
+msgid "Are you sure? (%d)"
+msgstr ""
+
+#: includes/Admin/FormSettings.php:1159
+msgid "Yes, reset"
+msgstr ""
+
+#: includes/Admin/FormSettings.php:2107 includes/Admin/PDFLayoutEditor.php:1704
+msgid "Saving…"
+msgstr ""
+
+#: includes/Admin/PDFLayoutEditor.php:910
+msgid "Generating…"
+msgstr ""
+
+#: includes/Admin/PDFLayoutEditor.php:927
+msgid "The PDF could not be generated."
+msgstr ""
+
+#. translators: %d: HTTP status code
+#: includes/Admin/PDFLayoutEditor.php:924
+#, php-format
+msgid "Unexpected server response (HTTP %d). See browser console for details."
+msgstr ""
+
+#: includes/Admin/PDFLayoutEditor.php:930
+msgid "The request could not reach the server. Please check your connection and try again."
 msgstr ""
 
 #. translators: %s: "rotiert" as an em element
@@ -1229,8 +1309,22 @@ msgstr ""
 msgid "Insufficient permissions."
 msgstr ""
 
-#: includes/Admin/Verificationpage.php:520
-msgid "Upload skipped: file exceeds 50 MB limit."
+#. translators: %d: maximum number of files accepted per upload.
+#: includes/Admin/Verificationpage.php:603
+#, php-format
+msgid "Too many files selected. Only the first %d will be processed."
+msgstr ""
+
+#. translators: %s: uploaded file name.
+#: includes/Admin/Verificationpage.php:623
+#, php-format
+msgid "Upload skipped: \"%s\" could not be read from the upload."
+msgstr ""
+
+#. translators: %d: maximum accepted file size in MB.
+#: includes/Admin/Verificationpage.php:639
+#, php-format
+msgid "Upload skipped: file exceeds %d MB limit."
 msgstr ""
 
 #: includes/Admin/Verificationpage.php:534
@@ -1271,6 +1365,14 @@ msgstr ""
 
 #: includes/Admin/Verificationpage.php:866
 msgid "Add more PDFs to verify."
+msgstr ""
+
+#: includes/Admin/Verificationpage.php:1067
+msgid "Uploading…"
+msgstr ""
+
+#: includes/Admin/Verificationpage.php:1068
+msgid "Please keep this page open — this can take a while for large files."
 msgstr ""
 
 #: includes/Admin/Verificationpage.php:921
@@ -1400,6 +1502,12 @@ msgstr ""
 msgid "Checking annotations…"
 msgstr ""
 
+#. translators: 1: lines processed so far, 2: total lines to process.
+#: includes/Admin/Verificationpage.php:2040
+#, php-format
+msgid "Compiling results… (%1$d/%2$d)"
+msgstr ""
+
 #. translators: %s: uploaded file name.
 #: includes/Admin/Verificationpage.php:1946
 #, php-format
@@ -1454,8 +1562,12 @@ msgstr ""
 msgid "The file is not a valid PDF document."
 msgstr ""
 
-#: includes/Admin/Verificationpage.php:3641
-msgid "The document could not be processed."
+#: includes/Admin/Verificationpage.php:3855
+msgid "An embedded image in the document has invalid color data and could not be processed."
+msgstr ""
+
+#: includes/Admin/Verificationpage.php:3857
+msgid "The document could not be processed. See server log for details."
 msgstr ""
 
 #: includes/Admin/Verificationpage.php:3656
@@ -2119,6 +2231,35 @@ msgstr ""
 msgid "Next button"
 msgstr ""
 
+#: includes/Fields/PageHeaderField.php:103
+#: includes/Fields/PageHeaderField.php:288
+msgid "Page step bar"
+msgstr ""
+
+#: includes/Fields/PageHeaderField.php:307
+msgid "Shows one step for every page break after this field."
+msgstr ""
+
+#: includes/Fields/PageHeaderField.php:312
+msgid "Step labels"
+msgstr ""
+
+#: includes/Fields/PageHeaderField.php:313
+msgid "Numbers only"
+msgstr ""
+
+#: includes/Fields/PageHeaderField.php:314
+msgid "Numbers + names"
+msgstr ""
+
+#: includes/Fields/PageHeaderField.php:320
+msgid "Page names"
+msgstr ""
+
+#: includes/Fields/PageHeaderField.php:321
+msgid "One field per page, in order. Leave a name blank to show just the number for that page."
+msgstr ""
+
 #: includes/Fields/PhoneField.php:38
 msgid "Phone"
 msgstr ""
@@ -2747,6 +2888,7 @@ msgid "Please enter at most %1$d words (currently: %2$d)."
 msgstr ""
 
 #. translators: %1$d: maximum character count allowed, %2$d: current character count.
+#: includes/Fields/BaseField.php:188
 #: includes/Fields/TextareaField.php:131
 #: includes/Fields/TextField.php:101
 #, php-format
@@ -2915,8 +3057,16 @@ msgstr ""
 msgid "Security check failed."
 msgstr ""
 
-#: includes/Form/FormProcessor.php:54
-msgid "Too many submissions, please try again later."
+#. translators: %d: number of minutes until the visitor can submit again
+#: includes/Form/FormProcessor.php:57
+#, php-format
+msgid "Too many submissions. Please try again in %d minutes."
+msgstr ""
+
+#. translators: %d: number of seconds until the visitor can submit again
+#: includes/Form/FormProcessor.php:62
+#, php-format
+msgid "Too many submissions. Please try again in %d seconds."
 msgstr ""
 
 #: includes/Form/FormProcessor.php:260
@@ -2947,6 +3097,22 @@ msgstr ""
 
 #: includes/Plugin.php:314
 msgid "WARNING: Deleting the plugin will permanently delete all PDF seal keys. Make sure you have backed up your keys. Continue?"
+msgstr ""
+
+#: includes/Plugin.php:302
+msgid "SEPA Direct Debit (OpenIBAN)"
+msgstr ""
+
+#: includes/Plugin.php:303
+msgid "If you enter an IBAN in a form, it will be transmitted to the OpenIBAN service (openiban.com) for validation and to determine the corresponding BIC. Only the IBAN you entered and the connection data required for technical transmission will be processed. This processing is carried out for the purpose of verifying the bank account information. For more information on data processing, please refer to OpenIBAN's Privacy Policy."
+msgstr ""
+
+#: includes/Plugin.php:312
+msgid "Google reCAPTCHA"
+msgstr ""
+
+#: includes/Plugin.php:313
+msgid "To prevent spam and fraudulent form submissions, we use Google reCAPTCHA. Among other things, the IP address, the CAPTCHA response, and other technical information are transmitted to Google and processed there to determine whether the input was made by a human. This may involve the transfer of personal data to the United States. For more information, please see Google's Privacy Policy."
 msgstr ""
 
 #: includes/Utils/Assets.php:92
@@ -3029,20 +3195,30 @@ msgstr ""
 msgid "Reading page %1$d of %2$d…"
 msgstr ""
 
-#: includes/Utils/Assets.php:344
+#: includes/Utils/Assets.php:345
 msgid "Text extracted — server analyzing…"
 msgstr ""
 
-#: includes/Utils/Assets.php:345
+#. translators: %1$d: seconds remaining before this PDF's verification request is sent (substituted client-side).
+#: includes/Utils/Assets.php:347
+#, php-format
+msgid "Waiting in queue (%1$ds)…"
+msgstr ""
+
+#: includes/Utils/Assets.php:348
+msgid "Rate limited — retrying…"
+msgstr ""
+
+#: includes/Utils/Assets.php:349
 msgid "Processing response…"
 msgstr ""
 
-#: includes/Utils/Assets.php:346
+#: includes/Utils/Assets.php:350
 msgid "Done"
 msgstr ""
 
 #. translators: %d: HTTP status code (substituted client-side).
-#: includes/Utils/Assets.php:348
+#: includes/Utils/Assets.php:352
 #, php-format
 msgid "Server error (HTTP %d)"
 msgstr ""

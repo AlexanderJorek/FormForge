@@ -4,9 +4,11 @@
  * MPDF HTML layout template for form submission PDF output.
  *
  * NOTE: This is rendered by mPDF, not the browser — it is not subject to WordPress's
- * output-escaping/KSES filters or CSP. Field values echoed here ($value in the loop
- * below) arrive already pre-escaped by each field type's own pdfData()/map() handler
- * (see includes/PDF/Generator.php), so they are intentionally NOT re-escaped in this file.
+ * default output-escaping/KSES filters or CSP. Field values echoed here ($value in the
+ * 'field' closure) arrive already pre-escaped by each field type's own pdfData()/map()
+ * handler (see includes/PDF/Generator.php); they additionally pass through a narrow
+ * wp_kses() allowlist (PDF_ALLOWED_VALUE_TAGS, defined below) here as defense-in-depth
+ * in case a field renderer's own escaping is ever incomplete.
  *
  * PHP Version 8.1
  *
@@ -31,8 +33,20 @@ $_raw          = (array) get_option('forge_forms_pdf_layout', []);
 $o             = array_merge($_defaults, $_raw);
 $_field_layout = get_option('forge_forms_field_layout', 'block');
 
-$_accent    = esc_attr($o['accent_color']);
-$_sep       = esc_attr($o['separator_color']);
+// Defense-in-depth: validate these are actually hex color values before they get
+// interpolated into a <style> block / inline CSS `style="..."` attribute below.
+// esc_attr() alone only protects the HTML-attribute context (quotes/entities) — it
+// does not block CSS-syntax characters like `;`, `(`, `)`, so a value that reached
+// here as anything other than a well-formed color (e.g. a stale/foreign option
+// value bypassing PDFLayoutEditor::save()'s own sanitize_hex_color() call) could
+// otherwise break out of the intended CSS property value.
+$_hex_color_re = '/^#[0-9a-fA-F]{3,8}$/';
+$_accent = preg_match($_hex_color_re, (string) $o['accent_color'])
+    ? $o['accent_color'] : $_defaults['accent_color'];
+$_sep = preg_match($_hex_color_re, (string) $o['separator_color'])
+    ? $o['separator_color'] : $_defaults['separator_color'];
+$_accent    = esc_attr($_accent);
+$_sep       = esc_attr($_sep);
 $_fs        = (int) $o['font_size_body'];
 $_title_fs  = (int) $o['title_size'];
 $_logo_w    = (int) $o['logo_width'];
@@ -54,6 +68,55 @@ $_logo_path    = $_logo_post_id ? (get_attached_file($_logo_post_id) ?: '') : ''
 $_section_hidden = is_array($o['section_hidden']) ? $o['section_hidden'] : [];
 
 $_margin_top_mm = (int) ($o['margin_top'] ?? 15);
+
+// Shared inline-formatting allowlist for admin-configured rich text (header
+// "title" builder element content, and footer text) rendered into mPDF HTML.
+// Both are run through wp_kses() with this allowlist before use so a
+// careless/compromised admin-settings write can't inject arbitrary HTML/script
+// via these option values.
+//
+// Defined via defined()-guarded define() rather than top-level `const`: this
+// file is `include`d (not `include_once`) by Generator::generate(), which can
+// run more than once per PHP process (e.g. multiple submissions handled in one
+// request/CLI run) — a plain top-level `const` would fatal with "cannot
+// redeclare constant" on the second inclusion.
+if (!defined('PDF_HEADER_TITLE_ALLOWED_TAGS')) {
+    define(
+        'PDF_HEADER_TITLE_ALLOWED_TAGS',
+        [
+        'b'      => [],
+        'strong' => [],
+        'i'      => [],
+        'em'     => [],
+        'u'      => [],
+        's'      => [],
+        'del'    => [],
+        'sup'    => [],
+        'sub'    => [],
+        'span'   => [],
+        'br'     => [],
+        ]
+    );
+}
+
+// Defense-in-depth allowlist applied by Generator.php to each field's raw
+// cell_html, before it wraps that value with the invisible marker spans and
+// <img> tags that make up the rest of $cell_html — applying this allowlist any
+// later would strip those trusted structural tags too. Field renderers are
+// expected to already escape their own output (see the class docblock at the
+// top of this file), but this narrow allowlist guards against any renderer
+// that forgets, while still allowing the simple formatting (e.g. multi-line
+// values using <br>) some renderers rely on.
+if (!defined('PDF_ALLOWED_VALUE_TAGS')) {
+    define(
+        'PDF_ALLOWED_VALUE_TAGS',
+        [
+        'br'     => [],
+        'strong' => [],
+        'em'     => [],
+        ]
+    );
+}
 
 return [
     'margin_top_mm'    => $_margin_top_mm,
@@ -83,7 +146,8 @@ return [
         $_logo_path,
         $_logo_w,
         $_title_fs,
-        $o
+        $o,
+        $_hex_color_re
     ): string {
         $hb = $o['header_layout'] ?? [];
         $elements = $hb['elements'] ?? [];
@@ -143,26 +207,19 @@ return [
                         $out .= '<img src="' . esc_attr($img_path) . '" style="width:' . $el_w_mm . 'mm;height:auto;" />';
                     }
                 } elseif ($type === 'title') {
-                    $fs    = max(6, (int) ($el['size'] ?? 18));
-                    $color = esc_attr($el['color'] ?? '#1d2327');
+                    $fs = max(6, (int) ($el['size'] ?? 18));
+                    // Defense-in-depth: validate hex color format before it lands in an
+                    // inline `style="..."` CSS property value — esc_attr() alone only
+                    // protects the HTML-attribute context, not CSS syntax.
+                    $raw_color = (string) ($el['color'] ?? '#1d2327');
+                    $color     = esc_attr(
+                        preg_match($_hex_color_re, $raw_color) ? $raw_color : '#1d2327'
+                    );
                     $align = in_array($el['align'] ?? '', ['left','center','right'], true)
                            ? $el['align'] : 'left';
                     $raw   = $el['content'] ?? $el['text'] ?? '{form_title}';
                     $raw   = str_replace('{form_title}', esc_html($title), $raw);
-                    $allowed = [
-                        'b'      => [],
-                        'strong' => [],
-                        'i'      => [],
-                        'em'     => [],
-                        'u'      => ['style' => []],
-                        's'      => [],
-                        'del'    => [],
-                        'sup'    => [],
-                        'sub'    => [],
-                        'span'   => ['style' => []],
-                        'br'     => [],
-                    ];
-                    $safe = wp_kses($raw, $allowed);
+                    $safe  = wp_kses($raw, PDF_HEADER_TITLE_ALLOWED_TAGS);
                     $out .= '<div style="font-size:' . $fs . 'pt;color:' . $color
                           . ';text-align:' . $align . ';line-height:' . $el_h_mm . 'mm;">'
                           . $safe . '</div>';
@@ -203,6 +260,9 @@ return [
     'field' => function (string $label, string $value) use ($_field_layout, $_title_fs, $_fs): string {
         $lbl_style = 'font-weight:bold;font-size:' . $_title_fs . 'pt;color:#222;';
         $val_style = 'font-size:' . $_fs . 'pt;color:#333;';
+        // $value has already been run through PDF_ALLOWED_VALUE_TAGS by Generator.php,
+        // before it was wrapped with the invisible marker spans / <img> tags this
+        // closure now receives — sanitizing again here would strip those trusted tags.
         if ($_field_layout === 'inline') {
             return '
         <div class="field-block">
@@ -256,6 +316,9 @@ return [
             [get_bloginfo('name'), get_bloginfo('url'), current_time('d.m.Y')],
             $text
         );
-        return $text;
+        // Defense-in-depth: footer_text is an admin-configured option value (same
+        // trust level as the header "title" element content above), so apply the
+        // same wp_kses() allowlist before it's returned unescaped into mPDF HTML.
+        return wp_kses($text, PDF_HEADER_TITLE_ALLOWED_TAGS);
     },
 ];

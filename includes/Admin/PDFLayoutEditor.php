@@ -66,7 +66,7 @@ class PDFLayoutEditor
             'separator_color' => '#c9cdd4',
             'font_family'     => 'dejavusans',
             'font_size_body'  => 11,
-            'title_size'      => 18,
+            'title_size'      => 14,
             'footer_text'     => '',
             'margin_top'      => 15,
             'margin_bottom'   => 15,
@@ -102,6 +102,12 @@ class PDFLayoutEditor
         }
         check_ajax_referer('forge_forms_admin_nonce', 'nonce');
 
+        /* ---- Rate limit: PDF generation is expensive; throttle per-user preview requests. ---- */
+        $rl_key = 'pdf_layout_preview_' . get_current_user_id();
+        if (\ForgeForms\Utils\RateLimiter::increment($rl_key, 5) > 5) {
+            wp_send_json_error(['message' => 'Please wait before requesting another preview.'], 429);
+        }
+
         /* Use live settings from the request so the user doesn't have to save first */
         if (!empty($_POST['settings'])) {
             /* wp_unslash is required — WordPress's wp_magic_quotes() slashes all $_POST values */
@@ -120,7 +126,7 @@ class PDFLayoutEditor
                     'separator_color' => sanitize_hex_color(\ForgeForms\Utils\Sanitize::str($raw['separator_color'] ?? '')) ?: $defs['separator_color'],
                     'font_family'     => sanitize_key(\ForgeForms\Utils\Sanitize::str($raw['font_family'] ?? '', 'dejavusans')),
                     'font_size_body'  => min(20, max(6, (int) ($raw['font_size_body'] ?? 11))),
-                    'title_size'      => min(36, max(10, (int) ($raw['title_size']     ?? 18))),
+                    'title_size'      => min(36, max(10, (int) ($raw['title_size']     ?? 14))),
                     'footer_text'     => sanitize_textarea_field(\ForgeForms\Utils\Sanitize::str($raw['footer_text'] ?? '')),
                     'margin_top'      => min(50, max(0, (int) ($raw['margin_top']    ?? 15))),
                     'margin_bottom'   => min(50, max(0, (int) ($raw['margin_bottom'] ?? 15))),
@@ -598,7 +604,7 @@ class PDFLayoutEditor
             separator_color: val('separator_color')||'#c9cdd4',
             font_family:     val('font_family')||'dejavusans',
             font_size_body:  parseInt(val('font_size_body'))||11,
-            title_size:      parseInt(val('title_size'))||18,
+            title_size:      parseInt(val('title_size'))||14,
             footer_text:     val('footer_text'),
             margin_top:      parseInt(val('margin_top'))||15,
             margin_bottom:   parseInt(val('margin_bottom'))||15,
@@ -900,14 +906,32 @@ class PDFLayoutEditor
     var pdfBtn = $('forge-pdf-preview-btn');
     if(pdfBtn){
         pdfBtn.addEventListener('click', function(){
+            var origHtml = pdfBtn.innerHTML;
             pdfBtn.disabled = true;
-            pdfBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating…';
+            pdfBtn.innerHTML = '<span class="forge-spinner"></span> <?php echo esc_js(__('Generating…', 'form-forge')); ?>';
             var fd = new FormData();
             fd.append('action', 'forge_forms_pdf_preview');
             fd.append('nonce',  '<?php echo esc_js(wp_create_nonce("forge_forms_admin_nonce")); ?>');
             fd.append('settings', JSON.stringify(collectSettings()));
             fetch('<?php echo esc_js(admin_url("admin-ajax.php")); ?>', {method:'POST', body:fd})
-                .then(function(r){ return r.json(); })
+                .then(function(r){
+                    return r.text().then(function(text){
+                        var resp;
+                        try {
+                            resp = JSON.parse(text);
+                        } catch (e) {
+                            /* Server returned something other than JSON (PHP warning/fatal,
+                               wp_die() on nonce failure, etc.) — surface it instead of
+                               reporting it as a generic network error. */
+                            console.error('PDF preview: non-JSON response (HTTP ' + r.status + ')', text);
+                            throw new Error(
+                                '<?php echo esc_js(__('Unexpected server response (HTTP %d). See browser console for details.', 'form-forge')); ?>'
+                                    .replace('%d', r.status)
+                            );
+                        }
+                        return resp;
+                    });
+                })
                 .then(function(resp){
                     if(resp.success && resp.data.pdf_b64){
                         var bin  = atob(resp.data.pdf_b64);
@@ -918,13 +942,15 @@ class PDFLayoutEditor
                         window.open(url,'_blank');
                         setTimeout(function(){ URL.revokeObjectURL(url); }, 30000);
                     } else {
-                        alert((resp.data && resp.data.message) || 'Error generating.');
+                        alert((resp.data && resp.data.message) || '<?php echo esc_js(__('The PDF could not be generated.', 'form-forge')); ?>');
                     }
                 })
-                .catch(function(){ alert('Network error.'); })
+                .catch(function(err){
+                    alert(err && err.message ? err.message : '<?php echo esc_js(__('The request could not reach the server. Please check your connection and try again.', 'form-forge')); ?>');
+                })
                 .finally(function(){
                     pdfBtn.disabled = false;
-                    pdfBtn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Open PDF';
+                    pdfBtn.innerHTML = origHtml;
                 });
         });
     }
@@ -1021,7 +1047,7 @@ class PDFLayoutEditor
         } else if(el.type==='title'){
             var tcnt = (el.content||el.text||'{form_title}').replace(/\{form_title\}/g,'Beispielformular');
             inner.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;padding:2px 4px;box-sizing:border-box;">'
-                +'<span style="width:100%;font-size:'+(el.size||18)+'pt;color:'+hbEsc(el.color||'#1d2327')+';text-align:'+hbEsc(el.align||'left')+';">'
+                +'<span style="width:100%;font-size:'+(el.size||14)+'pt;color:'+hbEsc(el.color||'#1d2327')+';text-align:'+hbEsc(el.align||'left')+';">'
                 +tcnt+'</span></div>';
         } else if(el.type==='html'){
             inner.innerHTML = el.html ? hbSanitizePreviewHtml(el.html) : '<span style="color:#aaa;font-size:10px;padding:4px">[HTML]</span>';
@@ -1114,7 +1140,7 @@ class PDFLayoutEditor
         var rows = Math.max(2, hbLayout.rows||8);
         var el = { id:'e'+(hbNextId++), type:type, x:0, y:0,
             w: HB_COLS, h: rows };
-        if(type==='title'){ el.content='{form_title}'; el.size=18; el.align='right'; el.color='#1d2327'; }
+        if(type==='title'){ el.content='{form_title}'; el.size=14; el.align='right'; el.color='#1d2327'; }
         else if(type==='html'){ el.html=''; }
         hbLayout.elements.push(el);
         hbSel=el.id; hbRender(); hbRenderProps();
@@ -1247,7 +1273,7 @@ class PDFLayoutEditor
                 /* Size + colour — element-level */
                 +(function(){
                     var sizes=[8,9,10,11,12,14,16,18,20,24,28,32,36,48,72];
-                    var cur=el.size||18;
+                    var cur=el.size||14;
                     var s='<select class="forge-hb-tb-size-sel" data-sz title="Schriftgröße">';
                     sizes.forEach(function(n){
                         s+='<option value="'+n+'"'+(n===cur?' selected':'')+'>'+n+' pt</option>';
@@ -1258,7 +1284,7 @@ class PDFLayoutEditor
                 +'</div>';
             h+='<div class="forge-hb-prop-group forge-hb-prop-group--editor"><span>Text</span>'
                 +'<div class="forge-hb-title-editor" contenteditable="true" spellcheck="false" '
-                +'style="font-size:'+(el.size||18)+'pt;color:'+hbEsc(el.color||'#1d2327')+';text-align:'+hbEsc(el.align||'left')+';">'
+                +'style="font-size:'+(el.size||14)+'pt;color:'+hbEsc(el.color||'#1d2327')+';text-align:'+hbEsc(el.align||'left')+';">'
                 +(el.content||el.text||'{form_title}')
                 +'</div></div>'
                 +'</div>';
@@ -1414,7 +1440,7 @@ class PDFLayoutEditor
         var szSel=hbProps.querySelector('[data-sz]');
         if(szSel){
             szSel.addEventListener('change', function(){
-                var sz=parseInt(szSel.value)||18;
+                var sz=parseInt(szSel.value)||14;
                 var hadRange=hbRestoreRange();
                 if(hadRange){
                     hbApplySpan({fontSize:sz+'pt'});
@@ -1638,7 +1664,7 @@ class PDFLayoutEditor
                         } else if(el.type==='title'){
                             var pcnt = (el.content||el.text||'{form_title}').replace(/\{form_title\}/g,'Beispielformular');
                             result += '<div style="width:100%;height:100%;display:flex;align-items:center;">'
-                                +'<span style="width:100%;font-size:'+(el.size||18)+'pt;color:'+hbEsc(el.color||'#1d2327')+';text-align:'+hbEsc(el.align||'left')+';">'+pcnt+'</span></div>';
+                                +'<span style="width:100%;font-size:'+(el.size||14)+'pt;color:'+hbEsc(el.color||'#1d2327')+';text-align:'+hbEsc(el.align||'left')+';">'+pcnt+'</span></div>';
                         }
                         result += '</div>';
                     });
@@ -1695,7 +1721,7 @@ class PDFLayoutEditor
         var btn = document.querySelector('[form="forge-pdf-layout-form"][type="submit"]')
             || form.querySelector('button[type="submit"]');
         var origHtml = btn ? btn.innerHTML : '';
-        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="forge-spinner"></span> Saving…'; }
+        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="forge-spinner"></span> <?php echo esc_js(__('Saving…', 'form-forge')); ?>'; }
         var fd = new FormData(form);
         fd.set('action', 'forge_save_pdf_layout');
         requestAnimationFrame(function(){ requestAnimationFrame(function(){
@@ -1771,7 +1797,7 @@ class PDFLayoutEditor
             'separator_color' => sanitize_hex_color((string) wp_unslash($_POST['separator_color'] ?? '')) ?: $defs['separator_color'],
             'font_family'     => sanitize_key(wp_unslash($_POST['font_family'] ?? 'dejavusans')),
             'font_size_body'  => min(20, max(6, absint(wp_unslash($_POST['font_size_body'] ?? 11)))),
-            'title_size'      => min(36, max(10, absint(wp_unslash($_POST['title_size']     ?? 18)))),
+            'title_size'      => min(36, max(10, absint(wp_unslash($_POST['title_size']     ?? 14)))),
             'footer_text'     => sanitize_textarea_field(wp_unslash($_POST['footer_text'] ?? '')),
             'margin_top'      => min(50, max(0, absint(wp_unslash($_POST['margin_top']    ?? 15)))),
             'margin_bottom'   => min(50, max(0, absint(wp_unslash($_POST['margin_bottom'] ?? 15)))),

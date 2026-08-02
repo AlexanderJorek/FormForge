@@ -147,17 +147,90 @@ function _forgeCreateProgressCard(name) {
     return card;
 }
 
+/* The bar/pct is a safety-netted high-water mark, not a direct mirror of
+   whatever pct a caller passes: several independent progress sources feed
+   this one card (client-side PDF.js extraction, the server's own 0-100
+   verification-step scale, retry/queue states) and a caller passing a lower
+   number than what's already shown — even a legitimate one from a different
+   phase — must never visually move the bar backward. The step *text* always
+   updates; only the bar/percentage is clamped. */
 function _forgeUpdateCard(card, step, pct) {
     var s = card.querySelector('.forge-vpc__step');
     var b = card.querySelector('.forge-vpc__bar');
     var p = card.querySelector('.forge-vpc__pct');
+    var shown = Math.max(pct, parseFloat(card.dataset.maxPct || '0'));
+    card.dataset.maxPct = String(shown);
     if (s) s.textContent = step;
-    if (b) b.style.width = Math.round(pct) + '%';
-    if (p) p.textContent = Math.round(pct) + ' %';
+    if (b) b.style.width = Math.round(shown) + '%';
+    if (p) p.textContent = Math.round(shown) + ' %';
 }
 
 /* ── Queue for PDFs pushed by PHP ── */
 window.FORGE_VERIFICATION_QUEUE = window.FORGE_VERIFICATION_QUEUE || [];
+
+/* Server-side rate-limits forge_verify_push_lines to 1 call per 5 seconds per
+   user (see Admin/Verificationpage.php) — a deliberate anti-self-DoS guard on
+   a handler that raises memory/time limits per request. Batch-scanning
+   multiple PDFs at once (drag-and-drop several files, or "scan more") kicks
+   off processPdf() for every file back-to-back, and each one's own PDF.js
+   text-extraction pass finishes on its own schedule — nothing upstream of
+   this staggers the resulting forge_verify_push_lines calls, so most of a
+   multi-file batch used to get silently 429-rejected. This module-level gate
+   only throttles the actual server call (client-side PDF.js extraction for
+   several files still runs concurrently — that's local work, not a server
+   hit) so batch scans go through file-by-file instead of failing past the
+   first one or two.
+   Slots are reserved by *start* time, computed synchronously the moment a
+   caller asks for one — NOT chained after the previous call's response
+   arrives. The server's 5s window is measured from when each request lands,
+   which can take a long time to fully process (large PDF, heavy parsing);
+   waiting for that response before starting the next 5s countdown would
+   compound into "request duration + 5s" per file instead of a flat 5s. */
+var _forgeNextPushSlotAt = 0; // epoch ms
+var _forgePushSlotGapMs  = 5200; // grows on an actual 429 — see forceNextSlotLater() below
+
+/* Waits out $waitMs, invoking onTick(remainingMs) roughly once a second so the
+   UI can show a live countdown instead of a number that's stale the instant
+   it's shown. */
+function _forgeCountdown(waitMs, onTick) {
+    if (waitMs <= 0) { return Promise.resolve(); }
+    return new Promise(function (resolve) {
+        var target = Date.now() + waitMs;
+        onTick(waitMs);
+        var iv = setInterval(function () {
+            var remaining = target - Date.now();
+            if (remaining <= 0) {
+                clearInterval(iv);
+                resolve();
+                return;
+            }
+            onTick(remaining);
+        }, 1000);
+    });
+}
+
+function _forgeThrottledPushLines(ajaxUrl, formData, onWaitTick, onRequestStart) {
+    var now  = Date.now();
+    var wait = Math.max(0, _forgeNextPushSlotAt - now);
+    _forgeNextPushSlotAt = Math.max(_forgeNextPushSlotAt, now) + _forgePushSlotGapMs;
+    return (wait > 0 && onWaitTick ? _forgeCountdown(wait, onWaitTick) : new Promise(function (r) { setTimeout(r, wait); }))
+        .then(function () {
+            if (onRequestStart) { onRequestStart(); }
+            return fetch(ajaxUrl, { method: 'POST', body: formData, credentials: 'same-origin' });
+        });
+}
+
+/* Called when the server rejects a call as rate-limited despite the gate above
+   — client/server clock drift, network jitter, or the server-side PHP worker
+   itself being queued (shared hosting under load from several heavy PDF-parse
+   requests) can all delay a request's actual arrival past its intended slot.
+   Widening the gap after a real 429 is more robust than guessing a bigger
+   fixed margin up front: it only grows when there's evidence the current one
+   wasn't enough, and pushes every file still waiting further out too. */
+function _forgeWidenPushSlotGap() {
+    _forgePushSlotGapMs = Math.min(15000, _forgePushSlotGapMs + 2000);
+    _forgeNextPushSlotAt = Math.max(_forgeNextPushSlotAt, Date.now() + _forgePushSlotGapMs);
+}
 
 window.FORGE_VERIFICATION_PROCESS_PDF = async function processPdf(pdfInfo) {
     if (!pdfInfo) return;
@@ -183,14 +256,33 @@ window.FORGE_VERIFICATION_PROCESS_PDF = async function processPdf(pdfInfo) {
 
     function done() { clearInterval(elapsedTimer); }
 
+    /* Overall bar is carved into non-overlapping bands per phase, in the order
+       they actually occur, so the number only ever climbs:
+         0-2   pdf_loading (start)
+         2-40  page-by-page text extraction (client-side, PDF.js)
+         40    queued / rate-limited-retry (before the request has gone out)
+         42    request sent, awaiting server ("text extracted — analyzing")
+         42-95 server's own verification-step progress (see remapServerPct
+               below — the server reports its own independent 0-100 scale via
+               forge_verify_progress polling, which must NOT be shown as-is:
+               its raw values (Verificationpage.php's setProgress() calls run
+               5..94) would otherwise replay from near-zero right as this
+               card is already sitting at 42+, looking like it jumped
+               backward)
+         98    processing the final response
+         100   done / error (terminal) */
+    function remapServerPct(rawPct) {
+        return 42 + Math.round((Math.max(0, Math.min(100, rawPct)) / 100) * 53);
+    }
+
     var i18n = (window.ForgeVerifier && window.ForgeVerifier.i18n) || {};
     try {
-        _forgeUpdateCard(card, i18n.pdf_loading || 'Loading PDF…', 5);
+        _forgeUpdateCard(card, i18n.pdf_loading || 'Loading PDF…', 2);
         const pdf = await pdfjsLib.getDocument({ url: pdfUrl, withCredentials: true }).promise;
         const allLines = [];
 
         for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-            var pagePct = 10 + Math.round((pageNum - 1) / pdf.numPages * 60);
+            var pagePct = 2 + Math.round((pageNum - 1) / pdf.numPages * 38);
             var pageMsg = (i18n.page_reading || 'Reading page %1$d of %2$d…')
                 .replace('%1$d', pageNum).replace('%2$d', pdf.numPages);
             _forgeUpdateCard(card, pageMsg, pagePct);
@@ -220,8 +312,6 @@ window.FORGE_VERIFICATION_PROCESS_PDF = async function processPdf(pdfInfo) {
             }));
         }
 
-        _forgeUpdateCard(card, i18n.text_extracted || 'Text extracted — server analyzing…', 75);
-
         const ajaxUrl = window.ForgeVerifier && window.ForgeVerifier.ajaxUrl;
         if (!ajaxUrl) { done(); return allLines; }
 
@@ -231,26 +321,65 @@ window.FORGE_VERIFICATION_PROCESS_PDF = async function processPdf(pdfInfo) {
         formData.append('visualLines', JSON.stringify(allLines));
         formData.append('nonce',       (window.ForgeVerifier && window.ForgeVerifier.nonce) || '');
 
-        /* Poll server-side progress while the main request is in flight */
+        /* Poll server-side progress while the main request is in flight — only
+           started once the request actually goes out (see onRequestStart below),
+           not while it's still waiting for a throttle slot: there's no server-side
+           progress to report yet, and polling during the wait would just spam
+           no-op requests. lastServerPct is reset on every (re)start — carrying a
+           high-water mark over from an abandoned attempt (a 429 retry starts a
+           brand-new server-side run from scratch) would otherwise suppress that
+           new attempt's real progress until it happened to climb back past the
+           old mark, making the bar look stuck rather than just retried. */
         var lastServerPct = 0;
-        _pollTimer = pdfToken ? setInterval(function () {
-            var pf = new FormData();
-            pf.append('action', 'forge_verify_progress');
-            pf.append('token',  pdfToken);
-            pf.append('nonce',  (window.ForgeVerifier && window.ForgeVerifier.nonce) || '');
-            fetch(ajaxUrl, { method: 'POST', body: pf, credentials: 'same-origin' })
-                .then(function (r) { return r.json(); })
-                .then(function (d) {
-                    if (d.success && d.data && d.data.step && d.data.pct > lastServerPct) {
-                        lastServerPct = d.data.pct;
-                        _forgeUpdateCard(card, d.data.step, d.data.pct);
-                    }
-                })
-                .catch(function () {});
-        }, 400) : null;
+        function startProgressPoll() {
+            if (!pdfToken) { return; }
+            lastServerPct = 0;
+            _pollTimer = setInterval(function () {
+                var pf = new FormData();
+                pf.append('action', 'forge_verify_progress');
+                pf.append('token',  pdfToken);
+                pf.append('nonce',  (window.ForgeVerifier && window.ForgeVerifier.nonce) || '');
+                fetch(ajaxUrl, { method: 'POST', body: pf, credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        if (d.success && d.data && d.data.step && d.data.pct > lastServerPct) {
+                            lastServerPct = d.data.pct;
+                            _forgeUpdateCard(card, d.data.step, remapServerPct(d.data.pct));
+                        }
+                    })
+                    .catch(function () {});
+            }, 400);
+        }
 
         try {
-            const res     = await fetch(ajaxUrl, { method: 'POST', body: formData, credentials: 'same-origin' });
+            function onWaitTick(waitMs) {
+                var waitMsg = (i18n.queued || 'Waiting in queue (%1$ds)…')
+                    .replace('%1$d', Math.ceil(waitMs / 1000));
+                _forgeUpdateCard(card, waitMsg, 40);
+                card.classList.add('forge-vpc--queued');
+            }
+            function onRequestStart() {
+                card.classList.remove('forge-vpc--queued');
+                _forgeUpdateCard(card, i18n.text_extracted || 'Text extracted — server analyzing…', 42);
+                startProgressPoll();
+            }
+
+            // The throttle gate above schedules slots with a margin, but the actual
+            // request can still land inside another one's window — client/server
+            // clock drift, network jitter, or the PHP worker itself being queued
+            // under load from a large batch. Retry a 429 instead of failing the
+            // file outright; _forgeWidenPushSlotGap() also grows the gap for every
+            // remaining file in the batch so repeat collisions become less likely.
+            var res;
+            var maxAttempts = 5;
+            for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+                res = await _forgeThrottledPushLines(ajaxUrl, formData, onWaitTick, onRequestStart);
+                if (res.status !== 429 || attempt === maxAttempts) { break; }
+                stopPoll();
+                _forgeWidenPushSlotGap();
+                _forgeUpdateCard(card, i18n.rate_limited_retry || 'Rate limited — retrying…', 40);
+                card.classList.add('forge-vpc--queued');
+            }
             stopPoll();
             _forgeUpdateCard(card, i18n.processing || 'Processing response…', 98);
             const rawText = await res.text();

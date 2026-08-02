@@ -33,6 +33,11 @@ class NameField extends BaseField
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'name';
+    }
+
     public function getLabel(): string
     {
         return __('Name', 'form-forge');
@@ -106,6 +111,20 @@ CSS;
     }
 
     /**
+     * Returns the fixed salutation/prefix option list. Rendered as <select>
+     * options in render() and used by validate() as the server-side allowlist
+     * for the submitted prefix sub-value — can't be a class const because it
+     * contains __() translation calls, which aren't compile-time constant
+     * expressions.
+     *
+     * @return array<int, string>
+     */
+    private static function prefixOptions(): array
+    {
+        return ['', __('Mr.', 'form-forge'), __('Ms.', 'form-forge'), __('Diverse', 'form-forge'), 'Dr.', 'Prof.', 'Dipl.', 'Ing.'];
+    }
+
+    /**
      * Renders the field HTML.
      *
      * @param array  $config   Field configuration.
@@ -143,7 +162,7 @@ CSS;
                 $cur    = esc_attr((string)($val[$k] ?? ''));
                 $inner .= '<select name="' . esc_attr($field_id) . '[' . $k . ']"'
                     . ' class="forge-input forge-name-prefix" aria-label="' . esc_attr($label_raw) . '"' . $req . '>';
-                foreach (['', __('Mr.', 'form-forge'), __('Ms.', 'form-forge'), __('Diverse', 'form-forge'), 'Dr.', 'Prof.', 'Dipl.', 'Ing.'] as $opt) {
+                foreach (self::prefixOptions() as $opt) {
                     $inner .= '<option value="' . esc_attr($opt) . '"' . selected($cur, $opt, false) . '>'
                         . ($opt === '' ? '—' : esc_html($opt)) . '</option>';
                 }
@@ -206,7 +225,15 @@ CSS;
                 continue;
             }
             if (!empty($sf['is_select'])) {
-                continue; // select always has a value; "—" is a valid no-preference answer
+                // select always has a value; "—" is a valid no-preference answer,
+                // so required is intentionally not enforced here — but a direct
+                // POST can still submit an arbitrary string outside the <select>'s
+                // option list, so allowlist whatever was submitted.
+                $submitted = trim((string)(is_array($value) ? ($value[$k] ?? '') : ''));
+                if ($submitted !== '' && !in_array($submitted, self::prefixOptions(), true)) {
+                    $errors[] = $config[$k . '_label'] ?? self::subfieldLabel($sf['label']);
+                }
+                continue;
             }
             if (!empty($config[$k . '_required'])) {
                 if (trim((string)(is_array($value) ? ($value[$k] ?? '') : '')) === '') {

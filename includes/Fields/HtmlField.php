@@ -46,6 +46,11 @@ CSS;
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'html';
+    }
+
     public function getLabel(): string
     {
         return __('HTML Block', 'form-forge');
@@ -106,14 +111,17 @@ CSS;
     }
 
     /**
-     * Strips only <script> tags; allows all other HTML elements and attributes.
-     * Applied on both save and render so the stored value round-trips cleanly.
+     * The wp_kses() allowlist used to sanitize html_content: wp_kses_post()'s
+     * allowlist plus form-elements and inline SVG, since this field is meant
+     * to support both. Single source of truth for self::kses() and for
+     * Generator.php's PDF pass (see trustedPdfAllowedTags()) so the two never
+     * drift out of sync.
+     *
+     * @return array wp_kses()-compatible allowed-tags array.
      */
-    private static function kses(string $html): string
+    private static function allowedTags(): array
     {
-        $html = preg_replace('#<script\b[^>]*+>[\s\S]*?</script>#i', '', $html);
-
-        $base = \wp_kses_allowed_html('post');
+        $base  = \wp_kses_allowed_html('post');
         $extra = [
             'input'    => ['type'=>true,'name'=>true,'id'=>true,'value'=>true,
                            'placeholder'=>true,'checked'=>true,'disabled'=>true,
@@ -149,7 +157,36 @@ CSS;
             'text'     => ['x'=>true,'y'=>true,'fill'=>true,'font-size'=>true,'text-anchor'=>true,
                            'class'=>true,'transform'=>true],
         ];
-        $html = \wp_kses($html, array_merge($base, $extra));
+        return array_merge($base, $extra);
+    }
+
+    /**
+     * Public accessor for the same allowlist self::kses() enforces, used by
+     * Generator.php to widen its own defense-in-depth wp_kses() pass for
+     * cell_html built via PdfDescriptor::rawHtml($html, true) — i.e. content
+     * this field already sanitized against this exact allowlist upstream.
+     * Re-narrowing it to the generic value-only allowlist there would strip
+     * the rich markup (headings, tables, inline SVG, ...) this field
+     * deliberately supports; using an allowlist narrower than what this
+     * class itself already enforced would be pointless, and using one wider
+     * would defeat the point of tracking "trusted" at all.
+     *
+     * @return array wp_kses()-compatible allowed-tags array.
+     */
+    public static function trustedPdfAllowedTags(): array
+    {
+        return self::allowedTags();
+    }
+
+    /**
+     * Strips only <script> tags; allows all other HTML elements and attributes.
+     * Applied on both save and render so the stored value round-trips cleanly.
+     */
+    private static function kses(string $html): string
+    {
+        $html = preg_replace('#<script\b[^>]*+>[\s\S]*?</script>#i', '', $html);
+
+        $html = \wp_kses($html, self::allowedTags());
         // <use href>/<use xlink:href> may only reference an in-document fragment;
         // anything else (javascript:, data:, external URLs) is stripped.
         $html = preg_replace_callback(

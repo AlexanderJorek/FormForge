@@ -48,6 +48,11 @@ CSS;
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'time';
+    }
+
     public function getLabel(): string
     {
         return __('Time', 'form-forge');
@@ -98,7 +103,14 @@ CSS;
             return $base;
         }
         // Format validation is intentionally left to the browser's type="time" input.
-        // Any non-empty string is accepted server-side.
+        // Any non-empty string is accepted server-side, but still bounded by the
+        // shared hard cap so a direct POST can't submit an unbounded-length value.
+        if ($value !== null && $value !== '') {
+            $hard = self::validateTextHardCap((string)$value);
+            if ($hard !== true) {
+                return $hard;
+            }
+        }
         return true;
     }
 

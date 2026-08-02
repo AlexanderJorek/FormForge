@@ -82,6 +82,11 @@ CSS;
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'consent';
+    }
+
     public function getLabel(): string
     {
         return __('Consent', 'form-forge');

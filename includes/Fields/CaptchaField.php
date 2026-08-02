@@ -33,6 +33,11 @@ class CaptchaField extends BaseField
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'captcha';
+    }
+
     public function getLabel(): string
     {
         return __('CAPTCHA', 'form-forge');

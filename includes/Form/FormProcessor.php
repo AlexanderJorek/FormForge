@@ -49,11 +49,20 @@ class FormProcessor
         }
 
         /* ---- Rate limit (per IP + form) to prevent replay/abuse ---- */
-        if (self::isRateLimited($form_id)) {
-            wp_send_json_error(
-                ['message' => __('Too many submissions, please try again later.', 'form-forge')],
-                429
-            );
+        $retry_after = self::rateLimitRetryAfter($form_id);
+        if ($retry_after !== null) {
+            $message = $retry_after > 60
+                ? sprintf(
+                    /* translators: %d: number of minutes until the visitor can submit again */
+                    __('Too many submissions. Please try again in %d minutes.', 'form-forge'),
+                    (int) ceil($retry_after / 60)
+                )
+                : sprintf(
+                    /* translators: %d: number of seconds until the visitor can submit again */
+                    __('Too many submissions. Please try again in %d seconds.', 'form-forge'),
+                    max(1, $retry_after)
+                );
+            wp_send_json_error(['message' => $message, 'retry_after' => $retry_after], 429);
         }
 
         /* ---- Load form ---- */
@@ -284,9 +293,10 @@ class FormProcessor
      *
      * @param int $form_id The form being submitted.
      *
-     * @return bool True when the caller has exceeded the allowed rate.
+     * @return int|null Seconds until the caller's window resets, or null when
+     *                   the caller is within the allowed rate (not limited).
      */
-    private static function isRateLimited(int $form_id): bool
+    private static function rateLimitRetryAfter(int $form_id): ?int
     {
         // ClientIp::resolve() uses REMOTE_ADDR by default (unspoofable) and only trusts
         // X-Forwarded-For when REMOTE_ADDR is explicitly allowlisted via the
@@ -294,11 +304,25 @@ class FormProcessor
         $ip = \ForgeForms\Utils\ClientIp::resolve();
         if ($ip === '') {
             // Unknown client: fail closed rather than pooling every such
-            // request into one shared rate-limit bucket.
-            return true;
+            // request into one shared rate-limit bucket. No real window to
+            // report, so just cap the suggested wait at the window length.
+            \ForgeForms\forge_log(
+                'ForgeForms rateLimitRetryAfter: fail-closed — ClientIp::resolve() '
+                . 'returned empty for form ' . $form_id . '. REMOTE_ADDR='
+                // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- diagnostic log line only (WP_DEBUG-gated via forge_log()), never echoed/stored; not a security-relevant use of this value.
+                . (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '(unset)')
+            );
+            return 5 * MINUTE_IN_SECONDS;
         }
-        $key = 'submit_' . md5($ip . '_' . $form_id);
-        return \ForgeForms\Utils\RateLimiter::increment($key, 5 * MINUTE_IN_SECONDS) > 10;
+        $key   = 'submit_' . hash_hmac('sha256', $ip . '_' . $form_id, wp_salt('auth'));
+        $count = \ForgeForms\Utils\RateLimiter::increment($key, 5 * MINUTE_IN_SECONDS);
+        if ($count <= 10) {
+            return null;
+        }
+        // The increment above may itself have just reset the window (if it had expired),
+        // in which case secondsUntilReset() correctly reflects that new window rather
+        // than a stale one — it re-reads the row increment() just wrote.
+        return max(1, \ForgeForms\Utils\RateLimiter::secondsUntilReset($key));
     }
 
     /**

@@ -33,6 +33,11 @@ class AddressField extends BaseField
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'address';
+    }
+
     public function getLabel(): string
     {
         return __('Address', 'form-forge');

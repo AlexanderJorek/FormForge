@@ -58,7 +58,17 @@ class FormRenderer
     {
         $form = FormModel::get($form_id);
         if (!$form) {
-            return '';
+            // Allow preview of unsaved forms: synthesise a minimal form object
+            // when form_id=0 but a fields override is provided.
+            if ($form_id === 0 && $fields_override !== null) {
+                $form           = new \stdClass();
+                $form->id       = 0;
+                $form->title    = '';
+                $form->fields   = [];
+                $form->settings = [];
+            } else {
+                return '';
+            }
         }
         if (!empty($settings_override)) {
             $form->settings = array_merge($form->settings, $settings_override);

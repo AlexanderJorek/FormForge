@@ -75,6 +75,20 @@ foreach ($options as $option) {
     delete_option($option);
 }
 
+/* Remove rate-limiter bucket rows. These are not in the fixed $options list above
+   because their names are dynamic (forge_rl_<hash>) — one row per rate-limited
+   key/IP combination. The hourly sweep (Utils/RateLimiter.php) normally expires
+   these, but if it never ran (e.g. site deleted immediately after install, or
+   WP-Cron disabled) rows could otherwise survive plugin deletion indefinitely. */
+global $wpdb;
+$wpdb->query(
+    $wpdb->prepare(
+        "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
+        $wpdb->esc_like('forge_rl_') . '%'
+    )
+);
+wp_cache_delete('alloptions', 'options');
+
 /* Remove upload directory */
 $upload_dir = wp_upload_dir();
 $plugin_dir = $upload_dir['basedir'] . '/forge-secure-pdf';

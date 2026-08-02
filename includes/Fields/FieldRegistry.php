@@ -29,6 +29,59 @@ defined('ABSPATH') || exit;
 class FieldRegistry
 {
     /**
+     * Single point of definition for every field type: ClassName => 'group:slug'.
+     * Doubles as the Plugin.php load allowlist (filename alone isn't a trust
+     * boundary) and the palette group/order. slug is a typo-check only —
+     * getType() is still authoritative; registerDefaults() warns on mismatch.
+     * Add a field: implement the class, drop the file, add one line here.
+     *
+     * @var array<string, string>
+     */
+    public const FIELD_MAP = [
+        'TextField'       => 'input:text',
+        'TextareaField'   => 'input:textarea',
+        'EmailField'      => 'input:email',
+        'PhoneField'      => 'input:phone',
+        'NumberField'     => 'input:number',
+        'WebsiteField'    => 'input:website',
+        'SelectField'     => 'choice:select',
+        'RadioField'      => 'choice:radio',
+        'CheckboxField'   => 'choice:checkbox',
+        'NameField'       => 'personal:name',
+        'AddressField'    => 'personal:address',
+        'DateField'       => 'personal:date',
+        'TimeField'       => 'personal:time',
+        'CurrencyField'   => 'advanced:currency',
+        'RatingField'     => 'advanced:rating',
+        'SliderField'     => 'advanced:slider',
+        'UploadField'     => 'advanced:upload',
+        'SignatureField'  => 'advanced:signature',
+        'SepaField'       => 'advanced:sepa',
+        'HtmlField'       => 'layout:html',
+        'GroupField'      => 'layout:group',
+        'PageBreakField'  => 'layout:pagebreak',
+        'PageHeaderField' => 'layout:page-header',
+        'ConsentField'    => 'system:consent',
+        'GdprField'       => 'system:gdpr',
+        'CaptchaField'    => 'system:captcha',
+        'PostDataField'   => 'system:postdata',
+    ];
+
+    /**
+     * Label/color per palette group (keyed by FIELD_MAP's group prefix).
+     *
+     * @var array<string, array{label: string, color: string}>
+     */
+    private const GROUP_META = [
+        'input'    => ['label' => 'Input', 'color' => '#82CAFA'],
+        'choice'   => ['label' => 'Choice', 'color' => '#A0D468'],
+        'personal' => ['label' => 'Personal', 'color' => '#FFB347'],
+        'advanced' => ['label' => 'Advanced', 'color' => '#CBA0E6'],
+        'layout'   => ['label' => 'Layout', 'color' => '#6ED5C4'],
+        'system'   => ['label' => 'System', 'color' => '#F28C8C'],
+    ];
+
+    /**
      * Map of field type slugs to their handler class names.
      *
      * @var array<string, class-string<BaseField>>
@@ -45,6 +98,15 @@ class FieldRegistry
      */
     public static function register(string $type, string $class): void
     {
+        if (isset(self::$types[$type]) && self::$types[$type] !== $class) {
+            // Discovery order isn't guaranteed, so a slug collision would otherwise
+            // silently pick a non-deterministic "winner". Fail loudly instead.
+            \ForgeForms\forge_log(
+                'ForgeForms FieldRegistry: duplicate field type "' . $type . '" registered by '
+                . $class . ' (already registered by ' . self::$types[$type] . ') — keeping the first registration.'
+            );
+            return;
+        }
         self::$types[$type] = $class;
     }
 
@@ -93,44 +155,32 @@ class FieldRegistry
      */
     public static function registerDefaults(): void
     {
-        /* ── ADD NEW FIELDS HERE ─────────────────────────────────────────
-         * 1. Add  'your-type' => YourField::class  to this map.
-         * 2. Add the type string to the palette group you want below in
-         *    paletteGroups() — that controls where it appears in the builder.
-         * See _ExampleField.php for a full walkthrough of what a field class
-         * must and can implement.
-         * ──────────────────────────────────────────────────────────────── */
-        $map = [
-            'text'        => TextField::class,
-            'textarea'    => TextareaField::class,
-            'email'       => EmailField::class,
-            'name'        => NameField::class,
-            'phone'       => PhoneField::class,
-            'number'      => NumberField::class,
-            'address'     => AddressField::class,
-            'date'        => DateField::class,
-            'time'        => TimeField::class,
-            'currency'    => CurrencyField::class,
-            'select'      => SelectField::class,
-            'radio'       => RadioField::class,
-            'checkbox'    => CheckboxField::class,
-            'upload'      => UploadField::class,
-            'signature'   => SignatureField::class,
-            'rating'      => RatingField::class,
-            'slider'      => SliderField::class,
-            'captcha'     => CaptchaField::class,
-            'consent'     => ConsentField::class,
-            'gdpr'        => GdprField::class,
-            'html'        => HtmlField::class,
-            'group'       => GroupField::class,
-            'pagebreak'   => PageBreakField::class,
-            'postdata'    => PostDataField::class,
-            'website'     => WebsiteField::class,
-            'sepa'        => SepaField::class,
-        ];
+        // Auto-discover all concrete BaseField subclasses already loaded by Plugin.php
+        // (which only loads classes listed in self::FIELD_MAP — see that constant).
+        // Files prefixed with _ (e.g. _ExampleField) are excluded at load time in
+        // Plugin.php, so they never appear here.
+        foreach (get_declared_classes() as $class) {
+            if (!is_subclass_of($class, BaseField::class)) {
+                continue;
+            }
+            // Restrict to this namespace to avoid picking up third-party BaseField subclasses.
+            if (!str_starts_with($class, __NAMESPACE__ . '\\')) {
+                continue;
+            }
+            $handler   = new $class();
+            $realSlug  = $handler->getType();
+            $shortName = substr(strrchr($class, '\\') ?: $class, 1);
 
-        foreach ($map as $type => $class) {
-            self::register($type, $class);
+            // Typo guard: getType() is authoritative, FIELD_MAP's slug is just documentation.
+            $mappedSlug = substr((string) strrchr(self::FIELD_MAP[$shortName] ?? '', ':'), 1);
+            if ($mappedSlug !== '' && $mappedSlug !== $realSlug) {
+                \ForgeForms\forge_log(
+                    'ForgeForms FieldRegistry: ' . $shortName . '::getType() is "' . $realSlug
+                    . '" but FIELD_MAP declares "' . $mappedSlug . '" — update FIELD_MAP to match.'
+                );
+            }
+
+            self::register($realSlug, $class);
         }
     }
 
@@ -154,25 +204,18 @@ class FieldRegistry
             return $cache[$locale];
         }
 
-        $order = [
-            __('Input', 'form-forge')    => [
-                'color' => '#82CAFA',
-                'types' => ['text', 'textarea', 'email', 'phone', 'number', 'website'],
-            ],
-            __('Choice', 'form-forge')    => ['color' => '#A0D468', 'types' => ['select', 'radio', 'checkbox']],
-            __('Personal', 'form-forge') => ['color' => '#FFB347', 'types' => ['name', 'address', 'date', 'time']],
-            __('Advanced', 'form-forge')  => [
-                'color' => '#CBA0E6',
-                'types' => ['currency', 'rating', 'slider', 'upload', 'signature', 'sepa'],
-            ],
-            __('Layout', 'form-forge')     => ['color' => '#6ED5C4', 'types' => ['html', 'group', 'pagebreak']],
-            __('System', 'form-forge')     => ['color' => '#F28C8C', 'types' => ['consent', 'gdpr', 'captcha', 'postdata']],
-        ];
+        // Grouping/order is derived from FIELD_MAP, not a separate list.
+        $groupOrder = [];
+        foreach (self::FIELD_MAP as $groupSlug) {
+            [$group, $type] = explode(':', $groupSlug, 2);
+            $groupOrder[$group][] = $type;
+        }
 
         $groups = [];
-        foreach ($order as $label => $def) {
+        foreach ($groupOrder as $group => $types) {
+            $meta = self::GROUP_META[$group] ?? ['label' => $group, 'color' => '#999999'];
             $items = [];
-            foreach ($def['types'] as $type) {
+            foreach ($types as $type) {
                 $class = self::$types[$type] ?? null;
                 if (!$class) {
                     continue;
@@ -190,11 +233,32 @@ class FieldRegistry
                 ];
             }
             if ($items) {
-                $groups[] = ['label' => $label, 'color' => $def['color'], 'items' => $items];
+                $groups[] = ['label' => self::translateGroupLabel($group), 'color' => $meta['color'], 'items' => $items];
             }
         }
         $cache[$locale] = $groups;
         return $cache[$locale];
+    }
+
+    /**
+     * Translates a GROUP_META key. A literal switch (not a variable passed to
+     * __()) so i18n string extraction can still find these.
+     *
+     * @param string $group Group key from GROUP_META.
+     *
+     * @return string
+     */
+    private static function translateGroupLabel(string $group): string
+    {
+        return match ($group) {
+            'input'    => __('Input', 'form-forge'),
+            'choice'   => __('Choice', 'form-forge'),
+            'personal' => __('Personal', 'form-forge'),
+            'advanced' => __('Advanced', 'form-forge'),
+            'layout'   => __('Layout', 'form-forge'),
+            'system'   => __('System', 'form-forge'),
+            default    => self::GROUP_META[$group]['label'] ?? $group,
+        };
     }
 
     /**

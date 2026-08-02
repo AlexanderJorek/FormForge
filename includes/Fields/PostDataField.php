@@ -33,6 +33,11 @@ class PostDataField extends BaseField
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'postdata';
+    }
+
     public function getLabel(): string
     {
         return __('Post data', 'form-forge');

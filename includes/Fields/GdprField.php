@@ -82,6 +82,11 @@ CSS;
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'gdpr';
+    }
+
     public function getLabel(): string
     {
         return __('GDPR Checkbox', 'form-forge');

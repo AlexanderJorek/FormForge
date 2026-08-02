@@ -169,6 +169,11 @@ CSS;
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'sepa';
+    }
+
     public function getLabel(): string
     {
         return __('SEPA Direct Debit', 'form-forge');
@@ -258,6 +263,7 @@ CSS;
                     var body = new FormData();
                     body.append('action', 'forge_iban_bic');
                     body.append('iban', iban);
+                    body.append('nonce', (window.ForgeForms && window.ForgeForms.ibanBicNonce) || '');
                     fetch(ajaxUrl, { method: 'POST', body: body, credentials: 'same-origin' })
                         .then(function (r) { return r.json(); })
                         .then(function (res) {
@@ -480,11 +486,11 @@ CSS;
             $html .= ' <span class="forge-required" aria-hidden="true">*</span>';
         }
         $html .= '</label>';
-        // live_iban_lookup defaults to true (existing behavior). When disabled, the BIC
+        // live_iban_lookup defaults to false (opt-in, GDPR). When enabled, the BIC
         // lookup AJAX call (which relays the visitor's IBAN to the third-party
-        // openiban.com service pre-submission) is skipped client-side and the account
-        // holder enters the BIC manually.
-        $live_lookup = !isset($config['live_iban_lookup']) || !empty($config['live_iban_lookup']);
+        // openiban.com service pre-submission) runs client-side; otherwise the
+        // account holder enters the BIC manually.
+        $live_lookup = isset($config['live_iban_lookup']) && !empty($config['live_iban_lookup']);
         $html .= '<input type="text" id="' . esc_attr($field_id) . '-iban"'
             . ' name="' . esc_attr($field_id) . '[iban]"'
             . ' class="forge-input forge-sepa-iban"'
@@ -754,6 +760,11 @@ CSS;
             return __('Account holder is a required field.', 'form-forge');
         }
 
+        $sig = (string)($value['sig'] ?? '');
+        if ($sig === '' || !self::isSignatureDataUri($sig)) {
+            return __('Signature is a required field.', 'form-forge');
+        }
+
         return true;
     }
 
@@ -875,7 +886,7 @@ CSS;
             'placeholder_country' => 'DE',
             'country_filter_mode' => 'off',
             'country_filter_list' => [],
-            'live_iban_lookup'    => true,
+            'live_iban_lookup'    => false,
         ];
     }
 
@@ -892,7 +903,7 @@ CSS;
                 'key'        => 'live_iban_lookup',
                 'type'       => 'checkbox',
                 'label'      => __('Auto-fill BIC via live IBAN lookup', 'form-forge'),
-                'default'    => true,
+                'default'    => false,
                 'disclaimer' => __(
                     'When enabled, the visitor\'s IBAN is sent to the third-party service openiban.com '
                     . 'as soon as it\'s fully typed — before the form is submitted — to look up the matching BIC. '

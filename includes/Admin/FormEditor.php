@@ -164,11 +164,9 @@ class FormEditor
                         <i class="fa-solid fa-gauge-high"></i>
                     </button>
                     <?php endif; ?>
-                    <?php if ($form_id) : ?>
                     <button id="forge-preview-btn" type="button" title="<?php echo esc_attr__('Preview', 'form-forge'); ?>">
                         <i class="fa-solid fa-eye"></i> <?php echo esc_html__('Preview', 'form-forge'); ?>
                     </button>
-                    <?php endif; ?>
                     <button id="forge-save-btn" type="button"><?php esc_html_e('Save', 'form-forge'); ?></button>
                 </div>
 
@@ -273,9 +271,6 @@ class FormEditor
         \check_ajax_referer('forge_forms_admin_nonce', 'nonce');
 
         $form_id = isset($_POST['form_id']) ? absint(wp_unslash($_POST['form_id'])) : 0;
-        if (!$form_id) {
-            \wp_send_json_error(['message' => 'No form ID'], 400);
-        }
 
         $settings_override = [];
         if (!empty($_POST['settings'])) {
@@ -502,16 +497,18 @@ window.fetch = function (url, opts) {
             \wp_send_json_error(['message' => 'Invalid form data'], 400);
         }
 
-        $form_id   = (int)($raw['id'] ?? 0);
-        $raw_title = $raw['title'] ?? '';
+        $form_id       = (int)($raw['id'] ?? 0);
+        $raw_title     = $raw['title'] ?? '';
+        $sanitized_notifications = self::sanitizeNotifications(is_array($raw['notifications'] ?? null) ? $raw['notifications'] : []);
         $result    = FormModel::save(
             [
             'title'         => \sanitize_text_field(is_string($raw_title) ? $raw_title : ''),
-            'fields'        => self::sanitizeFields($raw['fields']             ?? []),
-            'notifications' => self::sanitizeNotifications($raw['notifications'] ?? []),
-            'settings'      => self::sanitizeSettings($raw['settings']         ?? []),
+            'fields'        => self::sanitizeFields(is_array($raw['fields'] ?? null) ? $raw['fields'] : []),
+            'notifications' => $sanitized_notifications,
+            'settings'      => self::sanitizeSettings(is_array($raw['settings'] ?? null) ? $raw['settings'] : []),
             ],
-            $form_id
+            $form_id,
+            true
         );
 
         if (\is_wp_error($result)) {
@@ -520,7 +517,7 @@ window.fetch = function (url, opts) {
 
         /* Save PDF attachment settings from notifications */
         $pdf_settings = \get_option('forge_forms_pdf_settings', []);
-        foreach ($raw['notifications'] ?? [] as $notif) {
+        foreach ($sanitized_notifications as $notif) {
             $slug = $notif['slug'] ?? '';
             if ($slug) {
                 $pdf_settings[$result . '|' . $slug] = !empty($notif['attach_pdf']) ? 1 : 0;
@@ -742,11 +739,13 @@ window.fetch = function (url, opts) {
         foreach ($passes as $label => $pattern) {
             $after = preg_replace($pattern, $replacements[$label], $html);
             if ($after !== $html) {
+                // Count-only, no stripped content — safe to log unconditionally
+                // (not gated behind WP_DEBUG) so production sites keep an audit
+                // trail when a notification body actually triggers a strip.
                 preg_match_all($pattern, $html, $m);
                 \ForgeForms\forge_log(
                     'ForgeForms sanitizeEmailBody [' . $label . '] removed '
-                    . count($m[0]) . ' match(es): '
-                    . substr(implode(' | ', $m[0]), 0, 300)
+                    . count($m[0] ?? []) . ' match(es)'
                 );
             }
             $html = $after;
@@ -808,12 +807,139 @@ window.fetch = function (url, opts) {
             }
         }
 
+        // ── Layer 2: wp_kses() allow-list, defense-in-depth on top of the
+        // regex passes above — NOT a replacement for them; it runs on their
+        // already-cleaned output. The regex passes above are a targeted
+        // deny-list (strip only what's known dangerous); a parser-based
+        // allow-list catches HTML-parsing quirks the regexes don't anticipate
+        // (malformed/overlapping tags, mutation XSS, etc. — CWE-79) that a
+        // regex operating on the raw token stream can't see.
+        //
+        // The rich-text ("Visuell") notification editor
+        // (assets/js/admin-builder.js, spRichTextEditor()/sanitizeRichDoc())
+        // deliberately saves a *complete* HTML document — <!DOCTYPE html>
+        // <html><head><style>...</style></head><body>...</body></html>, not a
+        // fragment — so the design-mode iframe keeps its own <html>/<head>/
+        // <body> wrapper (a plain contenteditable div would strip it and is
+        // an extension target). The allow-list below therefore has to permit
+        // that wrapper too: if <style> were stripped as a *tag* while its
+        // text content survived (wp_kses removes disallowed tags but leaves
+        // their inner text alone), the CSS ruleset from <head> would spill
+        // out as visible plaintext at the top of the rendered email — a
+        // content-corruption bug, not just a style loss. The DOCTYPE is
+        // preserved explicitly since wp_kses doesn't recognize it as a tag
+        // and would silently drop it.
+        $doctype = '';
+        if (preg_match('/^\s*<!DOCTYPE[^>]*>/i', $html, $dm)) {
+            $doctype = $dm[0];
+            $html    = substr($html, strlen($dm[0]));
+        }
+
+        $allowed_email_tags = [
+            // Document wrapper — see comment above for why this must stay.
+            'html'  => ['lang' => true],
+            'head'  => [],
+            'body'  => ['style' => true, 'bgcolor' => true],
+            'title' => [],
+            'meta'  => ['charset' => true, 'http-equiv' => true, 'content' => true, 'name' => true],
+            'style' => ['type' => true, 'media' => true],
+            'link'  => ['rel' => true, 'href' => true, 'type' => true, 'media' => true],
+
+            // Layout & content — HTML-email-safe subset.
+            'table'  => ['style' => true, 'width' => true, 'height' => true, 'border' => true,
+                         'cellpadding' => true, 'cellspacing' => true, 'align' => true,
+                         'bgcolor' => true, 'role' => true],
+            'thead'  => [],
+            'tbody'  => [],
+            'tfoot'  => [],
+            'tr'     => ['style' => true, 'align' => true, 'valign' => true, 'bgcolor' => true],
+            'td'     => ['style' => true, 'align' => true, 'valign' => true, 'width' => true,
+                         'height' => true, 'colspan' => true, 'rowspan' => true, 'bgcolor' => true],
+            'th'     => ['style' => true, 'align' => true, 'valign' => true, 'width' => true,
+                         'height' => true, 'colspan' => true, 'rowspan' => true, 'bgcolor' => true],
+            'div'    => ['style' => true, 'align' => true],
+            'span'   => ['style' => true],
+            'p'      => ['style' => true, 'align' => true],
+            'a'      => ['style' => true, 'href' => true, 'title' => true, 'target' => true, 'rel' => true],
+            'img'    => ['style' => true, 'src' => true, 'alt' => true, 'title' => true,
+                         'width' => true, 'height' => true, 'align' => true, 'border' => true],
+            'br'     => [],
+            'hr'     => ['style' => true],
+            'strong' => [],
+            'em'     => [],
+            'b'      => [],
+            'i'      => [],
+            'u'      => [],
+            'ul'     => ['style' => true],
+            'ol'     => ['style' => true],
+            'li'     => ['style' => true],
+            'h1'     => ['style' => true, 'align' => true],
+            'h2'     => ['style' => true, 'align' => true],
+            'h3'     => ['style' => true, 'align' => true],
+            'h4'     => ['style' => true, 'align' => true],
+            'h5'     => ['style' => true, 'align' => true],
+            'h6'     => ['style' => true, 'align' => true],
+        ];
+
+        // Email layouts commonly need CSS properties that WP core's default
+        // safecss_filter_attr() allow-list doesn't cover; add them rather
+        // than letting safecss_filter_attr silently drop the declaration.
+        $allow_email_css = static function (array $attrs): array {
+            return array_unique(
+                array_merge(
+                    $attrs,
+                    [
+                        'overflow', 'border-radius', 'display', 'background-color',
+                        'padding', 'margin', 'font-family', 'font-size', 'color',
+                        'text-align', 'width', 'max-width', 'border', 'border-collapse',
+                        'vertical-align', 'line-height', 'background', 'box-sizing',
+                        'white-space', 'text-decoration', 'font-weight', 'letter-spacing',
+                        'border-top', 'border-right', 'border-bottom', 'border-left',
+                        'border-spacing', 'padding-top', 'padding-right', 'padding-bottom',
+                        'padding-left', 'margin-top', 'margin-right', 'margin-bottom',
+                        'margin-left',
+                    ]
+                )
+            );
+        };
+        \add_filter('safecss_filter_attr_allow_css', $allow_email_css);
+        $html = \wp_kses($html, $allowed_email_tags);
+        \remove_filter('safecss_filter_attr_allow_css', $allow_email_css);
+
+        $html = $doctype . $html;
+
+        // Force rel="noopener noreferrer" on any target="_blank" link. Without
+        // it, the linked page gets window.opener access to this document
+        // (reverse tabnabbing) and the browser sends a Referer header leaking
+        // this admin page's URL — both avoidable via `rel`. The email body is
+        // authored by trusted edit_forms-capability admins, not attacker
+        // input, so this is defense-in-depth rather than an XSS fix.
+        $html = preg_replace_callback(
+            '/<a\b([^>]*\btarget=["\']_blank["\'][^>]*)>/i',
+            static function (array $m): string {
+                if (preg_match('/\brel=["\']([^"\']*)["\']/i', $m[1], $rel_match)) {
+                    $rel     = $rel_match[1];
+                    $needed  = array_diff(['noopener', 'noreferrer'], explode(' ', $rel));
+                    if (empty($needed)) {
+                        return $m[0];
+                    }
+                    $new_rel = trim($rel . ' ' . implode(' ', $needed));
+                    return '<a' . preg_replace('/\brel=["\'][^"\']*["\']/i', 'rel="' . esc_attr($new_rel) . '"', $m[1]) . '>';
+                }
+                return '<a' . $m[1] . ' rel="noopener noreferrer">';
+            },
+            $html
+        ) ?? $html;
+
+        // Lengths only, no content — log unconditionally when something was
+        // actually stripped so production keeps an audit trail; the "nothing
+        // stripped" case is debug-only noise, not a security-relevant event.
         if ($html !== $before) {
             \ForgeForms\forge_log(
                 'ForgeForms sanitizeEmailBody: input length '
                 . strlen($before) . ' → output length ' . strlen($html)
             );
-        } else {
+        } elseif (defined('WP_DEBUG') && WP_DEBUG) {
             \ForgeForms\forge_log(
                 'ForgeForms sanitizeEmailBody: nothing stripped '
                 . '(input length ' . strlen($html) . ')'

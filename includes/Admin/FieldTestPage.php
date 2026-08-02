@@ -63,6 +63,9 @@ class FieldTestPage
      */
     public static function addMenu(): void
     {
+        if (!(defined('WP_DEBUG') && WP_DEBUG)) {
+            return;
+        }
         add_submenu_page(
             'forge-forms',
             'Field Tests',
@@ -1218,6 +1221,59 @@ class FieldTestPage
         });
     }
 
+    private static function testPageHeader(): void
+    {
+        self::section('page-header');
+        $h   = new \ForgeForms\Fields\PageHeaderField();
+        $cfg = array_merge($h->getDefaultConfig(), ['type'=>'page-header','label'=>'']);
+
+        self::run('schema integrity', fn() => self::schemaIntegrity($h));
+        self::run('isPageBreak=false', fn() => !$h->isPageBreak() ? true : 'expected false');
+        self::run('hasRequired=false', fn() => !$h->hasRequired() ? true : 'expected false');
+        self::run('skipValidation=true', fn() => $h->skipValidation() ? true : 'expected true');
+        self::run('includeInEmailSummary=false', fn() => !$h->includeInEmailSummary() ? true : 'expected false');
+        self::run('map returns empty string', fn() => self::expectMap(null, $cfg, $h, ''));
+        self::run('mapNormalized returns []', function () use ($h, $cfg) {
+            $r = $h->mapNormalized('f1', '', null, $cfg, []);
+            return $r === [] ? true : 'expected []';
+        });
+        self::run('render contains container class', function () use ($h, $cfg) {
+            $html = $h->render($cfg, 'f1');
+            self::$lastIn  = json_encode($cfg);
+            self::$lastOut = $html;
+            return str_contains($html, 'forge-page-header') ? true : 'container class missing';
+        });
+        self::run('render show_names=false → data-show-names="0"', function () use ($h, $cfg) {
+            $html = $h->render(array_merge($cfg, ['show_names'=>false]), 'f1');
+            return str_contains($html, 'data-show-names="0"') ? true : 'expected data-show-names="0"';
+        });
+        self::run('render show_names=true → data-show-names="1"', function () use ($h, $cfg) {
+            $html = $h->render(array_merge($cfg, ['show_names'=>true]), 'f1');
+            return str_contains($html, 'data-show-names="1"') ? true : 'expected data-show-names="1"';
+        });
+        self::run('render page_names serialized only when show_names=true', function () use ($h, $cfg) {
+            $c    = array_merge($cfg, ['show_names'=>true,'page_names'=>['Kontakt','Adresse']]);
+            $html = $h->render($c, 'f1');
+            self::$lastIn  = json_encode($c);
+            self::$lastOut = $html;
+            return str_contains($html, 'Kontakt') && str_contains($html, 'Adresse')
+                ? true : 'page names missing from data-names';
+        });
+        self::run('render page_names omitted when show_names=false', function () use ($h, $cfg) {
+            $c    = array_merge($cfg, ['show_names'=>false,'page_names'=>['Kontakt','Adresse']]);
+            $html = $h->render($c, 'f1');
+            return !str_contains($html, 'Kontakt') ? true : 'page names leaked while show_names=false';
+        });
+        self::run('render escapes page name HTML', function () use ($h, $cfg) {
+            $c    = array_merge($cfg, ['show_names'=>true,'page_names'=>['<script>alert(1)</script>']]);
+            $html = $h->render($c, 'f1');
+            self::$lastIn  = json_encode($c);
+            self::$lastOut = $html;
+            return !str_contains($html, '<script>') ? true : 'unescaped script tag in output';
+        });
+        self::run('getClientInit returns non-empty script', fn() => trim($h->getClientInit()) !== '' ? true : 'expected non-empty JS');
+    }
+
     private static function testPostData(): void
     {
         self::section('postdata');
@@ -1279,7 +1335,11 @@ class FieldTestPage
             'creditor_id'=>'DE98ZZZ09999999999','mandate_ref'=>'MANDAT-001',
         ]);
 
-        $validData = ['iban'=>'DE89370400440532013000','bic'=>'COBADEFFXXX','holder'=>'Max Mustermann','sig'=>''];
+        // A minimal but well-formed data: URI — validate() only checks the prefix,
+        // not that it decodes to a real image, so this is enough to satisfy the
+        // "signature present" check without needing an actual PNG payload.
+        $dummySig  = 'data:image/png;base64,iVBORw0KGgo=';
+        $validData = ['iban'=>'DE89370400440532013000','bic'=>'COBADEFFXXX','holder'=>'Max Mustermann','sig'=>$dummySig];
 
         self::run('schema integrity', fn() => self::schemaIntegrity($h));
         self::run('render basic', fn() => self::renderBasic($h, $cfg));
@@ -1304,43 +1364,45 @@ class FieldTestPage
             return !str_contains($html, 'data-country-filter') ? true : 'attr should be absent when mode=off';
         });
         // Server-side country filter validation
-        self::run('validate allow-list blocks foreign IBAN', function () use ($h, $cfg) {
+        self::run('validate allow-list blocks foreign IBAN', function () use ($h, $cfg, $dummySig) {
             $c = array_merge($cfg, ['required'=>true,'country_filter_mode'=>'allow','country_filter_list'=>['DE']]);
-            return self::expectError(['iban'=>'AT611904300234573201','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>''], $c, $h);
+            return self::expectError(['iban'=>'AT611904300234573201','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>$dummySig], $c, $h);
         });
-        self::run('validate allow-list passes matching IBAN', function () use ($h, $cfg) {
+        self::run('validate allow-list passes matching IBAN', function () use ($h, $cfg, $dummySig) {
             $c = array_merge($cfg, ['required'=>true,'country_filter_mode'=>'allow','country_filter_list'=>['DE']]);
-            return self::expectOk(['iban'=>'DE89370400440532013000','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>''], $c, $h);
+            return self::expectOk(['iban'=>'DE89370400440532013000','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>$dummySig], $c, $h);
         });
-        self::run('validate disallow-list blocks listed IBAN', function () use ($h, $cfg) {
+        self::run('validate disallow-list blocks listed IBAN', function () use ($h, $cfg, $dummySig) {
             $c = array_merge($cfg, ['required'=>true,'country_filter_mode'=>'disallow','country_filter_list'=>['AT']]);
-            return self::expectError(['iban'=>'AT611904300234573201','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>''], $c, $h);
+            return self::expectError(['iban'=>'AT611904300234573201','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>$dummySig], $c, $h);
         });
-        self::run('validate disallow-list passes unlisted IBAN', function () use ($h, $cfg) {
+        self::run('validate disallow-list passes unlisted IBAN', function () use ($h, $cfg, $dummySig) {
             $c = array_merge($cfg, ['required'=>true,'country_filter_mode'=>'disallow','country_filter_list'=>['AT']]);
-            return self::expectOk(['iban'=>'DE89370400440532013000','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>''], $c, $h);
+            return self::expectOk(['iban'=>'DE89370400440532013000','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>$dummySig], $c, $h);
         });
-        self::run('validate country filter off passes any country', function () use ($h, $cfg) {
+        self::run('validate country filter off passes any country', function () use ($h, $cfg, $dummySig) {
             $c = array_merge($cfg, ['required'=>true,'country_filter_mode'=>'off','country_filter_list'=>['DE']]);
-            return self::expectOk(['iban'=>'AT611904300234573201','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>''], $c, $h);
+            return self::expectOk(['iban'=>'AT611904300234573201','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>$dummySig], $c, $h);
         });
         // optional=false skips all validation immediately
         self::run('validate optional → true', fn() => self::expectOk([], array_merge($cfg, ['required'=>false]), $h));
         self::run('validate req non-array → error', fn() => self::expectError(null, array_merge($cfg, ['required'=>true]), $h));
-        self::run('validate req empty IBAN → error', fn() => self::expectError(['iban'=>'','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>''], array_merge($cfg, ['required'=>true]), $h));
-        self::run('validate req invalid IBAN', fn() => self::expectError(['iban'=>'INVALID','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>''], array_merge($cfg, ['required'=>true]), $h));
-        self::run('validate req empty BIC → error', fn() => self::expectError(['iban'=>'DE89370400440532013000','bic'=>'','holder'=>'Max','sig'=>''], array_merge($cfg, ['required'=>true]), $h));
+        self::run('validate req empty IBAN → error', fn() => self::expectError(['iban'=>'','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>$dummySig], array_merge($cfg, ['required'=>true]), $h));
+        self::run('validate req invalid IBAN', fn() => self::expectError(['iban'=>'INVALID','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>$dummySig], array_merge($cfg, ['required'=>true]), $h));
+        self::run('validate req empty BIC → error', fn() => self::expectError(['iban'=>'DE89370400440532013000','bic'=>'','holder'=>'Max','sig'=>$dummySig], array_merge($cfg, ['required'=>true]), $h));
         // 'TOO' is only 3 chars — fails [A-Z]{6} minimum
-        self::run('validate req invalid BIC', fn() => self::expectError(['iban'=>'DE89370400440532013000','bic'=>'TOO','holder'=>'Max','sig'=>''], array_merge($cfg, ['required'=>true]), $h));
-        self::run('validate req empty holder', fn() => self::expectError(['iban'=>'DE89370400440532013000','bic'=>'COBADEFFXXX','holder'=>'','sig'=>''], array_merge($cfg, ['required'=>true]), $h));
+        self::run('validate req invalid BIC', fn() => self::expectError(['iban'=>'DE89370400440532013000','bic'=>'TOO','holder'=>'Max','sig'=>$dummySig], array_merge($cfg, ['required'=>true]), $h));
+        self::run('validate req empty holder', fn() => self::expectError(['iban'=>'DE89370400440532013000','bic'=>'COBADEFFXXX','holder'=>'','sig'=>$dummySig], array_merge($cfg, ['required'=>true]), $h));
         self::run('validate req all valid → true', fn() => self::expectOk($validData, array_merge($cfg, ['required'=>true]), $h));
-        self::run('validate lowercase BIC passes (case-insensitive regex)', function () use ($h, $cfg) {
-            return self::expectOk(['iban'=>'DE89370400440532013000','bic'=>'cobadeffxxx','holder'=>'Max','sig'=>''], array_merge($cfg, ['required'=>true]), $h);
+        self::run('validate lowercase BIC passes (case-insensitive regex)', function () use ($h, $cfg, $dummySig) {
+            return self::expectOk(['iban'=>'DE89370400440532013000','bic'=>'cobadeffxxx','holder'=>'Max','sig'=>$dummySig], array_merge($cfg, ['required'=>true]), $h);
         });
-        self::run('validate lowercase country_filter_list entry matches (strtoupper normalized)', function () use ($h, $cfg) {
+        self::run('validate lowercase country_filter_list entry matches (strtoupper normalized)', function () use ($h, $cfg, $dummySig) {
             $c = array_merge($cfg, ['required'=>true,'country_filter_mode'=>'allow','country_filter_list'=>['de']]);
-            return self::expectOk(['iban'=>'DE89370400440532013000','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>''], $c, $h);
+            return self::expectOk(['iban'=>'DE89370400440532013000','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>$dummySig], $c, $h);
         });
+        self::run('validate req empty signature → error', fn() => self::expectError(['iban'=>'DE89370400440532013000','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>''], array_merge($cfg, ['required'=>true]), $h));
+        self::run('validate req non-image signature → error', fn() => self::expectError(['iban'=>'DE89370400440532013000','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>'not-a-data-uri'], array_merge($cfg, ['required'=>true]), $h));
         self::run('map non-array → No entry', fn() => str_contains($h->map(null, $cfg), __('[No entry]', 'form-forge')) ? true : 'wrong map');
         self::run('map valid data contains IBAN', fn() => self::expectMapContains($validData, $cfg, $h, 'IBAN'));
         self::run('map valid data contains BIC', fn() => self::expectMapContains($validData, $cfg, $h, 'BIC'));
@@ -1355,7 +1417,7 @@ class FieldTestPage
             'text', 'textarea', 'email', 'name', 'phone', 'number', 'address',
             'date', 'time', 'currency', 'select', 'radio', 'checkbox', 'upload',
             'signature', 'rating', 'slider', 'captcha', 'consent', 'gdpr', 'html',
-            'group', 'pagebreak', 'postdata', 'website', 'sepa',
+            'group', 'pagebreak', 'page-header', 'postdata', 'website', 'sepa',
         ];
 
         self::run('all registered types are tested', function () use ($registry, $testedTypes) {
@@ -1487,6 +1549,9 @@ class FieldTestPage
     });
     run('pagebreak is skipped', function () {
         return skip.indexOf('pagebreak') !== -1 ? ok('pagebreak', 'in skip list') : ko('pagebreak', '', 'not in skip list');
+    });
+    run('page-header is skipped', function () {
+        return skip.indexOf('page-header') !== -1 ? ok('page-header', 'in skip list') : ko('page-header', '', 'not in skip list');
     });
 
     /* ── ForgeValidators ─────────────────────────────────────────────────── */
@@ -2453,7 +2518,7 @@ JS;
     public static function render(): void
     {
         if (!current_user_can('manage_options')) {
-            wp_die('Unauthorized');
+            wp_die('Unauthorized', '', ['response' => 403]);
         }
 
         // reset
@@ -2489,6 +2554,7 @@ JS;
         self::testHtml();
         self::testGroup();
         self::testPageBreak();
+        self::testPageHeader();
         self::testPostData();
         self::testWebsite();
         self::testSepa();

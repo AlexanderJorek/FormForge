@@ -192,6 +192,11 @@ CSS;
         return $mapped;
     }
 
+    public function getType(): string
+    {
+        return 'group';
+    }
+
     public function getLabel(): string
     {
         return __('Field group', 'form-forge');

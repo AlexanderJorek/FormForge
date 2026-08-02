@@ -26,19 +26,11 @@ defined('ABSPATH') || exit;
 /**
  * Atomic, window-based rate-limit counter backed directly by wp_options.
  *
- * Replaces the get_transient()-then-set_transient() read-modify-write pattern used
- * previously, which is a classic TOCTOU race: concurrent requests can all read the
- * same pre-increment count before any of them writes the incremented value back,
- * letting an attacker with parallel connections exceed the intended cap.
- *
- * The count and its window-expiry are stored together as one "count|expiry" value
- * in a single row, and the reset-or-increment decision is made inside one atomic
- * INSERT ... ON DUPLICATE KEY UPDATE statement — not as a separate read-then-write
- * followed by a separate atomic increment. Two separate atomic statements (reset,
- * then increment) would still race with each other: a concurrent request could
- * observe "expired" and unconditionally zero a sibling request's already-incremented
- * count. Folding both decisions into one statement, executed under InnoDB's
- * per-row lock, closes that gap.
+ * Count and window-expiry are stored together as one "count|expiry" value, and
+ * the reset-or-increment decision happens inside one atomic
+ * INSERT ... ON DUPLICATE KEY UPDATE under InnoDB's per-row lock — avoiding the
+ * TOCTOU race a separate read-then-write (or two separate atomic statements)
+ * would have.
  */
 class RateLimiter
 {
@@ -67,27 +59,19 @@ class RateLimiter
         // increments (otherwise), all within one statement under one row lock, so no
         // concurrent request can observe or overwrite an intermediate state.
         //
-        // The new count is wrapped in LAST_INSERT_ID() (a general-purpose way to smuggle
-        // a computed value out of an INSERT/UPDATE, not related to auto_increment here)
-        // instead of using this codebase's earlier VALUES(option_value) draft — that
-        // form is deprecated since MySQL 8.0.20, and more importantly would still need a
-        // *separate* SELECT to read the new count back, and that separate read is its
-        // own small race: a sibling request's increment could land between this
-        // statement and that read, so the count returned to the caller could reflect
-        // more than this call's own increment (harmless — it can only over-block, never
-        // bypass the cap — but avoidable). LAST_INSERT_ID() is connection-scoped, so
-        // reading it back after this statement, on this same connection, is race-free
-        // by construction: no other request's connection can affect what >this< session
-        // sees for its own LAST_INSERT_ID().
+        // The count is read back below via a plain SELECT rather than
+        // SELECT LAST_INSERT_ID(), which an earlier version used — that relies on
+        // both statements landing on the same MySQL session, which isn't guaranteed
+        // behind a connection pooler and caused sporadically wrong counts.
         $wpdb->query(
             $wpdb->prepare(
                 "INSERT INTO {$wpdb->options} (option_name, option_value, autoload)
-                 VALUES (%s, CONCAT(LAST_INSERT_ID(1), '|', %d), 'no')
+                 VALUES (%s, CONCAT(1, '|', %d), 'no')
                  ON DUPLICATE KEY UPDATE option_value = IF(
                      CAST(SUBSTRING_INDEX(option_value, '|', -1) AS UNSIGNED) <= %d,
-                     CONCAT(LAST_INSERT_ID(1), '|', %d),
+                     CONCAT(1, '|', %d),
                      CONCAT(
-                         LAST_INSERT_ID(CAST(SUBSTRING_INDEX(option_value, '|', 1) AS UNSIGNED) + 1),
+                         CAST(SUBSTRING_INDEX(option_value, '|', 1) AS UNSIGNED) + 1,
                          '|',
                          SUBSTRING_INDEX(option_value, '|', -1)
                      )
@@ -103,7 +87,41 @@ class RateLimiter
         // stale copy or every subsequent get_option() on this key would return it.
         wp_cache_delete($opt, 'options');
 
-        return (int) $wpdb->get_var('SELECT LAST_INSERT_ID()');
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- same direct-query rationale as the upsert above: this option is never autoloaded/cached via get_option(), it's a private counter row this class owns exclusively.
+        $raw = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $opt));
+        if ($raw === null || !str_contains((string) $raw, '|')) {
+            // Shouldn't happen immediately after the upsert above commits, but fail
+            // toward "treat as first submission" rather than crash on a malformed read.
+            return 1;
+        }
+        return (int) substr((string) $raw, 0, strpos((string) $raw, '|'));
+    }
+
+    /**
+     * Read-only peek at how many seconds remain until $key's window resets.
+     * Does not increment or otherwise mutate the counter — callers use this
+     * purely to explain a rate-limit rejection (e.g. "try again in N seconds")
+     * after increment() has already returned an over-the-cap count for the
+     * same request.
+     *
+     * @param string $key Same bucket identifier passed to increment().
+     *
+     * @return int Seconds until reset, or 0 if the bucket doesn't exist or has
+     *             already expired (i.e. the next increment() call would reset it).
+     */
+    public static function secondsUntilReset(string $key): int
+    {
+        global $wpdb;
+
+        $opt = 'forge_rl_' . $key;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- same direct-query rationale as increment() above: this option is never autoloaded/cached via get_option(), it's a private counter row this class owns exclusively.
+        $raw = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $opt));
+        if ($raw === null || !str_contains((string) $raw, '|')) {
+            return 0;
+        }
+
+        $expiry = (int) substr((string) $raw, (int) strrpos((string) $raw, '|') + 1);
+        return max(0, $expiry - time());
     }
 
     /**

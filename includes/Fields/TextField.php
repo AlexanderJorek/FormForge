@@ -33,6 +33,11 @@ class TextField extends BaseField
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'text';
+    }
+
     public function getLabel(): string
     {
         return __('Text', 'form-forge');
@@ -58,13 +63,13 @@ class TextField extends BaseField
      */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
-        $attrs = $this->inputAttrs($config, $field_id, 'text', ['value' => esc_attr((string)($value ?? ''))]);
-        $max   = (int)($config['limit_max'] ?? 0);
-        if ($max > 0 && ($config['limit_type'] ?? 'chars') === 'chars') {
-            $attrs .= ' maxlength="' . $max . '"';
+        $attrs      = $this->inputAttrs($config, $field_id, 'text', ['value' => esc_attr((string)($value ?? ''))]);
+        $configured = (int)($config['limit_max'] ?? 0);
+        if (($config['limit_type'] ?? 'chars') === 'chars') {
+            $attrs .= ' maxlength="' . self::clampTextMax($configured) . '"';
         }
-        if ($max > 0 && ($config['limit_type'] ?? 'chars') === 'words') {
-            $attrs .= ' data-word-limit="' . $max . '"';
+        if ($configured > 0 && ($config['limit_type'] ?? 'chars') === 'words') {
+            $attrs .= ' data-word-limit="' . $configured . '"';
         }
         return $this->wrap($field_id, $config, '<input' . $attrs . '>');
     }
@@ -82,6 +87,16 @@ class TextField extends BaseField
         $base = parent::validate($value, $config);
         if ($base !== true) {
             return $base;
+        }
+        // Absolute hard-cap backstop, checked first — applies even under a "words"
+        // limit (a single "word" isn't bounded in length) or when no limit_max is
+        // configured at all. Runs before any per-value processing below so
+        // worst-case cost is bounded up front (defense-in-depth ordering).
+        if ($value !== null && $value !== '') {
+            $hard = self::validateTextHardCap((string)$value);
+            if ($hard !== true) {
+                return $hard;
+            }
         }
         $max  = (int)($config['limit_max'] ?? 0);
         $type = $config['limit_type'] ?? 'chars';

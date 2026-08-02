@@ -83,6 +83,11 @@ CSS;
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'rating';
+    }
+
     public function getLabel(): string
     {
         return __('Rating', 'form-forge');
@@ -205,8 +210,8 @@ CSS;
                 $fill_style = 'position:absolute;top:0;left:0;width:30px;height:30px;'
                     . 'background:url(' . esc_url($custom_url) . ') center/contain no-repeat;'
                     . 'pointer-events:none;';
-                $inner .= '<span class="forge-rating-bg" style="' . $base_style . '"></span>';
-                $inner .= '<span class="forge-rating-fill" style="' . $fill_style . '"></span>';
+                $inner .= '<span class="forge-rating-bg" style="' . esc_attr($base_style) . '"></span>';
+                $inner .= '<span class="forge-rating-fill" style="' . esc_attr($fill_style) . '"></span>';
             } else {
                 $inner .= '<span class="forge-rating-bg">' . $glyph . '</span>';
                 $inner .= '<span class="forge-rating-fill">' . $glyph . '</span>';
@@ -254,6 +259,10 @@ CSS;
         }
         if ($value === null || $value === '') {
             return true;
+        }
+        $hard = self::validateTextHardCap((string) $value);
+        if ($hard !== true) {
+            return $hard;
         }
         if (!is_numeric($value)) {
             return __('Please select a valid rating.', 'form-forge');

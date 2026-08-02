@@ -1169,6 +1169,37 @@
     width: 100%;
 }
 
+.forge-sp-page-names-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.forge-sp-page-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.forge-sp-page-name-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #f0f0f1;
+    color: #50575e;
+    font-size: 11px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.forge-sp-page-name-row .forge-sp-input {
+    flex: 1;
+}
+
 .forge-sp-opt-value {
     font-family: monospace;
     color: #646970;
@@ -1513,6 +1544,18 @@
 .forge-vpc--error {
     border-color: #d63638;
     background: #fcf0f1;
+}
+
+.forge-vpc--queued {
+    border-color: #dba617;
+    background: #fcf9e8;
+}
+.forge-vpc--queued .forge-vpc__step {
+    color: #8a6d00;
+    font-weight: 600;
+}
+.forge-vpc--queued .forge-vpc__bar {
+    background: #dba617;
 }
 
 .forge-vpc__header {
@@ -3269,6 +3312,105 @@
     flex: 1;
     overflow-y: auto;
     min-height: 0;
+}
+
+.forge-privacy-text-modal {
+    max-width: 620px;
+}
+.forge-privacy-text-disclaimer {
+    margin-top: 8px !important;
+}
+.forge-privacy-text-modal .forge-settings-field {
+    margin-top: 12px;
+}
+.forge-settings-field--inline {
+    flex-direction: row !important;
+    align-items: center;
+    gap: 10px !important;
+}
+.forge-settings-field--inline label {
+    flex-shrink: 0;
+}
+
+.forge-combobox {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+.forge-combobox-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 5px 30px 5px 10px;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: inherit;
+    background: #fff;
+    line-height: 1.4;
+    cursor: pointer;
+}
+.forge-combobox-input:focus {
+    outline: 2px solid var(--forge-admin-accent);
+    outline-offset: 0;
+    border-color: var(--forge-admin-accent);
+    cursor: text;
+}
+.forge-combobox-arrow {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 11px;
+    color: #787c82;
+    pointer-events: none;
+}
+.forge-combobox-list {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 10;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .14);
+    max-height: 200px;
+    overflow-y: auto;
+}
+.forge-combobox-option {
+    padding: 6px 8px;
+    font-size: 13px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+.forge-combobox-option:hover {
+    background: #f0f0f1;
+}
+.forge-combobox-option.is-selected {
+    background: var(--forge-admin-accent);
+    color: #fff;
+}
+.forge-privacy-text-box {
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 12px;
+    padding: 10px 12px;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    font-family: Consolas, Monaco, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #1d2327;
+    background: #f6f7f7;
+    resize: vertical;
+}
+.forge-privacy-text-box:focus {
+    outline: 2px solid var(--forge-admin-accent);
+    outline-offset: 0;
+    border-color: var(--forge-admin-accent);
 }
 
 .forge-key-master-table thead th {

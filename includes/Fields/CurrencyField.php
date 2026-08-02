@@ -39,6 +39,11 @@ class CurrencyField extends BaseField
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'currency';
+    }
+
     public function getLabel(): string
     {
         return __('Currency', 'form-forge');
@@ -149,6 +154,10 @@ CSS;
         }
         if ($value === '' || $value === null) {
             return true;
+        }
+        $hard = self::validateTextHardCap((string) $value);
+        if ($hard !== true) {
+            return $hard;
         }
         if (!is_numeric($value)) {
             return __('Please enter a valid amount.', 'form-forge');

@@ -114,6 +114,11 @@ CSS;
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'select';
+    }
+
     public function getLabel(): string
     {
         return __('Dropdown', 'form-forge');

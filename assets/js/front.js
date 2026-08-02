@@ -144,11 +144,31 @@
     function initPageBreaks(root) {
         var forms = root.querySelectorAll('.forge-form');
         forms.forEach(function (form) {
+            /* Guards against front.js's init() running more than once against the
+             * same form (e.g. a page builder or caching setup that includes the
+             * script twice) — without this, a second pass rebuilds a second click
+             * listener + step bar on top of the first one instead of a no-op. */
+            if (form.dataset.forgePagesInit) return;
+            form.dataset.forgePagesInit = '1';
+
             var pages = Array.from(form.querySelectorAll('.forge-form-page'));
             if (!pages.length) return;
 
-            var footer = form.querySelector('.forge-form-footer');
-            var wrap   = form.closest('.forge-form-wrap') || form;
+            /* A '.forge-page-header' field may end up rendered inside one specific
+             * page div depending on where it's placed relative to page breaks.
+             * Relocate its wrapper row to sit before the pages so it can stay
+             * visible from its own page onward regardless of which later page is
+             * active. (The field's own init reads its original page position
+             * before this runs — see PageHeaderField::getClientInit().) */
+            var headerEl  = form.querySelector('.forge-page-header');
+            var headerRow = headerEl && headerEl.closest('.forge-row');
+            if (headerRow && pages.indexOf(headerRow.parentNode) !== -1) {
+                pages[0].parentNode.insertBefore(headerRow, pages[0]);
+            }
+
+            var footer   = form.querySelector('.forge-form-footer');
+            var wrap     = form.closest('.forge-form-wrap') || form;
+            var furthest = 0;
 
             function applyPage(idx) {
                 pages.forEach(function (p, i) {
@@ -157,7 +177,11 @@
                 if (footer) {
                     footer.style.display = (idx === pages.length - 1) ? '' : 'none';
                 }
-
+                if (idx > furthest) furthest = idx;
+                form.dispatchEvent(new CustomEvent('forge:page-change', {
+                    bubbles: false, cancelable: false,
+                    detail: { index: idx, furthest: furthest, total: pages.length },
+                }));
             }
 
             function showPage(idx, scroll) {
@@ -217,7 +241,15 @@
                 });
             }
 
-            form.addEventListener('forge:reset', function () { showPage(0, false); });
+            form.addEventListener('forge:reset', function () {
+                /* A fresh submission means none of the later pages have been
+                 * revisited yet, so the "reachable" state (furthest) must drop
+                 * back to just page 0 too — otherwise a step bar's later steps
+                 * stay clickable from the previous run even though the visitor
+                 * hasn't stepped through them again this time. */
+                furthest = 0;
+                showPage(0, false);
+            });
 
             form.addEventListener('click', function (e) {
                 if (e.target.classList.contains('forge-btn-next')) {
@@ -233,6 +265,13 @@
                     var idx2 = currentIdx();
                     if (idx2 > 0) showPage(idx2 - 1, true);
                 }
+                var gotoEl = e.target.closest('[data-forge-goto-page]');
+                if (gotoEl) {
+                    var gotoIdx = parseInt(gotoEl.getAttribute('data-forge-goto-page'), 10);
+                    if (!isNaN(gotoIdx) && gotoIdx >= 0 && gotoIdx <= furthest && gotoIdx !== currentIdx()) {
+                        showPage(gotoIdx, true);
+                    }
+                }
             });
 
             showPage(0, false);
@@ -244,6 +283,9 @@
     function initConditions(root) {
         root.querySelectorAll('.forge-form').forEach(function (form) {
             if (!form.querySelector('[data-conditions]')) return;
+            /* See initPageBreaks() — same double-init guard. */
+            if (form.dataset.forgeConditionsInit) return;
+            form.dataset.forgeConditionsInit = '1';
 
             function getFieldValue(fieldId) {
                 var name    = CSS.escape(fieldId);
@@ -319,6 +361,11 @@
 
     function initForms(root) {
         root.querySelectorAll('.forge-form').forEach(function (form) {
+            /* See initPageBreaks() — same double-init guard, critical here since a
+             * second bound submit handler would submit the form twice per click. */
+            if (form.dataset.forgeFormsInit) return;
+            form.dataset.forgeFormsInit = '1';
+
             var isSubmitting = false;
             form.addEventListener('submit', function (e) {
                 e.preventDefault();
@@ -488,6 +535,10 @@
     }
     function initCaptchaGates(root) {
         root.querySelectorAll('.forge-captcha-gate').forEach(function (gate) {
+            /* See initPageBreaks() — same double-init guard. */
+            if (gate.dataset.forgeCaptchaInit) return;
+            gate.dataset.forgeCaptchaInit = '1';
+
             var btn = gate.querySelector('.forge-captcha-activate');
             if (!btn) return;
             btn.addEventListener('click', function () {
@@ -506,6 +557,14 @@
 
     function init(root) {
         root = root || document;
+        /* Guards the whole boot sequence against running twice against the same
+         * root (e.g. a page builder/caching setup that includes this script
+         * more than once) — field getClientInit() implementations aren't all
+         * written to be safe to re-run, so this is the single choke point that
+         * keeps them from double-binding listeners or duplicating markup. */
+        if (root === document && window.__forgeFrontInited) return;
+        if (root === document) window.__forgeFrontInited = true;
+
         var fieldInits = window.ForgeFieldInits || {};
         Object.keys(fieldInits).forEach(function (type) { fieldInits[type](root); });
         initPageBreaks(root);

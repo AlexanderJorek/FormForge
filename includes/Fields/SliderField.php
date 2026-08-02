@@ -94,6 +94,11 @@ CSS;
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'slider';
+    }
+
     public function getLabel(): string
     {
         return __('Slider', 'form-forge');
@@ -315,7 +320,7 @@ CSS;
     public function extractValue(string $field_id): mixed
     {
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
-        $raw = isset($_POST[$field_id]) ? map_deep(wp_unslash($_POST[$field_id]), 'sanitize_text_field') : null;
+        $raw = isset($_POST[$field_id]) ? map_deep(self::capRawArray(wp_unslash($_POST[$field_id])), 'sanitize_text_field') : null;
         if (is_array($raw)) {
             return [
                 'from' => sanitize_text_field((string)($raw['from'] ?? '')),
@@ -347,6 +352,10 @@ CSS;
                 if ($v === null || $v === '') {
                     continue;
                 }
+                $hard = self::validateTextHardCap((string) $v);
+                if ($hard !== true) {
+                    return $hard;
+                }
                 if (!is_numeric($v)) {
                     return __('Please enter a valid value.', 'form-forge');
                 }
@@ -366,6 +375,10 @@ CSS;
                 return __('The "from" value must not be greater than the "to" value.', 'form-forge');
             }
         } elseif ($value !== '' && $value !== null) {
+            $hard = self::validateTextHardCap((string) $value);
+            if ($hard !== true) {
+                return $hard;
+            }
             if (!is_numeric($value)) {
                 return __('Please enter a valid value.', 'form-forge');
             }

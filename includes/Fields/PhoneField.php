@@ -33,6 +33,11 @@ class PhoneField extends BaseField
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'phone';
+    }
+
     public function getLabel(): string
     {
         return __('Phone', 'form-forge');
@@ -126,6 +131,14 @@ class PhoneField extends BaseField
         }
         if ($value === null || $value === '') {
             return true;
+        }
+
+        // Hard cap on raw submitted length before any format-specific processing —
+        // relevant when phone_mode is '' (format validation "Off"), which otherwise
+        // accepts an unbounded-length string server-side.
+        $hard = self::validateTextHardCap((string)$value);
+        if ($hard !== true) {
+            return $hard;
         }
 
         $v    = preg_replace('/[\s\-\(\)\/]/', '', (string)$value);

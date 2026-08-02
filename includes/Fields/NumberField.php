@@ -50,6 +50,11 @@ CSS;
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'number';
+    }
+
     public function getLabel(): string
     {
         return __('Number', 'form-forge');
@@ -106,6 +111,10 @@ CSS;
         }
         if ($value === '' || $value === null) {
             return true;
+        }
+        $hard = self::validateTextHardCap((string) $value);
+        if ($hard !== true) {
+            return $hard;
         }
         if (!is_numeric($value)) {
             return __('Please enter a valid number.', 'form-forge');

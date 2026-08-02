@@ -67,35 +67,23 @@ class Plugin
      */
     private static function load(): void
     {
-        $files = [
-            'Fields/FieldRegistry.php',
-            'Fields/BaseField.php',
-            'Fields/TextField.php',
-            'Fields/TextareaField.php',
-            'Fields/EmailField.php',
-            'Fields/NameField.php',
-            'Fields/PhoneField.php',
-            'Fields/NumberField.php',
-            'Fields/AddressField.php',
-            'Fields/DateField.php',
-            'Fields/TimeField.php',
-            'Fields/CurrencyField.php',
-            'Fields/SelectField.php',
-            'Fields/RadioField.php',
-            'Fields/CheckboxField.php',
-            'Fields/UploadField.php',
-            'Fields/SignatureField.php',
-            'Fields/RatingField.php',
-            'Fields/SliderField.php',
-            'Fields/CaptchaField.php',
-            'Fields/ConsentField.php',
-            'Fields/GdprField.php',
-            'Fields/HtmlField.php',
-            'Fields/GroupField.php',
-            'Fields/PageBreakField.php',
-            'Fields/PostDataField.php',
-            'Fields/WebsiteField.php',
-            'Fields/SepaField.php',
+        // Load field classes, filtered against FieldRegistry::FIELD_MAP — glob()
+        // alone isn't a trust boundary, so this allowlist decides what actually
+        // gets included. FieldRegistry.php must load first so the constant exists.
+        // phpcs:ignore PHPCS_SecurityAudit.Misc.IncludeMismatch.ErrMiscIncludeMismatchNoExt -- hardcoded literal path, not attacker- or request-influenced.
+        include_once FORGE_FORMS_PATH . 'includes/Fields/FieldRegistry.php';
+        // phpcs:ignore PHPCS_SecurityAudit.Misc.IncludeMismatch.ErrMiscIncludeMismatchNoExt -- hardcoded literal path, not attacker- or request-influenced.
+        include_once FORGE_FORMS_PATH . 'includes/Fields/BaseField.php';
+        $knownFieldClasses = array_flip(array_keys(\ForgeForms\Fields\FieldRegistry::FIELD_MAP));
+        $fieldFiles = [];
+        foreach (glob(FORGE_FORMS_PATH . 'includes/Fields/*Field.php') ?: [] as $path) {
+            $basename = basename($path, '.php');
+            if (isset($knownFieldClasses[$basename])) {
+                $fieldFiles[] = 'Fields/' . $basename . '.php';
+            }
+        }
+
+        $files = array_merge($fieldFiles, [
             'Form/FormModel.php',
             'Form/FormSelectModel.php',
             'Admin/FormSelectList.php',
@@ -108,8 +96,9 @@ class Plugin
             'Form/MailSender.php',
             'Utils/Assets.php',
             'Utils/ClientIp.php',
+            'Utils/RateLimiter.php',
             'Utils/Sanitize.php',
-        ];
+        ]);
 
         foreach ($files as $file) {
             // phpcs:ignore PHPCS_SecurityAudit.Misc.IncludeMismatch.ErrMiscIncludeMismatchNoExt -- $file is drawn from the hardcoded $files array above (every entry already ends in .php); nothing here is attacker- or request-influenced.
@@ -220,15 +209,23 @@ class Plugin
         // browser) to avoid CORS issues and to rate-limit our own usage of their API.
         // See includes/Utils/ClientIp.php for the trusted-proxy-aware IP resolution.
         $ip  = Utils\ClientIp::resolve();
-        $key = 'iban_' . md5($ip);
+        $key = 'iban_' . hash_hmac('sha256', $ip, wp_salt('auth'));
         if (Utils\RateLimiter::increment($key, MINUTE_IN_SECONDS) > 20) {
+            wp_send_json_error();
+            return;
+        }
+
+        // Requires a nonce minted by Utils\Assets::enqueueFront() (only emitted on pages
+        // that actually embed a FormForge form) so this endpoint can't be driven as a bare
+        // anonymous IBAN-validation/BIC-harvesting oracle against openiban.com without ever
+        // having loaded a page containing a form.
+        if (!check_ajax_referer('forge_iban_bic', 'nonce', false)) {
             wp_send_json_error();
             return;
         }
 
         // 15 is the shortest valid IBAN length (Norway); the openiban.com call below
         // rejects anything malformed regardless, this is just an early cheap reject
-        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- anonymous read-only IBAN/BIC lookup proxied to openiban.com, rate-limited by IP above; no persisted state or form submission side effect.
         $iban = preg_replace('/[^A-Z0-9]/', '', strtoupper(sanitize_text_field(wp_unslash($_POST['iban'] ?? ''))));
         if (strlen($iban) < 15) {
             wp_send_json_error();
@@ -243,7 +240,11 @@ class Plugin
             return;
         }
 
-        $body  = json_decode(wp_remote_retrieve_body($response), true);
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        if (!is_array($body)) {
+            wp_send_json_error();
+            return;
+        }
         $valid = !empty($body['valid']);
         $bic   = $body['bankData']['bic'] ?? '';
 
@@ -254,6 +255,166 @@ class Plugin
             'bankCodeFound'  => !empty($body['checkResults']['bankCodeCheck']),
             ]
         );
+    }
+
+    /**
+     * Locales suggested privacy-policy text is available in: 'en' (the
+     * gettext source language, always available) plus every locale for which a
+     * languages/form-forge-{locale}.mo file exists. A future translation
+     * contribution (a new .po/.mo dropped into languages/) shows up here
+     * automatically — no code change needed.
+     *
+     * @return array<string,string> Locale code => human-readable language name.
+     */
+    public static function availablePrivacyLanguages(): array
+    {
+        $langs = ['en' => 'English'];
+        foreach (glob(FORGE_FORMS_PATH . 'languages/form-forge-*.mo') ?: [] as $path) {
+            if (preg_match('/^form-forge-([A-Za-z]{2,3}(?:_[A-Za-z]{2,4})?)\.mo$/', basename($path), $m)) {
+                $langs[$m[1]] = self::localeDisplayName($m[1]);
+            }
+        }
+        return $langs;
+    }
+
+    /**
+     * Human-readable name for a locale code, using WP core's own (offline,
+     * no-API-call) lookup table so newly-added locales get a sensible label
+     * without this plugin maintaining its own name list.
+     *
+     * @param string $locale Locale code, e.g. 'de_DE'.
+     *
+     * @return string
+     */
+    private static function localeDisplayName(string $locale): string
+    {
+        if (!function_exists('format_code_lang')) {
+            require_once ABSPATH . 'wp-admin/includes/misc.php';
+        }
+        $name = function_exists('format_code_lang') ? format_code_lang($locale) : '';
+        return $name !== '' ? $name : $locale;
+    }
+
+    /**
+     * Raw (untranslated-container) paragraphs of the suggested privacy-policy
+     * text disclosing FormForge's two third-party data flows: openiban.com
+     * (SEPA IBAN lookups) and Google reCAPTCHA (the CAPTCHA field). Shared by
+     * privacyPolicyPlainText() below — one source of truth for the wording,
+     * two output formats.
+     *
+     * @return string[] Two paragraphs: [0] openiban.com, [1] Google reCAPTCHA.
+     */
+    private static function privacyPolicyParagraphs(): array
+    {
+        return [
+            __('SEPA Direct Debit (OpenIBAN)', 'form-forge') . "\n" . __(
+                'If you enter an IBAN in a form, it will be transmitted to the OpenIBAN '
+                    . 'service (openiban.com) for validation and to determine the '
+                    . 'corresponding BIC. Only the IBAN you entered and the connection '
+                    . 'data required for technical transmission will be processed. This '
+                    . 'processing is carried out for the purpose of verifying the bank '
+                    . 'account information. For more information on data processing, '
+                    . 'please refer to OpenIBAN\'s Privacy Policy.',
+                'form-forge'
+            ),
+            __('Google reCAPTCHA', 'form-forge') . "\n" . __(
+                'To prevent spam and fraudulent form submissions, we use Google '
+                    . 'reCAPTCHA. Among other things, the IP address, the CAPTCHA '
+                    . 'response, and other technical information are transmitted to '
+                    . 'Google and processed there to determine whether the input was made '
+                    . 'by a human. This may involve the transfer of personal data to the '
+                    . 'United States. For more information, please see Google\'s Privacy '
+                    . 'Policy.',
+                'form-forge'
+            ),
+        ];
+    }
+
+    /**
+     * Suggested privacy-policy text (openiban.com + Google reCAPTCHA
+     * disclosures) as plain text, ready to copy-paste directly into a privacy
+     * policy page — via the normal gettext pipeline (EN source strings, German
+     * translation shipped in languages/form-forge-de_DE.po/.mo, same as every
+     * other user-facing string in this plugin).
+     *
+     * Rendered in the language the caller (currently
+     * FormSettings::render()'s "Privacy Policy Text" card) asks for, not
+     * necessarily the site's current admin-UI locale — privacy-policy wording
+     * is content the admin is choosing for their published policy, independent
+     * of what language they run wp-admin in. withPluginLocale() handles the
+     * temporary locale switch.
+     *
+     * @param string $lang Locale code from availablePrivacyLanguages().
+     *
+     * @return string
+     */
+    public static function privacyPolicyPlainText(string $lang): string
+    {
+        return self::withPluginLocale(
+            $lang,
+            static fn(): string => implode("\n\n", self::privacyPolicyParagraphs())
+        );
+    }
+
+    /**
+     * Runs $callback with this plugin's textdomain swapped to $locale instead
+     * of the site's current locale, then restores it — the standard pattern for
+     * rendering plugin strings in a language the caller picked explicitly
+     * (mirrors how core/WooCommerce render per-recipient-locale emails).
+     *
+     * Deliberately does NOT use switch_to_locale()/restore_previous_locale():
+     * those mutate WP's global current-locale stack (affecting date formatting,
+     * every other loaded textdomain, etc.) for the whole rest of the request,
+     * and restoring via a second load_plugin_textdomain() call proved unreliable
+     * mid-request — callers ended up with 'form-forge' strings still stuck in
+     * the requested $locale afterward. Instead this saves and restores only the
+     * global $l10n['form-forge'] translation entry that __()/_e() actually read,
+     * which can't leave any state behind beyond that one array key.
+     *
+     * For $locale === 'en' this installs a NOOP_Translations object rather than
+     * just unsetting the array key. Simply unsetting it re-opens the door to
+     * WordPress's own "just in time" textdomain auto-loading (since WP 6.7):
+     * the next __()/_e() call for a domain with no $l10n entry gets silently
+     * reloaded from disk using the SITE's current locale (German, in the bug
+     * this was written to fix) — which is exactly what "requesting English"
+     * was trying to avoid. A NOOP_Translations instance keeps the array key
+     * present (so that auto-reload never triggers) while passing every string
+     * through untranslated, which is what "English" is supposed to mean here.
+     *
+     * @param string   $locale   Locale code, e.g. 'de_DE', or 'en' for the
+     *                           gettext source language (no .mo to load).
+     * @param callable $callback Produces the string once the locale is active.
+     *
+     * @return string
+     */
+    private static function withPluginLocale(string $locale, callable $callback): string
+    {
+        global $l10n;
+        $had_previous = array_key_exists('form-forge', $l10n);
+        $previous     = $had_previous ? $l10n['form-forge'] : null;
+
+        if ($locale === 'en' || $locale === '') {
+            if (!class_exists(\NOOP_Translations::class)) {
+                require_once ABSPATH . WPINC . '/pomo/translations.php';
+            }
+            $l10n['form-forge'] = new \NOOP_Translations();
+        } elseif (preg_match('/^[A-Za-z]{2,3}(?:_[A-Za-z]{2,4})?$/', $locale)) {
+            unset($l10n['form-forge']);
+            $mofile = FORGE_FORMS_PATH . 'languages/form-forge-' . $locale . '.mo';
+            if (file_exists($mofile)) {
+                load_textdomain('form-forge', $mofile);
+            }
+        }
+
+        try {
+            return $callback();
+        } finally {
+            if ($had_previous) {
+                $l10n['form-forge'] = $previous;
+            } else {
+                unset($l10n['form-forge']);
+            }
+        }
     }
 
     /**

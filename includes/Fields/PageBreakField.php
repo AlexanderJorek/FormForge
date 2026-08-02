@@ -108,6 +108,11 @@ CSS;
      *
      * @return string
      */
+    public function getType(): string
+    {
+        return 'pagebreak';
+    }
+
     public function getLabel(): string
     {
         return __('Page break', 'form-forge');

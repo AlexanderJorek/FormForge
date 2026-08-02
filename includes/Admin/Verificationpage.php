@@ -26,15 +26,23 @@ add_action(
     'wp_ajax_forge_verify_push_lines',
     function () {
 
-        /* ---- Raise limits for heavy PDF parsing ---- */
-        @ini_set('memory_limit', '1024M');
-        @ini_set('pcre.backtrack_limit', '33554432'); // 32 M — needed for [\s\S]*? across large PDFs
+        /* ---- Raise limits for heavy PDF parsing ----
+           Sized against Verificationpage::MAX_PDF_BYTES (500MB) — a form that allows several
+           large embedded images (UploadField has no fixed max_size_mb ceiling)
+           can easily produce a PDF well past the old 50MB assumption. These are
+           hard ceilings meant to stay practically unreachable; the real per-request
+           budget is the soft cap in handleUpload() (see $forge_parse_max_seconds),
+           which scales with both file size and actual decompressed text volume and
+           aborts long before these are hit. */
+        @ini_set('memory_limit', '3072M');
+        @ini_set('pcre.backtrack_limit', '268435456'); // 256 M — needed for [\s\S]*? across large PDFs
         if (!ini_get('safe_mode')) {
-            set_time_limit(300);
+            set_time_limit(1800); // 30 min hard ceiling — should never actually be reached, see soft budget below
         }
 
         /* ---- Capability ---- */
         if (!\ForgeForms\Plugin::userCan('use_verifier')) {
+            \ForgeForms\forge_log('ForgeForms forge_verify_push_lines: rejected — user ' . get_current_user_id() . ' lacks use_verifier capability.');
             wp_send_json_error(['message' => 'Forbidden'], 403);
         }
 
@@ -46,6 +54,7 @@ add_action(
            self-DoS surface on shared hosting. ---- */
         $rl_key = 'verify_' . get_current_user_id();
         if (\ForgeForms\Utils\RateLimiter::increment($rl_key, 5) > 1) {
+            \ForgeForms\forge_log('ForgeForms forge_verify_push_lines: rate-limited user ' . get_current_user_id() . '.');
             wp_send_json_error(['message' => 'Please wait before verifying another PDF.'], 429);
         }
 
@@ -56,8 +65,16 @@ add_action(
         : [];
 
         if (!$pdf_token) {
+            \ForgeForms\forge_log('ForgeForms forge_verify_push_lines: rejected — missing pdf_token (user ' . get_current_user_id() . ').');
             wp_send_json_error(['message' => 'Invalid input: missing token'], 400);
         }
+        // Sized against Verificationpage::MAX_PDF_BYTES — a large-but-legitimate multi-page PDF
+        // (browser-extracted text, one entry per visual line) can produce far more
+        // than the old 5000-line assumption once large embedded-image forms are
+        // allowed. This still bounds worst-case comparison cost against a crafted
+        // payload; handleUpload() reports interim "Compiling results" progress
+        // during the comparison loop so a large-but-valid submission doesn't look
+        // frozen while it works through the full data instead of being truncated.
         $visualLines = array_slice(
             array_values(
                 array_filter(
@@ -66,19 +83,25 @@ add_action(
                 )
             ),
             0,
-            5000
+            50000
         );
         foreach ($visualLines as $i => $line) {
-            if (strlen($line) > 10000) {
-                $visualLines[$i] = substr($line, 0, 10000);
+            if (strlen($line) > 20000) {
+                $visualLines[$i] = substr($line, 0, 20000);
             }
         }
 
         /* ---- Resolve path from transient (avoids URL-to-path mapping) ---- */
-        $target_path = get_transient('forge_pdf_' . $pdf_token);
-        if (!$target_path || !is_string($target_path)) {
+        $pdf_transient = get_transient('forge_pdf_' . $pdf_token);
+        if (!is_array($pdf_transient) || !isset($pdf_transient['path']) || !is_string($pdf_transient['path'])) {
+            \ForgeForms\forge_log('ForgeForms forge_verify_push_lines: rejected — token not found or expired (user ' . get_current_user_id() . ').');
             wp_send_json_error(['message' => 'PDF not found or token expired'], 404);
         }
+        if ((int)($pdf_transient['uid'] ?? -1) !== get_current_user_id()) {
+            \ForgeForms\forge_log('ForgeForms forge_verify_push_lines: rejected — token owned by a different user than ' . get_current_user_id() . '.');
+            wp_send_json_error(['message' => 'Forbidden'], 403);
+        }
+        $target_path = $pdf_transient['path'];
 
         $upload_dir   = wp_upload_dir();
         $safe_dir     = $upload_dir['basedir'] . '/forge-secure-pdf';
@@ -91,6 +114,7 @@ add_action(
             || !$real_target_path
             || strpos($real_target_path, $real_verfiles_dir . DIRECTORY_SEPARATOR) !== 0
         ) {
+            \ForgeForms\forge_log('ForgeForms forge_verify_push_lines: rejected — path-traversal guard failed for token-resolved path.');
             wp_send_json_error(['message' => 'Invalid PDF path'], 400);
         }
 
@@ -98,16 +122,24 @@ add_action(
         $finfo = new \finfo(FILEINFO_MIME_TYPE);
         $detected_mime = $finfo->file($real_target_path);
         if (!in_array($detected_mime, ['application/pdf', 'application/x-pdf'], true)) {
+            \ForgeForms\forge_log('ForgeForms forge_verify_push_lines: rejected — stored file MIME re-check failed, detected "' . $detected_mime . '".');
             wp_send_json_error(['message' => 'File is not a valid PDF'], 400);
         }
 
         $file_size = filesize($real_target_path);
-        if ($file_size > 50 * 1024 * 1024) {
+        if ($file_size > Verificationpage::MAX_PDF_BYTES) {
+            \ForgeForms\forge_log(
+                'ForgeForms forge_verify_push_lines: rejected — stored file is '
+                . round($file_size / 1048576, 1) . 'MB, exceeds MAX_PDF_BYTES ('
+                . round(Verificationpage::MAX_PDF_BYTES / 1048576) . 'MB).'
+            );
             wp_send_json_error(
                 [
                 'message' => 'PDF too large ('
                 . round($file_size / 1048576, 1)
-                . ' MB). Maximum for verification is 50 MB.',
+                . ' MB). Maximum for verification is '
+                . round(Verificationpage::MAX_PDF_BYTES / 1048576)
+                . ' MB.',
                 ],
                 400
             );
@@ -178,11 +210,19 @@ add_action(
         // so this doesn't rely on nonce-then-capability ordering being
         // preserved if either check is edited independently later.
         if (!\ForgeForms\Plugin::userCan('use_verifier')) {
+            \ForgeForms\forge_log('ForgeForms forge_verify_progress: rejected — user ' . get_current_user_id() . ' lacks use_verifier capability.');
             wp_send_json_error([], 403);
         }
         check_ajax_referer('forge_verifier_nonce', 'nonce');
         $key  = sanitize_key($_POST['token'] ?? '');
         $data = $key ? get_transient('forge_vp_' . $key) : false;
+        if ($data && (int)($data['uid'] ?? -1) !== get_current_user_id()) {
+            \ForgeForms\forge_log('ForgeForms forge_verify_progress: rejected — progress token owned by a different user than ' . get_current_user_id() . '.');
+            wp_send_json_error(['message' => 'Forbidden'], 403);
+        }
+        if (is_array($data)) {
+            unset($data['uid']);
+        }
         wp_send_json_success($data ?: ['step' => '', 'pct' => 0]);
     }
 );
@@ -193,22 +233,31 @@ add_action(
     function () {
 
         if (!\ForgeForms\Plugin::userCan('use_verifier')) {
+            \ForgeForms\forge_log('ForgeForms forge_serve_pdf: rejected — user ' . get_current_user_id() . ' lacks use_verifier capability.');
             wp_die('Forbidden', '', ['response' => 403]);
         }
 
         // Nonce passed as query-string param by verification.js
         if (!wp_verify_nonce(sanitize_key($_GET['nonce'] ?? ''), 'forge_verifier_nonce')) {
+            \ForgeForms\forge_log('ForgeForms forge_serve_pdf: rejected — nonce verification failed (user ' . get_current_user_id() . ').');
             wp_die('Nonce verification failed', '', ['response' => 403]);
         }
 
         $token = sanitize_key($_GET['token'] ?? '');
         if (!$token) {
+            \ForgeForms\forge_log('ForgeForms forge_serve_pdf: rejected — missing token (user ' . get_current_user_id() . ').');
             wp_die('Missing token', '', ['response' => 400]);
         }
 
-        $path = get_transient('forge_pdf_' . $token);
+        $pdf_transient = get_transient('forge_pdf_' . $token);
+        $path = is_array($pdf_transient) ? ($pdf_transient['path'] ?? null) : null;
         if (!$path || !is_string($path) || !file_exists($path)) {
+            \ForgeForms\forge_log('ForgeForms forge_serve_pdf: rejected — token not found, expired, or target file missing.');
             wp_die('PDF not found or token expired', '', ['response' => 404]);
+        }
+        if ((int)($pdf_transient['uid'] ?? -1) !== get_current_user_id()) {
+            \ForgeForms\forge_log('ForgeForms forge_serve_pdf: rejected — token owned by a different user than ' . get_current_user_id() . '.');
+            wp_die('Forbidden', '', ['response' => 403]);
         }
 
         // Extra path-safety check
@@ -216,12 +265,14 @@ add_action(
         $safe_dir     = realpath($upload_dir['basedir'] . '/forge-secure-pdf');
         $real_path    = realpath($path);
         if (!$safe_dir || !$real_path || strpos($real_path, $safe_dir . DIRECTORY_SEPARATOR) !== 0) {
+            \ForgeForms\forge_log('ForgeForms forge_serve_pdf: rejected — path-traversal guard failed for token-resolved path.');
             wp_die('Invalid path', '', ['response' => 403]);
         }
 
         $finfo = new \finfo(FILEINFO_MIME_TYPE);
         $detected_mime = $finfo->file($real_path);
         if (!in_array($detected_mime, ['application/pdf', 'application/x-pdf'], true)) {
+            \ForgeForms\forge_log('ForgeForms forge_serve_pdf: rejected — stored file MIME re-check failed, detected "' . $detected_mime . '".');
             wp_die('Not a PDF', '', ['response' => 400]);
         }
 
@@ -350,12 +401,29 @@ final class Verificationpage
      * Maximum age (seconds) a file may sit in the verifier temp directories
      * before the fallback sweep removes it, regardless of why the original
      * single-event cleanup didn't run. Comfortably above the longest
-     * intentional single-event delay (600s) plus the up-to-300s verification
-     * window that can still be reading the file.
+     * intentional single-event delay (600s) plus the up-to-30-minute
+     * verification window that can still be reading the file.
      *
      * @var int
      */
     private const SWEEP_MAX_AGE = 3600;
+
+    /**
+     * Maximum accepted PDF size for verification, in bytes.
+     *
+     * UploadField has no fixed ceiling on its own admin-configurable
+     * `max_size_mb` setting (default 10MB, but admins can raise it), and a
+     * form can carry several upload fields each allowing `multiple` files up
+     * to PHP's `max_file_uploads` ini limit — so worst case is comfortably
+     * more than one field's default. 500MB gives real headroom above a
+     * default-config worst case (e.g. 20 images @ 10MB = ~200MB raw) even
+     * before accounting for a raised max_size_mb, while still bounding
+     * worst-case memory/decompression cost via the scaled parse-time budget
+     * in handleUpload(), which grows alongside this.
+     *
+     * @var int
+     */
+    public const MAX_PDF_BYTES = 500 * 1024 * 1024;
 
     /**
      * WP-Cron callback (hourly): sweeps the verifier's temp directories for
@@ -469,6 +537,7 @@ final class Verificationpage
         // disk, so it checks again explicitly rather than depending solely on
         // admin_menu registration semantics holding across future refactors.
         if (!\ForgeForms\Plugin::userCan('use_verifier')) {
+            \ForgeForms\forge_log('ForgeForms Verificationpage::render: rejected — user ' . get_current_user_id() . ' lacks use_verifier capability.');
             wp_die(esc_html__('Insufficient permissions.', 'form-forge'), '', ['response' => 403]);
         }
         echo '<canvas id="forge-particle-canvas" aria-hidden="true"></canvas>';
@@ -482,6 +551,7 @@ final class Verificationpage
             if (!isset($_POST['forge_verifier_nonce'])
                 || !check_admin_referer('forge_verifier_upload', 'forge_verifier_nonce')
             ) {
+                \ForgeForms\forge_log('ForgeForms Verificationpage::render: rejected — nonce verification failed (user ' . get_current_user_id() . ').');
                 wp_die('Security check failed', 'Error', ['response' => 403]);
             }
         }
@@ -513,26 +583,66 @@ final class Verificationpage
 
             $verfiles_dir = $safe_dir . '/verfiles';
 
-            $max_upload_bytes = 50 * 1024 * 1024; // 50 MB
+            $max_upload_bytes = Verificationpage::MAX_PDF_BYTES;
 
             $uploaded_tmp_names = isset($_FILES['pdfs']['tmp_name']) && is_array($_FILES['pdfs']['tmp_name'])
                 ? array_map('sanitize_text_field', wp_unslash($_FILES['pdfs']['tmp_name']))
                 : [];
 
+            // Mirror UploadField's client-hint logic (includes/Fields/UploadField.php) — cap
+            // to the server's actual max_file_uploads ini limit rather than an arbitrary number.
+            $max_files = max(1, (int)(ini_get('max_file_uploads') ?: 20));
+            if (count($uploaded_tmp_names) > $max_files) {
+                \ForgeForms\forge_log(
+                    'ForgeForms Verificationpage::render: batch upload truncated — '
+                    . count($uploaded_tmp_names) . ' files submitted, max_file_uploads limit is ' . $max_files . '.'
+                );
+                echo wp_kses_post(
+                    self::noticeHtml(
+                        // translators: %d: maximum number of files accepted per upload.
+                        sprintf(esc_html__('Too many files selected. Only the first %d will be processed.', 'form-forge'), $max_files),
+                        'warning'
+                    )
+                );
+                $uploaded_tmp_names = array_slice($uploaded_tmp_names, 0, $max_files, true);
+            }
+
             foreach ($uploaded_tmp_names as $key => $tmpName) {
+                $original_name = isset($_FILES['pdfs']['name'][$key])
+                    ? sanitize_file_name(wp_unslash($_FILES['pdfs']['name'][$key]))
+                    : '(unknown)';
+
                 if (!is_readable($tmpName) || !is_uploaded_file($tmpName)) {
+                    \ForgeForms\forge_log(
+                        'ForgeForms Verificationpage::render: upload skipped for "' . $original_name
+                        . '" — failed is_uploaded_file()/is_readable() check (possible spoofed or malformed multipart entry).'
+                    );
+                    echo wp_kses_post(
+                        self::noticeHtml(
+                            // translators: %s: uploaded file name.
+                            sprintf(esc_html__('Upload skipped: "%s" could not be read from the upload.', 'form-forge'), esc_html($original_name)),
+                            'warning'
+                        )
+                    );
                     continue;
                 }
 
                 // File size guard — use the actual file on disk, not the browser-reported size.
                 if (filesize($tmpName) > $max_upload_bytes) {
-                    echo wp_kses_post(self::noticeHtml(esc_html__('Upload skipped: file exceeds 50 MB limit.', 'form-forge'), 'warning'));
+                    \ForgeForms\forge_log(
+                        'ForgeForms Verificationpage::render: upload skipped for "' . $original_name . '" — '
+                        . round(filesize($tmpName) / 1048576, 1) . 'MB exceeds ' . round($max_upload_bytes / 1048576) . 'MB limit.'
+                    );
+                    echo wp_kses_post(
+                        self::noticeHtml(
+                            // translators: %d: maximum accepted file size in MB.
+                            sprintf(esc_html__('Upload skipped: file exceeds %d MB limit.', 'form-forge'), (int) round($max_upload_bytes / 1048576)),
+                            'warning'
+                        )
+                    );
                     continue;
                 }
 
-                $original_name = isset($_FILES['pdfs']['name'][$key])
-                    ? sanitize_file_name(wp_unslash($_FILES['pdfs']['name'][$key]))
-                    : '';
                 $type_check = wp_check_filetype_and_ext(
                     $tmpName,
                     $original_name,
@@ -540,6 +650,11 @@ final class Verificationpage
                 );
 
                 if (($type_check['ext'] ?? '') !== 'pdf') {
+                    \ForgeForms\forge_log(
+                        'ForgeForms Verificationpage::render: upload skipped for "' . $original_name
+                        . '" — wp_check_filetype_and_ext() did not resolve to pdf (ext: '
+                        . ($type_check['ext'] ?? '(none)') . ', type: ' . ($type_check['type'] ?? '(none)') . ').'
+                    );
                     echo wp_kses_post(self::noticeHtml(__('Upload skipped: only PDF files are allowed.', 'form-forge'), 'warning'));
                     continue;
                 }
@@ -547,6 +662,10 @@ final class Verificationpage
                 $finfo = new \finfo(FILEINFO_MIME_TYPE);
                 $detected_mime = $finfo->file($tmpName);
                 if (!in_array($detected_mime, ['application/pdf', 'application/x-pdf'], true)) {
+                    \ForgeForms\forge_log(
+                        'ForgeForms Verificationpage::render: upload skipped for "' . $original_name
+                        . '" — finfo MIME re-check detected "' . $detected_mime . '" instead of application/pdf.'
+                    );
                     echo wp_kses_post(self::noticeHtml(__('Upload skipped: MIME validation failed.', 'form-forge'), 'warning'));
                     continue;
                 }
@@ -554,6 +673,10 @@ final class Verificationpage
                 $safe_name = sanitize_file_name($original_name);
 
                 if ($safe_name === '' || !preg_match('/\.pdf$/i', $safe_name)) {
+                    \ForgeForms\forge_log(
+                        'ForgeForms Verificationpage::render: upload skipped — filename sanitized to "'
+                        . $safe_name . '" from original "' . $original_name . '", not a valid .pdf name.'
+                    );
                     echo wp_kses_post(self::noticeHtml(__('Upload skipped: invalid PDF filename.', 'form-forge'), 'warning'));
                     continue;
                 }
@@ -567,8 +690,16 @@ final class Verificationpage
 
                     // Issue a short-lived transient token; JS uses the serve endpoint
                     // instead of the direct (now HTTP-blocked) verfiles URL.
+                    // TTL must stay >= the parse-time hard ceiling (set_time_limit(1800)
+                    // in wp_ajax_forge_verify_push_lines) plus margin — see
+                    // scheduleDeletion()'s matching delay below, which the file's
+                    // on-disk lifetime must also outlive.
                     $token = bin2hex(random_bytes(16));
-                    set_transient('forge_pdf_' . $token, $target_path, 600); // 10 minutes
+                    set_transient(
+                        'forge_pdf_' . $token,
+                        ['path' => $target_path, 'uid' => get_current_user_id()],
+                        2100
+                    ); // 35 minutes
 
                     $serve_url = add_query_arg(
                         [
@@ -732,6 +863,51 @@ final class Verificationpage
             }
             #forge-pdf-scan-more-close:hover { color: #1d2327; }
 
+            /* ── Upload-in-progress overlay ──
+               A native <form> POST gives the browser zero hooks for upload progress —
+               it just sits on the current page until the whole request/response
+               round-trip finishes. With several large PDFs (e.g. 20 files x 17MB) that
+               round-trip is dominated by the user\'s own upload bandwidth and can take
+               a while, during which the page would otherwise show no feedback at all
+               and look hung. This is shown immediately on submit, before the browser\'s
+               own (real, native) form submission proceeds — deliberately NOT an
+               XHR-driven submit: that would need to swap the resulting page content in
+               via JS afterward, and document.write()-ing a full new page over the live
+               one does NOT reset the JS global scope, so the response\'s own <script>
+               tags (this page\'s inline script, the enqueued verification.js, even
+               wp-admin\'s own scripts) collide with the still-alive top-level
+               const/let bindings from the original load and throw redeclaration
+               errors, breaking the page. A real native submit avoids that entirely by
+               giving the browser an actual fresh navigation/JS realm — the only cost
+               is no byte-accurate progress bar, just this indeterminate indicator. */
+            #forge-pdf-upload-overlay {
+                display: none;
+                position: fixed;
+                inset: 0;
+                background: rgba(0,0,0,.45);
+                z-index: 99998;
+                align-items: center;
+                justify-content: center;
+            }
+            #forge-pdf-upload-overlay.forge-pdf-open { display: flex; }
+            #forge-pdf-upload-overlay .forge-pdf-idle-card {
+                max-width: 420px;
+                width: calc(100% - 40px);
+                text-align: center;
+            }
+            #forge-pdf-upload-spinner {
+                width: 36px;
+                height: 36px;
+                margin: 4px auto 16px;
+                border: 4px solid #dcdcde;
+                border-top-color: var(--forge-admin-accent);
+                border-radius: 50%;
+                animation: forge-pdf-spin 0.8s linear infinite;
+            }
+            @keyframes forge-pdf-spin {
+                to { transform: rotate(360deg); }
+            }
+
             /* ── Forge-coloured primary actions ── */
             #forge-pdf-verify-btn:not([disabled]) {
                 background: var(--forge-admin-accent) !important;
@@ -885,6 +1061,14 @@ final class Verificationpage
 
         <button id="forge-pdf-scan-more-btn" type="button"' . $scanmore_cls . '>+ ' . esc_html__('Scan more PDFs', 'form-forge') . '</button>
 
+        <div id="forge-pdf-upload-overlay">
+            <div class="forge-pdf-idle-card">
+                <div id="forge-pdf-upload-spinner"></div>
+                <h2>' . esc_html__('Uploading…', 'form-forge') . '</h2>
+                <p>' . esc_html__('Please keep this page open — this can take a while for large files.', 'form-forge') . '</p>
+            </div>
+        </div>
+
         <div id="forge-pdf-verification-results"></div>
         ';
         // phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -956,10 +1140,30 @@ final class Verificationpage
 
         fileInput.addEventListener("change", () => mergeFiles(fileInput.files));
 
-        document.getElementById("pdf-upload-form").addEventListener("submit", () => {
+        const uploadForm    = document.getElementById("pdf-upload-form");
+        const uploadOverlay = document.getElementById("forge-pdf-upload-overlay");
+
+        /* Shows the "still uploading" indicator, then lets the browser\'s own real
+           form submission proceed (does NOT preventDefault / intercept it). With
+           several large PDFs (e.g. 20 files x 17MB) the native POST\'s upload phase
+           is dominated by the visitor\'s own upload bandwidth and can look hung
+           with no feedback otherwise. Deliberately NOT XHR-driven: that would need
+           to swap the resulting page in via JS afterward, and there\'s no safe way
+           to do that on the live document — document.write()-ing the response over
+           the current page does not reset the JS global scope, so the response\'s
+           own <script> tags (this inline script, the enqueued verification.js,
+           even wp-admin\'s own scripts) collide with the still-alive top-level
+           const/let bindings from the original load and throw redeclaration
+           errors. A real native submit sidesteps that entirely via an actual
+           fresh navigation — the only cost is no byte-accurate percentage, just
+           this indeterminate spinner. */
+        function showUploadingOverlay() {
             document.getElementById("forge-pdf-idle-state").style.display = "none";
             document.getElementById("forge-pdf-scan-more-btn").classList.add("forge-pdf-visible");
-        });
+            uploadOverlay.classList.add("forge-pdf-open");
+        }
+
+        uploadForm.addEventListener("submit", showUploadingOverlay);
 
         // ── Scan-more modal ──
         const backdrop      = document.getElementById("forge-pdf-scan-more-backdrop");
@@ -1030,7 +1234,10 @@ final class Verificationpage
             fileInput.files = dt.files;
             closeScanMore();
             document.getElementById("forge-pdf-scan-more-btn").classList.remove("forge-pdf-visible");
-            document.getElementById("pdf-upload-form").submit();
+            // form.submit() bypasses the "submit" event entirely (a well-known DOM
+            // quirk) — show the overlay explicitly since that handler won\'t fire.
+            showUploadingOverlay();
+            uploadForm.submit();
         });
         </script>';
 
@@ -1205,7 +1412,39 @@ final class Verificationpage
         if (self::$progressKey === '') {
             return;
         }
-        set_transient('forge_vp_' . self::$progressKey, ['step' => $step, 'pct' => $pct], 120);
+        set_transient(
+            'forge_vp_' . self::$progressKey,
+            ['step' => $step, 'pct' => $pct, 'uid' => get_current_user_id()],
+            120
+        );
+    }
+
+    /**
+     * Wall-clock checkpoint used between the heavy regex passes in handleUpload().
+     * Throws instead of continuing to consume the raised 300s time budget when a
+     * single request's parsing has already run long — caught by handleUpload()'s
+     * existing try/catch, which renders it as a friendly "Parsing timed out" notice.
+     *
+     * @param float  $startTime  Result of microtime(true) captured at parse start.
+     * @param float  $maxSeconds Maximum seconds allowed before aborting.
+     * @param string $passLabel  Label of the pass that just completed (for the log).
+     *
+     * @return void
+     *
+     * @throws \RuntimeException When the elapsed time exceeds $maxSeconds.
+     */
+    private static function checkParseTimeBudget(float $startTime, float $maxSeconds, string $passLabel): void
+    {
+        $elapsed = microtime(true) - $startTime;
+        if ($elapsed <= $maxSeconds) {
+            return;
+        }
+        \ForgeForms\forge_log(
+            'ForgeForms handleUpload: aborting after [' . $passLabel . '] pass — '
+            . round($elapsed, 1) . 's elapsed (limit ' . $maxSeconds . 's)'
+        );
+        // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- this exception message is never echoed directly; the catch block in handleUpload() only matches it via str_contains() against fixed, already-translated literals (see the match(true) block around line 3840) before echoing the mapped friendly message.
+        throw new \RuntimeException('Parsing timed out after ' . $passLabel . '.');
     }
 
     /**
@@ -1221,11 +1460,22 @@ final class Verificationpage
     {
         // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- this method builds its HTML report from values that are already esc_html()/esc_attr()'d at assignment, int-cast, sha256 hashes, or drawn from fixed internal string enums (e.g. $colorspace); WPCS can't trace escaping through double-quoted string interpolation. Re-audit if new echo/interpolation is added below.
         self::$progressKey = $progressKey;
+        // Wall-clock checkpoint: this handler runs under a raised 1800s hard ceiling
+        // (see set_time_limit(1800) at the top of wp_ajax_forge_verify_push_lines) that
+        // should never actually be reached. The real budget is this soft cap, scaled to
+        // the uploaded file's size so a legitimately large-but-valid PDF (multiple big
+        // embedded images, up to Verificationpage::MAX_PDF_BYTES) isn't penalized by a flat ceiling
+        // sized for a much smaller file — while still aborting a pathologically slow
+        // parse well before the hard ceiling.
+        $forge_parse_start       = microtime(true);
+        $forge_parse_file_mb     = max(1, (int) ceil(($file['size'] ?? 0) / 1048576));
+        $forge_parse_max_seconds = min(600, 30 + ($forge_parse_file_mb * 2));
         $file_name = sanitize_file_name((string) ($file['name'] ?? 'document.pdf'));
         static $upload_id_counter = 0;
         $uid_prefix = 'forge-pdf-' . (++$upload_id_counter) . '-' . substr(md5($file_name), 0, 8);
 
         if ($file['error'] !== UPLOAD_ERR_OK) {
+            \ForgeForms\forge_log('ForgeForms handleUpload: rejected "' . $file_name . '" — PHP upload error code ' . $file['error'] . '.');
             // translators: %s: uploaded file name.
             $msg = sprintf(__('Upload failed for %s.', 'form-forge'), esc_html($file_name));
             // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- noticeHtml() wp_kses_post()'s its $message argument internally.
@@ -1236,6 +1486,7 @@ final class Verificationpage
         $finfo = new \finfo(FILEINFO_MIME_TYPE);
         $detected_mime = $finfo->file($file['tmp_name']);
         if (!in_array($detected_mime, ['application/pdf', 'application/x-pdf'], true)) {
+            \ForgeForms\forge_log('ForgeForms handleUpload: rejected "' . $file_name . '" — finfo detected MIME "' . $detected_mime . '" instead of application/pdf.');
             // translators: %s: uploaded file name.
             $msg = sprintf(__('Invalid file type for %s.', 'form-forge'), esc_html($file_name));
             // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- noticeHtml() wp_kses_post()'s its $message argument internally.
@@ -1276,6 +1527,7 @@ final class Verificationpage
         // technique to alter visible content while leaving the original seal intact.
         $raw_for_guard = @file_get_contents($file['tmp_name']);
         if ($raw_for_guard === false) {
+            \ForgeForms\forge_log('ForgeForms handleUpload: rejected "' . $file_name . '" — file_get_contents() failed reading the uploaded temp file.');
             // translators: %s: uploaded file name.
             $msg = sprintf(__('Could not read PDF file: %s.', 'form-forge'), esc_html($file_name));
             // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- noticeHtml() wp_kses_post()'s its $message argument internally.
@@ -1295,6 +1547,9 @@ final class Verificationpage
         // loading the full PDF object graph. Avoids calling pdfparser (and its
         // memory overhead) entirely for PDFs that have no forge seal.
         if (!self::rawPdfHasSeal($file['tmp_name'])) {
+            // rawPdfHasSeal() itself logs details (skipped/oversized streams) when
+            // relevant — this just records that this file was rejected at this gate.
+            \ForgeForms\forge_log('ForgeForms handleUpload: rejected "' . $file_name . '" — raw-byte preflight found no seal marker.');
             // translators: %s: uploaded file name.
             $msg = sprintf(__('%s does not contain a forge-pdf seal and cannot be verified.', 'form-forge'), esc_html($file_name)); // phpcs:ignore Generic.Files.LineLength
             // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- noticeHtml() wp_kses_post()'s its $message argument internally.
@@ -1313,6 +1568,19 @@ final class Verificationpage
             $parser = new Parser();
             $pdf = $parser->parseFile($file['tmp_name']);
             $text = $pdf->getText();
+
+            // Re-derive the soft parse budget now that actual decompressed text volume
+            // is known. Text compresses well (a small PDF on disk can still unpack to a
+            // huge string with a form full of unbounded textareas — see BaseField's
+            // TEXT_FIELD_HARD_CAP, which bounds this per-field but not in aggregate
+            // across many fields), and it's the decompressed volume — not the on-disk
+            // file size — that drives the cost of the regex passes below. Whichever
+            // estimate is larger wins so neither dimension alone can starve the budget.
+            $forge_parse_text_mb    = strlen($text) / 1048576;
+            $forge_parse_max_seconds = max(
+                $forge_parse_max_seconds,
+                min(600, 30 + ($forge_parse_text_mb * 4))
+            );
 
             // --- Extract Seal (exactly one allowed) ---
             $seal_count = preg_match_all('/---BEGIN-SEAL---(.*?)---END-SEAL---/s', $text, $matches);
@@ -1335,6 +1603,8 @@ final class Verificationpage
             );
 
             $seal_base64 = trim($multiple_seals_detected ? end($matches[1]) : $matches[1][0]);
+
+            self::checkParseTimeBudget($forge_parse_start, $forge_parse_max_seconds, 'seal extraction');
 
             if (strlen($seal_base64) > 65536) {
                 throw new \RuntimeException("Seal is implausibly large in {$file_name}.");
@@ -1365,6 +1635,21 @@ final class Verificationpage
             unset($original_payload['seal']);
             $diffs = self::diffArrays($original_payload, $rebuilt_payload);
             $seal_rebuilt_match = empty($diffs);
+
+            // --- Font program integrity check (computed before the inner buffer so the fonts section can display it) ---
+            $font_prog_mismatch = false;
+            $sealed_fp          = [];
+            $live_fp            = [];
+            if ($pdf_raw !== false) {
+                $sealed_fp          = array_values(array_map('strval', (array) ($seal_data['font_prog_hashes'] ?? [])));
+                $live_fp            = self::hashFontProgramStreams((string) $pdf_raw);
+                sort($sealed_fp);
+                sort($live_fp);
+                $font_prog_mismatch = ($live_fp !== $sealed_fp);
+                if ($font_prog_mismatch) {
+                    $font_missmatch = true;
+                }
+            }
 
             // ---- Start inner buffer: all detail HTML goes here so the summary panel can be prepended ----
             ob_start();
@@ -1645,6 +1930,8 @@ final class Verificationpage
                 }
             } while ($new_start_found);
 
+            self::checkParseTimeBudget($forge_parse_start, $forge_parse_max_seconds, 'field extraction');
+
             echo "</div>"; // forge-pdf-cmp-list
             echo "</div>"; // forge-pdf-detail-content
             echo "</div>"; // forge-pdf-detail-section
@@ -1836,7 +2123,24 @@ final class Verificationpage
             $current_marker = '';
             $current_chunks = [];
 
+            $forge_total_lines = count($visualLines);
+
             foreach ($visualLines as $line_number => $chunk) {
+                // Interim progress so a large-but-valid submission (see the raised
+                // visualLines cap above) doesn't look frozen while this loop works
+                // through the full comparison instead of silently truncating data.
+                if ($forge_total_lines > 0 && $line_number % 1000 === 0) {
+                    self::setProgress(
+                        sprintf(
+                            /* translators: 1: lines processed so far, 2: total lines to process. */
+                            __('Compiling results… (%1$d/%2$d)', 'form-forge'),
+                            $line_number,
+                            $forge_total_lines
+                        ),
+                        58
+                    );
+                }
+
                 // Strip numeric line prefixes like "58: "
                 $chunk_clean = preg_replace('/^\d+:\s*/', '', $chunk);
 
@@ -1941,6 +2245,7 @@ final class Verificationpage
 
             // --- RAW PDF ANNOTATION EXTRACTION & SEAL CHECK ---
             if ($pdf_raw === false) {
+                \ForgeForms\forge_log('ForgeForms handleUpload: could not re-read "' . $file_name . '" for annotation/seal extraction — file_get_contents() failed.');
                 // translators: %s: uploaded file name.
                 $msg = sprintf(__('Could not read PDF content for %s.', 'form-forge'), esc_html($file_name));
                 // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- noticeHtml() wp_kses_post()'s its $message argument internally.
@@ -2034,6 +2339,8 @@ final class Verificationpage
                         }
                     }
                 }
+
+                self::checkParseTimeBudget($forge_parse_start, $forge_parse_max_seconds, 'object/annotation extraction');
 
                 // --- 3) Foldable unified annotation report ---
                 $all_annots_id = sanitize_html_class($uid_prefix . '-all-annots');
@@ -3325,6 +3632,11 @@ final class Verificationpage
                     }
                 }
 
+                if ($font_prog_mismatch) {
+                    echo "<p style='margin-top:8px;'>"
+                       . "<span class='forge-pdf-pill forge-pdf-pill--fail'>Font binary programs do not match the seal</span></p>";
+                }
+
                 if (!$font_missmatch) {
                     echo "<p style='margin-top:8px;'>"
                        . "<span class='forge-pdf-pill forge-pdf-pill--pass'>All fonts match the seal</span></p>";
@@ -3546,19 +3858,6 @@ final class Verificationpage
                 $inner_html = str_replace($meta_badge_pass, $meta_badge_fail, $inner_html ?? '');
             }
 
-            // --- Font program integrity check ---
-            $font_prog_mismatch = false;
-            if ($pdf_raw !== false) {
-                $sealed_fp = array_values(array_map('strval', (array) ($seal_data['font_prog_hashes'] ?? [])));
-                $live_fp   = self::hashFontProgramStreams((string) $pdf_raw);
-                sort($sealed_fp);
-                sort($live_fp);
-                $font_prog_mismatch = ($live_fp !== $sealed_fp);
-                if ($font_prog_mismatch) {
-                    $font_missmatch = true;
-                }
-            }
-
             // --- All-stream fingerprint check (Gap B catch-all) ---
             // Subset model (same as content_streams): flag when a live stream has no
             // matching sealed hash — that means an unknown stream was injected.
@@ -3628,8 +3927,8 @@ final class Verificationpage
             // Map technical exception messages to user-friendly German.
             $fn           = esc_html($file_name);
             $friendly_msg = match (true) {
-                str_contains($raw_msg, 'Multiple seal blocks')
-                    => $fn . ': ' . __('The document contains multiple seal blocks — possibly tampered.', 'form-forge'),
+                str_contains($raw_msg, 'Parsing timed out')
+                    => $fn . ': ' . __('PDF parsing took too long and was stopped for safety. Please try a smaller or simpler PDF.', 'form-forge'),
                 str_contains($raw_msg, 'Seal not found')
                     => $fn . ': ' . __('No FormForge seal found. Please only upload original documents.', 'form-forge'),
                 str_contains($raw_msg, 'Base64 decode')
@@ -3640,8 +3939,10 @@ final class Verificationpage
                     => $fn . ': ' . __('The PDF structure is invalid or the document is encrypted.', 'form-forge'),
                 str_contains($raw_msg, 'not a valid PDF')
                     => $fn . ': ' . __('The file is not a valid PDF document.', 'form-forge'),
+                str_contains($raw_msg, 'Indexed palette too short')
+                    => $fn . ': ' . __('An embedded image in the document has invalid color data and could not be processed.', 'form-forge'),
                 default
-                    => $fn . ': ' . __('The document could not be processed.', 'form-forge'),
+                    => $fn . ': ' . __('The document could not be processed. See server log for details.', 'form-forge'),
             };
             // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $friendly_msg is built from esc_html($file_name) and hardcoded translated strings; noticeHtml() also wp_kses_post()'s its argument.
             echo self::noticeHtml($friendly_msg, 'error');
@@ -3745,11 +4046,18 @@ final class Verificationpage
         // to the beginning of the file, well outside any 2MB tail window.
         $raw = @file_get_contents($path);
         if ($raw === false) {
+            \ForgeForms\forge_log('ForgeForms rawPdfHasSeal: file_get_contents() failed for ' . basename($path) . '.');
             return false;
         }
 
         // Find every stream…endstream block.
         preg_match_all('/<<([^>]*)>>\s*stream\r?\n([\s\S]*?)\nendstream/m', $raw, $blocks, PREG_SET_ORDER);
+
+        // Tracks streams skipped due to the decompression-bomb guard below, so a
+        // resulting "no seal found" can be traced back to its real cause instead of
+        // silently looking like the document simply has no seal.
+        $skipped_oversized_streams = 0;
+        $skipped_failed_decompress = 0;
 
         foreach ($blocks as $block) {
             $dict   = $block[1];
@@ -3763,6 +4071,7 @@ final class Verificationpage
             // Refuse to decompress streams that would expand beyond 64 MB —
             // a crafted FlateDecode bomb could expand 50 MB of compressed data to GBs.
             if (strlen($stream) > 67108864) {
+                $skipped_oversized_streams++;
                 continue;
             }
             $dec = @gzuncompress($stream);
@@ -3770,6 +4079,7 @@ final class Verificationpage
                 $dec = @gzinflate($stream);
             }
             if ($dec === false || strlen($dec) < 32 || strlen($dec) > 67108864) {
+                $skipped_failed_decompress++;
                 continue;
             }
 
@@ -3790,6 +4100,15 @@ final class Verificationpage
             if (str_contains($dec, '---BEGIN-SEAL---')) {
                 return true;
             }
+        }
+
+        if ($skipped_oversized_streams > 0 || $skipped_failed_decompress > 0) {
+            \ForgeForms\forge_log(
+                'ForgeForms rawPdfHasSeal: no seal found in ' . basename($path) . ' — '
+                . $skipped_oversized_streams . ' FlateDecode stream(s) skipped for exceeding the 64MB decompression-bomb guard, '
+                . $skipped_failed_decompress . ' stream(s) skipped for failing to decompress or decompressing outside plausible bounds. '
+                . 'If this document is legitimate, the seal may be inside one of the skipped streams.'
+            );
         }
 
         return false;
@@ -4412,13 +4731,16 @@ final class Verificationpage
     /**
      * Schedules a temporary PDF file for deletion after the request ends.
      *
-     * Registers a shutdown function (once) that waits until the same 600s
-     * (10 minute) window as the forge_pdf_{token} transient set alongside
+     * Registers a shutdown function (once) that waits until the same 2100s
+     * (35 minute) window as the forge_pdf_{token} transient set alongside
      * this file, then retries unlink up to five times per file — the file
      * must outlive every request that can legitimately still read it via
      * that token (forge_verify_push_lines/forge_serve_pdf), which can run
-     * up to set_time_limit(300) seconds after the initial upload response.
-     * A shorter window here previously raced those follow-up requests.
+     * up to set_time_limit(1800) seconds after the initial upload response,
+     * plus the soft per-pass parse budget on top of that. A shorter window
+     * here previously raced those follow-up requests — keep this in sync
+     * with the transient TTL above and with set_time_limit() at the top of
+     * wp_ajax_forge_verify_push_lines if either is ever changed again.
      *
      * @param string $file_path Absolute path to the PDF file to delete.
      *
@@ -4438,7 +4760,7 @@ final class Verificationpage
                     }
                     // Same rationale as emitImageSlot() above — offload the
                     // delayed unlink to WP-Cron instead of sleeping in-worker.
-                    wp_schedule_single_event(time() + 600, 'forge_verifier_cleanup_files', [self::$pdfs_to_delete]);
+                    wp_schedule_single_event(time() + 2100, 'forge_verifier_cleanup_files', [self::$pdfs_to_delete]);
                 }
             );
         }
