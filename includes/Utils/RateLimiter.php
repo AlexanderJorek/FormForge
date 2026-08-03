@@ -23,27 +23,19 @@ namespace ForgeForms\Utils;
 
 defined('ABSPATH') || exit;
 
-/**
- * Atomic, window-based rate-limit counter backed directly by wp_options.
- *
- * Count and window-expiry are stored together as one "count|expiry" value, and
- * the reset-or-increment decision happens inside one atomic
- * INSERT ... ON DUPLICATE KEY UPDATE under InnoDB's per-row lock — avoiding the
- * TOCTOU race a separate read-then-write (or two separate atomic statements)
- * would have.
- */
+// Atomic, window-based rate-limit counter backed directly by wp_options. Count and window-expiry are stored
+// together as one "count|expiry" value, and the reset-or-increment decision happens inside one atomic INSERT
+// ... ON DUPLICATE KEY UPDATE under InnoDB's per-row lock — avoiding the TOCTOU race a separate
+// read-then-write (or two separate atomic statements) would have.
 class RateLimiter
 {
     /**
-     * Atomically increments the counter for $key and returns the new count. The
-     * window resets automatically once $window_seconds have elapsed since the
-     * counter was first created for this key.
+     * Atomically increments the counter for $key and returns the new count. The window resets automatically
+     * once $window_seconds have elapsed since the counter was first created for this key.
      *
-     * @param string $key            Unique rate-limit bucket identifier (already
-     *                                hashed/sanitized by the caller — used verbatim
-     *                                as part of an option name).
+     * @param string $key            Unique rate-limit bucket identifier (already hashed/sanitized by
+     *                                the caller — used verbatim as part of an option name).
      * @param int    $window_seconds Window duration in seconds.
-     *
      * @return int New count after incrementing.
      */
     public static function increment(string $key, int $window_seconds): int
@@ -87,7 +79,9 @@ class RateLimiter
         // stale copy or every subsequent get_option() on this key would return it.
         wp_cache_delete($opt, 'options');
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- same direct-query rationale as the upsert above: this option is never autoloaded/cached via get_option(), it's a private counter row this class owns exclusively.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- same direct-query rationale as the
+        // upsert above: this option is never autoloaded/cached via get_option(), it's a private counter row
+        // this class owns exclusively.
         $raw = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $opt));
         if ($raw === null || !str_contains((string) $raw, '|')) {
             // Shouldn't happen immediately after the upsert above commits, but fail
@@ -98,23 +92,22 @@ class RateLimiter
     }
 
     /**
-     * Read-only peek at how many seconds remain until $key's window resets.
-     * Does not increment or otherwise mutate the counter — callers use this
-     * purely to explain a rate-limit rejection (e.g. "try again in N seconds")
-     * after increment() has already returned an over-the-cap count for the
-     * same request.
+     * Read-only peek at how many seconds remain until $key's window resets. Does not increment or otherwise
+     * mutate the counter — callers use this purely to explain a rate-limit rejection (e.g. "try again in N
+     * seconds") after increment() has already returned an over-the-cap count for the same request.
      *
      * @param string $key Same bucket identifier passed to increment().
-     *
-     * @return int Seconds until reset, or 0 if the bucket doesn't exist or has
-     *             already expired (i.e. the next increment() call would reset it).
+     * @return int Seconds until reset, or 0 if the bucket doesn't exist or has already
+     *             expired (i.e. the next increment() call would reset it).
      */
     public static function secondsUntilReset(string $key): int
     {
         global $wpdb;
 
         $opt = 'forge_rl_' . $key;
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- same direct-query rationale as increment() above: this option is never autoloaded/cached via get_option(), it's a private counter row this class owns exclusively.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- same direct-query rationale as
+        // increment() above: this option is never autoloaded/cached via get_option(), it's a private counter
+        // row this class owns exclusively.
         $raw = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $opt));
         if ($raw === null || !str_contains((string) $raw, '|')) {
             return 0;
@@ -124,15 +117,10 @@ class RateLimiter
         return max(0, $expiry - time());
     }
 
-    /**
-     * WP-Cron callback (hourly): deletes any forge_rl_* option row whose window
-     * has expired. Each distinct rate-limit bucket (IP+form combination) leaves
-     * a permanent wp_options row once written, since increment() only ever
-     * resets/increments a row in place and never deletes it — without this
-     * sweep, buckets accumulate forever.
-     *
-     * @return void
-     */
+    // WP-Cron callback (hourly): deletes any forge_rl_* option row whose window has expired. Each distinct
+    // rate-limit bucket (IP+form combination) leaves a permanent wp_options row once written, since
+    // increment() only ever resets/increments a row in place and never deletes it — without this sweep,
+    // buckets accumulate forever.
     public static function cronSweepExpired(): void
     {
         global $wpdb;

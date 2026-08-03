@@ -1,11 +1,11 @@
-﻿/*!
+/*!
  * FormForge
  * @copyright 2026 Alexander Jorek
  * @license   GPL-3.0-or-later
  */
-/* FormForge â€” Admin Styles */
+/* FormForge — Admin Styles */
 
-/* Sidebar menu icon â€” rotated clipboard */
+/* Sidebar menu icon — rotated clipboard */
 
 /* ================================================================
  * Override WP's --wp-admin-theme-color variables with the forge accent
@@ -146,7 +146,7 @@
 }
 
 /* ================================================================
- * CENTER â€” Canvas
+ * CENTER — Canvas
  * ================================================================ */
 #forge-canvas {
     flex: 1;
@@ -387,7 +387,7 @@
     overflow: hidden;
 }
 
-/* Fields panel â€” flex column, does NOT scroll itself */
+/* Fields panel — flex column, does NOT scroll itself */
 #forge-fields-panel.forge-panel-active {
     padding: 0;
     overflow: hidden;
@@ -396,7 +396,7 @@
     flex-direction: column;
 }
 
-/* Field list â€” CSS grid so col-6 rows sit side-by-side without wrapper divs */
+/* Field list — CSS grid so col-6 rows sit side-by-side without wrapper divs */
 #forge-field-list {
     flex: 1;
     min-height: 200px;
@@ -448,7 +448,7 @@
     text-shadow: 0 1px 2px rgba(255,255,255,.8);
 }
 
-/* Drop line â€” fixed-position overlay, centered in the gap between rows */
+/* Drop line — fixed-position overlay, centered in the gap between rows */
 .forge-drop-line {
     position: fixed;
     height: 2px;
@@ -561,7 +561,7 @@
     margin-top: 1px;
 }
 
-/* Field ID badge â€” shown left of action buttons */
+/* Field ID badge — shown left of action buttons */
 .forge-row-id {
     font-family: monospace;
     font-size: 10px;
@@ -659,7 +659,7 @@
 }
 
 /* ================================================================
- * Notifications panel â€” mirrors fields panel layout
+ * Notifications panel — mirrors fields panel layout
  * ================================================================ */
 #forge-notifications-panel.forge-panel-active {
     padding: 0;
@@ -714,7 +714,7 @@
 }
 
 /* ================================================================
- * Settings Modal â€” wider variant, 3-tab layout
+ * Settings Modal — wider variant, 3-tab layout
  * ================================================================ */
 .forge-modal--settings {
     max-width: 600px;
@@ -726,6 +726,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
+    flex: 1;
 }
 
 .forge-settings-field-icon {
@@ -782,7 +783,7 @@
     display: block;
 }
 
-/* Notification modal â€” editable name in header */
+/* Notification modal — editable name in header */
 .forge-notif-modal-name {
     flex: 1;
     font-size: 15px;
@@ -802,7 +803,7 @@
     box-shadow: 0 0 0 1px var(--forge-admin-accent);
 }
 
-/* Routing rules â€” reuses .forge-cond-rule layout, adds email target row */
+/* Routing rules — reuses .forge-cond-rule layout, adds email target row */
 .forge-notif-routing {
     display: flex;
     flex-direction: column;
@@ -1635,7 +1636,7 @@
 }
 
 /* ================================================================
- * Verification â€” Detail Sections
+ * Verification — Detail Sections
  * ================================================================ */
 .forge-pdf-detail-section {
     display: none;
@@ -1786,7 +1787,7 @@
     color: #721c24;
 }
 
-/* Hash rows â€” content streams / image hashes */
+/* Hash rows — content streams / image hashes */
 .forge-pdf-hash-list { display: flex; flex-direction: column; gap: 4px; }
 
 .forge-pdf-hash-summary {
@@ -2135,9 +2136,6 @@
 .forge-modal--settings .forge-modal-header {
     justify-content: flex-start;
 }
-.forge-settings-titlerow {
-    flex: 1;
-}
 
 .forge-modal-title {
     margin: 0;
@@ -2331,7 +2329,7 @@
     color: #1d2327;
 }
 
-/* Segmented pill control â€” all options visible, click to select */
+/* Segmented pill control — all options visible, click to select */
 .forge-seg {
     display: inline-flex;
     border: 1.5px solid var(--forge-admin-accent);
@@ -2456,7 +2454,7 @@
 /* Option dropdown and free-text input fill the remaining flex space */
 .forge-cond-opt-sel { flex: 1 !important; min-width: 0; max-width: none; }
 
-/* Trash button â€” right vertical strip, neutral */
+/* Trash button — right vertical strip, neutral */
 .forge-cond-rm {
     display: flex;
     align-items: center;
@@ -2587,7 +2585,7 @@
     border-radius: 6px;
     background: #fff;
     overflow: hidden;
-    padding: 0; /* override .forge-sp-input padding â€” body handles its own */
+    padding: 0; /* override .forge-sp-input padding — body handles its own */
     transition: border-color .1s ease, box-shadow .1s ease;
 }
 .forge-sp-richtext-editor:focus,
@@ -2650,7 +2648,7 @@
  * Forms List Page
  * ================================================================ */
 
-/* â”€â”€ List page: lock scroll to viewport (same principle as editor) â”€â”€ */
+/* ── List page: lock scroll to viewport (same principle as editor) ── */
 .forge-list-page #wpfooter,
 .forge-list-page #screen-meta,
 .forge-verification-page #wpfooter,
@@ -2806,7 +2804,7 @@
 .forge-list-wrap .page-title-action,
 .forge-list-wrap .wp-header-end             { flex-shrink: 0; }
 
-/* Empty state â€” vertically centered in remaining space */
+/* Empty state — vertically centered in remaining space */
 .forge-list-empty[hidden] { display: none !important; }
 .forge-list-empty {
     flex: 1;
@@ -2836,7 +2834,7 @@
     text-shadow: 0 1px 2px rgba(255,255,255,.8);
 }
 
-/* Scrollable form list â€” fills remaining height, never overflows page */
+/* Scrollable form list — fills remaining height, never overflows page */
 .forge-form-list {
     flex: 1;
     min-height: 0;
@@ -2914,7 +2912,7 @@
     box-shadow: none !important;
 }
 
-/* â”€â”€ Global settings page â”€â”€ */
+/* ── Global settings page ── */
 
 /* Suppress WP core admin notices on the settings page.
    WP moves notices inside .wrap after hr.wp-header-end, so target by class anywhere on the page. */
@@ -2951,7 +2949,7 @@
     align-items: stretch;
 }
 
-/* Section divider â€” spans all columns */
+/* Section divider — spans all columns */
 .forge-settings-section-header {
     grid-column: 1 / -1;
     display: flex;
@@ -3151,7 +3149,7 @@
     color: #1a5c28;
 }
 
-/* â”€â”€ Security tile â”€â”€ */
+/* ── Security tile ── */
 .forge-security-actions {
     display: flex;
     flex-direction: column;
@@ -3231,6 +3229,10 @@
     padding: 4px 10px 4px 0;
     border-bottom: 2px solid #dcdcde;
     text-align: left;
+    position: sticky;
+    top: 0;
+    background: #fff;
+    z-index: 1;
 }
 
 .forge-key-master-table thead th:nth-child(2),
@@ -3413,13 +3415,6 @@
     border-color: var(--forge-admin-accent);
 }
 
-.forge-key-master-table thead th {
-    position: sticky;
-    top: 0;
-    background: #fff;
-    z-index: 1;
-}
-
 .forge-key-fp-cell {
     font-size: 12px;
     font-family: monospace;
@@ -3488,7 +3483,11 @@
     color: #b32d2e;
     padding: 1px 0;
 }
-.forge-key-pw-errors li::before { content: 'âœ—  '; }
+.forge-key-pw-errors li::before {
+    content: '\f00d  ';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+}
 
 .forge-key-compromised-hint {
     color: #b32d2e !important;
@@ -3496,7 +3495,7 @@
 }
 
 
-/* â”€â”€ Factory-reset modal â”€â”€ */
+/* ── Factory-reset modal ── */
 .forge-reset-overlay {
     position: fixed;
     inset: 0;
@@ -3784,7 +3783,7 @@
     flex-shrink: 0;
 }
 
-/* Title badge â€” trapezoid sitting on top of the toolbar */
+/* Title badge — trapezoid sitting on top of the toolbar */
 .forge-title-pill {
     align-self: center;
     margin: 0 auto 8px;
@@ -3901,7 +3900,7 @@
     position: relative;
 }
 
-/* Reduced-height buttons for the list page (â‰ˆ 1/3 smaller than WP default 30px) */
+/* Reduced-height buttons for the list page (≈ 1/3 smaller than WP default 30px) */
 .forge-list-btn.button,
 .forge-list-btn.button-primary {
     height: 24px !important;
@@ -3980,7 +3979,7 @@
     padding: 0 !important;
 }
 
-/* â‹® dropdown menu */
+/* ⋮ dropdown menu */
 .forge-row-menu-wrap {
     position: relative;
 }
@@ -4015,7 +4014,7 @@
     border-color: transparent !important;
 }
 
-/* Dropdown is hoisted to <body> via JS â€” fixed position */
+/* Dropdown is hoisted to <body> via JS — fixed position */
 /* Delete confirmation modal */
 .forge-modal-backdrop[hidden] { display: none !important; }
 #forge-delete-modal {
@@ -4171,7 +4170,7 @@
     margin: 4px 0;
 }
 
-/* â”€â”€ PDF Layout Editor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── PDF Layout Editor ─────────────────────────────────────────────────── */
 
 .forge-pdf-editor-wrap {
     display: grid;
@@ -4230,8 +4229,8 @@
 .forge-a4-paper {
     background: #fff;
     width: 100%;
-    max-width: 992px; /* A4 at 120 dpi = 210 mm Ã— (120/25.4) â€” matches mPDF internal rendering width */
-    height: 1402px; /* A4 at 120 dpi = 297 mm Ã— (120/25.4) */
+    max-width: 992px; /* A4 at 120 dpi = 210 mm × (120/25.4) — matches mPDF internal rendering width */
+    height: 1402px; /* A4 at 120 dpi = 297 mm × (120/25.4) */
     box-shadow: 0 4px 24px rgba(0,0,0,.18);
     border-radius: 2px;
     overflow: hidden;
@@ -4240,7 +4239,7 @@
 }
 
 /* ================================================================
- * Group field â€” builder row
+ * Group field — builder row
  * ================================================================ */
 .forge-field-row--group {
     flex-direction: column;
@@ -4386,7 +4385,7 @@ input[type="color"] {
     background: #fff;
 }
 
-/* Range sliders â€” styled to match the front-end SliderField visuals */
+/* Range sliders — styled to match the front-end SliderField visuals */
 input[type="range"] {
     -webkit-appearance: none;
     appearance: none;
@@ -4519,9 +4518,6 @@ input[type="range"]:focus-visible::-moz-range-thumb {
        because overflow on the list-wrap breaks position:sticky on the title pill */
     .forge-pdf-editor-wrap {
         overflow-x: hidden;
-    }
-
-    .forge-pdf-editor-wrap {
         grid-template-columns: 1fr !important;
     }
 
@@ -4567,7 +4563,7 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     }
 }
 
-/* â”€â”€ Header Builder Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Header Builder Modal ─────────────────────────────────────── */
 .forge-hb-modal               { position:fixed; inset:0; z-index:99000; display:flex; align-items:center; justify-content:center; }
 .forge-hb-modal[hidden]       { display:none !important; }
 .forge-hb-overlay             { position:absolute; inset:0; background:rgba(0,0,0,.55); }
@@ -4687,7 +4683,7 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     border-color: var(--forge-admin-accent);
     color: var(--forge-accent-text, #fff);
 }
-/* Delete button â€” no default outline */
+/* Delete button — no default outline */
 #hb-delete-btn {
     border-color: #d63638 !important;
     box-shadow: none !important;
@@ -4703,6 +4699,8 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     border: 1px solid #c3c4c7;
     border-radius: 4px;
     padding: 3px 4px;
+    flex-wrap: wrap;
+    row-gap: 4px;
 }
 .forge-hb-tb-btn {
     display: inline-flex;
@@ -4740,10 +4738,6 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     margin: 0 3px;
     flex-shrink: 0;
 }
-.forge-hb-fmt-toolbar {
-    flex-wrap: wrap;
-    row-gap: 4px;
-}
 .forge-hb-tb-size {
     width: 42px;
     height: 26px;
@@ -4768,7 +4762,7 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     background: none;
     flex-shrink: 0;
 }
-/* Split button (U + â–¾) */
+/* Split button (U + ▾) */
 .forge-hb-tb-split {
     position: relative;
     display: flex;
@@ -4943,7 +4937,7 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 }
 .forge-ctag-rm:hover { opacity: 1; color: #b32d2e; background: rgba(255,255,255,.2); }
 
-/* Inline search input â€” unstyled, grows to fill space */
+/* Inline search input — unstyled, grows to fill space */
 .forge-ctag-search {
     flex: 1;
     min-width: 120px;
@@ -4960,7 +4954,7 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 }
 .forge-ctag-search::placeholder { color: #a7aaad; }
 
-/* Dropdown â€” fixed so it escapes modal scroll containers */
+/* Dropdown — fixed so it escapes modal scroll containers */
 .forge-ctag-dropdown {
     position: fixed;
     background: #fff;
@@ -4993,7 +4987,7 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     color: #1d2327;
 }
 
-/* â”€â”€ User-access modal â”€â”€ */
+/* ── User-access modal ── */
 .forge-access-modal {
     max-width: 660px;
 }
@@ -5223,7 +5217,7 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     z-index: 1;
 }
 
-/* â”€â”€ Form Select â€” modal item editor â”€â”€ */
+/* ── Form Select — modal item editor ── */
 .forge-fsel-cols-header {
     display: grid;
     grid-template-columns: 16px minmax(80px,110px) 1fr 1fr 24px 28px;

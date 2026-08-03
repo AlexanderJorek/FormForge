@@ -23,14 +23,10 @@ namespace ForgeForms\Fields;
 
 defined('ABSPATH') || exit;
 
-/**
- * Structural field: renders a step/breadcrumb bar for multi-page forms.
- *
- * The number of steps and the current/reachable state are resolved client-side
- * (front.js) from the actual .forge-form-page count, since that isn't known at
- * render time relative to this field's position. This field only emits the
- * container plus the admin-configured display mode and optional page names.
- */
+// Structural field: renders a step/breadcrumb bar for multi-page forms. The number of steps and the
+// current/reachable state are resolved client-side (front.js) from the actual .forge-form-page count, since
+// that isn't known at render time relative to this field's position. This field only emits the container plus
+// the admin-configured display mode and optional page names.
 class PageHeaderField extends BaseField
 {
     /**
@@ -139,7 +135,7 @@ CSS;
     }
 
     /**
-     * Excluded from the {all_fields} email summary — no user-submitted value.
+     * Excluded from the {all_fields} email summary â€” no user-submitted value.
      *
      * @return bool
      */
@@ -149,14 +145,12 @@ CSS;
     }
 
     /**
-     * Renders the step-nav container. The actual step buttons are built
-     * client-side by front.js once the real page count is known.
+     * Renders the step-nav container. The actual step buttons are built client-side by front.js once the real
+     * page count is known.
      *
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Unused.
-     *
-     * @return string
      */
     public function render(array $config, string $field_id, mixed $value = null): string
     {
@@ -185,13 +179,8 @@ CSS;
             . '></div>';
     }
 
-    /**
-     * Builds the step buttons and wires them to the shared page-nav infra in
-     * front.js (data-forge-goto-page click delegation + the forge:page-change
-     * event dispatched by initPageBreaks()).
-     *
-     * @return string
-     */
+    // Builds the step buttons and wires them to the shared page-nav infra in front.js (data-forge-goto-page
+    // click delegation + the forge:page-change event dispatched by initPageBreaks()).
     public function getClientInit(): string
     {
         return <<<'JS'
@@ -280,7 +269,6 @@ CSS;
      * @param mixed  $value    Raw submitted value.
      * @param array  $config   Field configuration.
      * @param array  $context  Submission context.
-     *
      * @return array<string, array>
      */
     public function mapNormalized(
@@ -298,8 +286,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
-     * @return string
      */
     public function map(mixed $value, array $config): string
     {

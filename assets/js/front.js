@@ -15,34 +15,24 @@
     }
 
     /* ── Field-type init functions ───────────────────────────────────────── */
-    /*
-     * Field-specific init logic (sliders, ratings, date pickers, uploads,
-     * SEPA, selects, other-option toggles) lives in each field's PHP class
-     * via getClientInit(). Assets::enqueueFront() collects them into
-     * window.ForgeFieldInits keyed by field type.
-     * The boot function iterates and calls each with the root element,
-     * so front.js needs no knowledge of specific field types.
-     */
+    /* Field-specific init logic lives in each field's PHP class via
+       getClientInit(); Assets::enqueueFront() collects them into
+       window.ForgeFieldInits keyed by field type, so front.js needs no
+       knowledge of specific field types. */
 
     /* ── Validator registry ───────────────────────────────────────────────── */
-    /*
-     * Populated by Assets::enqueueFront() from each field's getClientValidation().
-     * To add validation to a new field type, define getClientValidation() in its
-     * PHP class — no changes needed here.
-     * Each entry: function(fieldEl) → error string | null
-     *
-     * These client-side rules are a UX convenience only — they intentionally
-     * mirror the authoritative checks in each field's PHP validate() method
-     * (includes/Fields/*.php), which runs again server-side and is what
-     * actually gates submission. If a validate() rule changes, update the
-     * matching getClientValidation() rule too or the two will silently drift
-     * (e.g. client accepts input that the server then rejects, or vice versa).
-     */
+    /* Populated by Assets::enqueueFront() from each field's getClientValidation().
+       Each entry: function(fieldEl) → error string | null.
+       These client-side rules mirror the authoritative checks in each field's
+       PHP validate() (includes/Fields/*.php), which runs again server-side.
+       If a validate() rule changes, update the matching client rule too, or
+       the two will silently drift. */
     var VALIDATORS = window.ForgeValidators || {};
 
     /* ── Client-side validation ──────────────────────────────────────────── */
 
     function validatePage(scope) {
+        var i18n        = (window.ForgeForms && window.ForgeForms.i18n) || {};
         var hasRequired = false;
         var hasInvalid  = false;
         var firstError  = null;
@@ -91,7 +81,7 @@
             /* 1 — Required check */
             if (isRequired && empty && !ignoreRequired) {
                 hasRequired = true;
-                markError(fieldEl, 'Dieses Feld ist ein Pflichtfeld.');
+                markError(fieldEl, i18n.field_required || 'This field is required.');
                 return; /* skip format check on empty required field */
             }
 
@@ -104,7 +94,7 @@
                     var errEl = (container && container.querySelector('.forge-field-error'))
                         || fieldEl.querySelector('.forge-field-error');
                     if (errEl && !errEl.textContent) {
-                        errEl.textContent = 'Dieses Feld ist ein Pflichtfeld.';
+                        errEl.textContent = i18n.field_required || 'This field is required.';
                     }
                     if (!firstError) firstError = fieldEl;
                 });
@@ -382,10 +372,10 @@
                 var vr = validatePage(form);
                 if (!vr.valid) {
                     var msg = vr.hasRequired && vr.hasInvalid
-                        ? 'Bitte füllen Sie alle Pflichtfelder aus und korrigieren Sie ungültige Eingaben.'
+                        ? (i18n.validation_both || 'Please fill in all required fields and correct the invalid entries.')
                         : vr.hasRequired
-                            ? 'Bitte füllen Sie alle Pflichtfelder aus.'
-                            : 'Bitte geben Sie gültige Daten ein.';
+                            ? (i18n.validation_required || 'Please fill in all required fields.')
+                            : (i18n.validation_invalid || 'Please enter valid data.');
                     if (msgBox) {
                         msgBox.className    = 'forge-form-messages error';
                         msgBox.textContent  = msg;
@@ -427,7 +417,7 @@
                 var origLabel = label ? label.textContent : '';
 
                 if (btn) btn.disabled = true;
-                if (label) label.textContent = (btn && btn.dataset.working) || i18n.submitting || 'Wird gesendet…';
+                if (label) label.textContent = (btn && btn.dataset.working) || i18n.submitting || 'Sending…';
                 if (spinner) spinner.style.display = '';
                 if (msgBox) { msgBox.style.display = 'none'; msgBox.className = 'forge-form-messages'; }
 
@@ -451,7 +441,8 @@
                             msgBox.className = 'forge-form-messages success';
                             msgBox.textContent = (btn && btn.dataset.success)
                                 || (res.data && res.data.message)
-                                || 'Vielen Dank!';
+                                || i18n.thank_you
+                                || 'Thank you!';
                             msgBox.style.display = '';
                         }
                         form.reset();
@@ -469,7 +460,7 @@
                         if (btn) btn.disabled = false;
                         var errMsg = (res.data && res.data.message)
                             || i18n.error_server
-                            || 'Fehler. Bitte erneut versuchen.';
+                            || 'Server error. Please try again.';
                         if (msgBox) {
                             msgBox.className    = 'forge-form-messages error';
                             msgBox.textContent  = errMsg;
@@ -498,7 +489,7 @@
                     if (spinner) spinner.style.display = 'none';
                     if (msgBox) {
                         msgBox.className = 'forge-form-messages error';
-                        msgBox.textContent = i18n.error_server || 'Serverfehler. Bitte versuchen Sie es erneut.';
+                        msgBox.textContent = i18n.error_server || 'Server error. Please try again.';
                         msgBox.style.display = '';
                     }
                 });

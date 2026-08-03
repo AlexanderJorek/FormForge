@@ -96,7 +96,6 @@ CSS;
      * Translated default label for a sub-field, keyed by its literal SUBFIELDS label.
      *
      * @param string $default_label One of the literal 'label' values from SUBFIELDS.
-     *
      * @return string Translated label.
      */
     private static function subfieldLabel(string $default_label): string
@@ -111,11 +110,9 @@ CSS;
     }
 
     /**
-     * Returns the fixed salutation/prefix option list. Rendered as <select>
-     * options in render() and used by validate() as the server-side allowlist
-     * for the submitted prefix sub-value — can't be a class const because it
-     * contains __() translation calls, which aren't compile-time constant
-     * expressions.
+     * Returns the fixed salutation/prefix option list. Rendered as <select> options in render() and used by
+     * validate() as the server-side allowlist for the submitted prefix sub-value — can't be a class const
+     * because it contains __() translation calls, which aren't compile-time constant expressions.
      *
      * @return array<int, string>
      */
@@ -130,7 +127,6 @@ CSS;
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Current field value.
-     *
      * @return string Rendered HTML.
      */
     public function render(array $config, string $field_id, mixed $value = null): string
@@ -186,8 +182,6 @@ CSS;
      * Returns the sanitized composite subfield array submitted as $field_id[key].
      *
      * @param string $field_id The field element ID.
-     *
-     * @return mixed
      */
     public function extractValue(string $field_id): mixed
     {
@@ -204,7 +198,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return bool|string True on valid, error message string on invalid.
      */
     public function validate(mixed $value, array $config): bool|string
@@ -215,6 +208,12 @@ CSS;
                 $label = $config['label'] ?? __('Name', 'form-forge');
                 // translators: %s: field label.
                 return sprintf(__('%s: Required field.', 'form-forge'), esc_html($label));
+            }
+            if ($scalar !== '') {
+                $hard = self::validateTextHardCap($scalar);
+                if ($hard !== true) {
+                    return $hard;
+                }
             }
             return true;
         }
@@ -235,9 +234,17 @@ CSS;
                 }
                 continue;
             }
-            if (!empty($config[$k . '_required'])) {
-                if (trim((string)(is_array($value) ? ($value[$k] ?? '') : '')) === '') {
-                    $errors[] = $config[$k . '_label'] ?? self::subfieldLabel($sf['label']);
+            $sub = trim((string)(is_array($value) ? ($value[$k] ?? '') : ''));
+            if (!empty($config[$k . '_required']) && $sub === '') {
+                $errors[] = $config[$k . '_label'] ?? self::subfieldLabel($sf['label']);
+                continue;
+            }
+            // Server-side hard-cap backstop — a direct POST can submit an
+            // unbounded-length sub-value; there is no client-side maxlength here.
+            if ($sub !== '') {
+                $hard = self::validateTextHardCap($sub);
+                if ($hard !== true) {
+                    return $hard;
                 }
             }
         }
@@ -252,7 +259,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return string Formatted name string.
      */
     public function map(mixed $value, array $config): string

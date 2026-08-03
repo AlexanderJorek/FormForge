@@ -23,15 +23,9 @@ namespace ForgeForms\PDF;
 
 defined('ABSPATH') || exit;
 
-/**
- * Fluent builder that field classes use to describe their PDF output.
- *
- * Start from BaseField::pdf($field), chain methods for anything non-default,
- * then call build(). Generator consumes the resulting array.
- *
- * Usage:
- *   return $this->pdf($field)->attachImage($binary, 'sig.png')->build();
- */
+// Fluent builder that field classes use to describe their PDF output. Start from BaseField::pdf($field),
+// chain methods for anything non-default, then call build(). Generator consumes the resulting array. Usage:
+// return $this->pdf($field)->attachImage($binary, 'sig.png')->build();
 class PdfDescriptor
 {
     /**
@@ -63,9 +57,9 @@ class PdfDescriptor
     private $sealedUploads = [];
 
     /**
-     * Whether rawHtml() was called with $trusted = true — i.e. the cell HTML
-     * was already sanitized upstream by the field's own (wider) kses pass and
-     * should not be re-narrowed by Generator.php's default value-only allowlist.
+     * Whether rawHtml() was called with $trusted = true — i.e. the cell HTML was already sanitized upstream
+     * by the field's own (wider) kses pass and should not be re-narrowed by Generator.php's default
+     * value-only allowlist.
      *
      * @var bool
      */
@@ -83,8 +77,6 @@ class PdfDescriptor
      * Replaces the cell text with an already-escaped string.
      *
      * @param string $escaped Pre-escaped HTML or empty string.
-     *
-     * @return static
      */
     public function text(string $escaped): static
     {
@@ -93,19 +85,14 @@ class PdfDescriptor
     }
 
     /**
-     * Sets the cell content to raw HTML.
-     *
-     * Every field handler's PDF output funnels through this one escape hatch,
-     * so callers must explicitly opt in to skipping sanitization by passing
-     * $trusted = true — otherwise the HTML is run through wp_kses_post() first.
-     * This makes "did this caller remember to sanitize?" visible at every call
-     * site instead of silently depending on caller discipline.
+     * Sets the cell content to raw HTML. Every field handler's PDF output funnels through this one escape
+     * hatch, so callers must explicitly opt in to skipping sanitization by passing $trusted = true —
+     * otherwise the HTML is run through wp_kses_post() first. This makes "did this caller remember to
+     * sanitize?" visible at every call site instead of silently depending on caller discipline.
      *
      * @param string $html    HTML string.
-     * @param bool   $trusted Pass true only when $html is already known-safe
-     *                        (e.g. pre-sanitized by the field's own kses pass).
-     *
-     * @return static
+     * @param bool   $trusted Pass true only when $html is already known-safe (e.g. pre-sanitized by the
+     *                        field's own kses pass).
      */
     public function rawHtml(string $html, bool $trusted = false): static
     {
@@ -115,7 +102,7 @@ class PdfDescriptor
     }
 
     /**
-     * Renders without a label row — just a plain block.
+     * Renders without a label row â€” just a plain block.
      *
      * @return static
      */
@@ -126,13 +113,12 @@ class PdfDescriptor
     }
 
     /**
-     * Embeds an image in the PDF and records its fingerprint in the seal.
-     * TIFF images are converted to PNG first — mPDF does not support TIFF natively.
+     * Embeds an image in the PDF and records its fingerprint in the seal. TIFF images are converted to PNG
+     * first — mPDF does not support TIFF natively.
      *
      * @param string $binary   Raw binary image data.
      * @param string $filename Display name used in the seal.
      * @param string $mime     MIME type (default 'image/png').
-     *
      * @return static
      */
     public function attachImage(

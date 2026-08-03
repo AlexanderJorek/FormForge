@@ -53,7 +53,6 @@ class FormSettings
      * Appends a CSS class on the settings page.
      *
      * @param string $classes Existing admin body classes.
-     *
      * @return string Modified body class string.
      */
     public static function bodyClass(string $classes): string
@@ -404,11 +403,10 @@ class FormSettings
 
                         <div class="forge-settings-field">
                             <label for="recaptcha_secret"><?php echo esc_html__('Secret Key', 'form-forge'); ?></label>
-                            <input type="password" id="recaptcha_secret" name="recaptcha_secret"
+                            <input type="text" id="recaptcha_secret" name="recaptcha_secret"
                                    value="<?php echo esc_attr($recaptcha_secret); ?>"
                                    placeholder="6Le…"
-                                   autocomplete="new-password" data-lpignore="true"
-                                   data-1p-ignore data-bwignore spellcheck="false">
+                                   autocomplete="off" spellcheck="false">
                         </div>
                     </div>
 
@@ -1296,11 +1294,11 @@ $('.forge-iris-input').wpColorPicker({
 
             function rules(pw) {
                 return [
-                    { ok: pw.length >= 12,          label: 'Min. 12 characters' },
-                    { ok: /[A-Z]/.test(pw),         label: 'Uppercase letter' },
-                    { ok: /[a-z]/.test(pw),         label: 'Lowercase letter' },
-                    { ok: /[0-9]/.test(pw),         label: 'Digit' },
-                    { ok: /[^A-Za-z0-9]/.test(pw), label: 'Special character' },
+                    { ok: pw.length >= 12,          label: <?php echo wp_json_encode(__('Min. 12 characters', 'form-forge')); ?> },
+                    { ok: /[A-Z]/.test(pw),         label: <?php echo wp_json_encode(__('Uppercase letter', 'form-forge')); ?> },
+                    { ok: /[a-z]/.test(pw),         label: <?php echo wp_json_encode(__('Lowercase letter', 'form-forge')); ?> },
+                    { ok: /[0-9]/.test(pw),         label: <?php echo wp_json_encode(__('Digit', 'form-forge')); ?> },
+                    { ok: /[^A-Za-z0-9]/.test(pw), label: <?php echo wp_json_encode(__('Special character', 'form-forge')); ?> },
                 ];
             }
 
@@ -1379,7 +1377,7 @@ $('.forge-iris-input').wpColorPicker({
                         var ok  = data.success;
                         var txt = (data.data && data.data.message)
                             ? data.data.message
-                            : (ok ? 'Success.' : 'Error.');
+                            : (ok ? <?php echo wp_json_encode(__('Success', 'form-forge')); ?> : <?php echo wp_json_encode(__('Error', 'form-forge')); ?>);
                         modalMsg.hidden      = false;
                         modalMsg.textContent = txt;
                         modalMsg.style.color = ok ? '#1a5c28' : '#b32d2e';
@@ -1396,7 +1394,7 @@ $('.forge-iris-input').wpColorPicker({
                     })
                     .catch(function () {
                         modalMsg.hidden      = false;
-                        modalMsg.textContent = 'Network error.';
+                        modalMsg.textContent = <?php echo wp_json_encode(__('Network error', 'form-forge')); ?>;
                         modalMsg.style.color = '#b32d2e';
                         confirmBtn.disabled  = false;
                     });
@@ -1519,12 +1517,12 @@ $('.forge-iris-input').wpColorPicker({
                             confirmBtn.disabled = false;
                             return;
                         }
-                        errEl.textContent   = (data.data && data.data.message) || 'Error.';
+                        errEl.textContent   = (data.data && data.data.message) || <?php echo wp_json_encode(__('Error', 'form-forge')); ?>;
                         errEl.style.display = 'block';
                         confirmBtn.disabled = false;
                     })
                     .catch(function () {
-                        errEl.textContent   = 'Network error.';
+                        errEl.textContent   = <?php echo wp_json_encode(__('Network error', 'form-forge')); ?>;
                         errEl.style.display = 'block';
                         confirmBtn.disabled = false;
                     });
@@ -1592,7 +1590,7 @@ $('.forge-iris-input').wpColorPicker({
                 fetch(ajaxurl, { method: 'POST', body: fd })
                     .then(function (r) { return r.json(); })
                     .then(onSuccess)
-                    .catch(function () { showBlockerError('Network error.'); });
+                    .catch(function () { showBlockerError(<?php echo wp_json_encode(__('Network error', 'form-forge')); ?>); });
             }
 
             function hideStep1() { step1Div.style.display = 'none'; }
@@ -1628,7 +1626,7 @@ $('.forge-iris-input').wpColorPicker({
                         mkLine.textContent = data.data.define_line;
                         mkConfirm.disabled = false;
                     } else {
-                        showBlockerError((data.data && data.data.message) || 'Error.');
+                        showBlockerError((data.data && data.data.message) || <?php echo wp_json_encode(__('Error', 'form-forge')); ?>);
                     }
                 });
             } else if (setupState === 'ready') {
@@ -1648,7 +1646,7 @@ $('.forge-iris-input').wpColorPicker({
                         } else {
                             btnDefault.disabled = false;
                             btnSecure.disabled  = false;
-                            showBlockerError((data.data && data.data.message) || 'Error.');
+                            showBlockerError((data.data && data.data.message) || <?php echo wp_json_encode(__('Error', 'form-forge')); ?>);
                         }
                     });
                 });
@@ -1663,7 +1661,7 @@ $('.forge-iris-input').wpColorPicker({
                             // Roll back to step 1 on error.
                             mkStep.style.display = 'none';
                             showStep1();
-                            showBlockerError((data.data && data.data.message) || 'Error.');
+                            showBlockerError((data.data && data.data.message) || <?php echo wp_json_encode(__('Error', 'form-forge')); ?>);
                             return;
                         }
                         mkLine.textContent = data.data.define_line;
@@ -1695,7 +1693,7 @@ $('.forge-iris-input').wpColorPicker({
                     postBlocker('forge_setup_confirm_secure', null, function (data) {
                         if (!data.success) {
                             mkConfirm.disabled    = false;
-                            mkError.textContent   = (data.data && data.data.message) || 'Error.';
+                            mkError.textContent   = (data.data && data.data.message) || <?php echo wp_json_encode(__('Error', 'form-forge')); ?>;
                             mkError.style.display = 'block';
                             return;
                         }
@@ -1712,7 +1710,7 @@ $('.forge-iris-input').wpColorPicker({
                     postBlocker('forge_setup_confirm_secure', null, function (data) {
                         if (!data.success) {
                             readyConfirm.disabled    = false;
-                            readyError.textContent   = (data.data && data.data.message) || 'Error.';
+                            readyError.textContent   = (data.data && data.data.message) || <?php echo wp_json_encode(__('Error', 'form-forge')); ?>;
                             readyError.style.display = 'block';
                             return;
                         }
@@ -1784,7 +1782,7 @@ $('.forge-iris-input').wpColorPicker({
                     .then(function (data) {
                         if (!data.success) {
                             mkConfirm.disabled    = false;
-                            mkError.textContent   = (data.data && data.data.message) || 'Error.';
+                            mkError.textContent   = (data.data && data.data.message) || <?php echo wp_json_encode(__('Error', 'form-forge')); ?>;
                             mkError.style.display = 'block';
                             return;
                         }
@@ -1797,7 +1795,7 @@ $('.forge-iris-input').wpColorPicker({
                     })
                     .catch(function () {
                         mkConfirm.disabled    = false;
-                        mkError.textContent   = 'Network error.';
+                        mkError.textContent   = <?php echo wp_json_encode(__('Network error', 'form-forge')); ?>;
                         mkError.style.display = 'block';
                     });
             });
@@ -2009,11 +2007,11 @@ $('.forge-iris-input').wpColorPicker({
         /* ── User-access modal ── */
         (function () {
             var CAPS = [
-                ['view_forms',      'List'],
-                ['edit_forms',      'Forms'],
-                ['edit_pdf_layout', 'PDF Layout'],
-                ['use_verifier',    'Verifier'],
-                ['settings',        'Settings'],
+                ['view_forms',      <?php echo wp_json_encode(__('List', 'form-forge')); ?>],
+                ['edit_forms',      <?php echo wp_json_encode(__('Forms', 'form-forge')); ?>],
+                ['edit_pdf_layout', <?php echo wp_json_encode(__('PDF Layout', 'form-forge')); ?>],
+                ['use_verifier',    <?php echo wp_json_encode(__('Verifier', 'form-forge')); ?>],
+                ['settings',        <?php echo wp_json_encode(__('Settings', 'form-forge')); ?>],
             ];
 
             var overlay    = document.getElementById('forge-access-overlay');
@@ -2075,7 +2073,9 @@ $('.forge-iris-input').wpColorPicker({
                 [rolesHead, usersHead].forEach(function (head, isUsers) {
                     head.innerHTML = '';
                     var thName = document.createElement('th');
-                    thName.textContent = isUsers ? 'User' : 'Role';
+                    thName.textContent = isUsers
+                        ? <?php echo wp_json_encode(__('User', 'form-forge')); ?>
+                        : <?php echo wp_json_encode(__('Role', 'form-forge')); ?>;
                     thName.className = 'forge-access-th forge-access-th--name';
                     head.appendChild(thName);
                     CAPS.forEach(function (cap) {
@@ -2144,7 +2144,7 @@ $('.forge-iris-input').wpColorPicker({
                     var nameBtn = document.createElement('button');
                     nameBtn.type = 'button';
                     nameBtn.className = 'forge-access-name-btn';
-                    nameBtn.title = 'Click to remove';
+                    nameBtn.title = <?php echo wp_json_encode(__('Click to remove', 'form-forge')); ?>;
                     nameBtn.textContent = u.name;
                     (function (idx) {
                         nameBtn.addEventListener('click', function () {
@@ -2214,7 +2214,7 @@ $('.forge-iris-input').wpColorPicker({
                     var inlineAdd = document.createElement('button');
                     inlineAdd.type = 'button';
                     inlineAdd.className = 'forge-access-inline-add';
-                    inlineAdd.textContent = '+ Add';
+                    inlineAdd.textContent = '+ ' + <?php echo wp_json_encode(__('Add', 'form-forge')); ?>;
                     inlineAdd.addEventListener('mousedown', function (e) {
                         e.preventDefault();
                         users.push({ id: u.id, name: u.name, perms: emptyPerms() });
@@ -2276,7 +2276,7 @@ $('.forge-iris-input').wpColorPicker({
                         });
                         closeModal();
                     } else {
-                        showError('Error saving.');
+                        showError(<?php echo wp_json_encode(__('Error saving.', 'form-forge')); ?>);
                     }
                 });
             });
@@ -2326,12 +2326,12 @@ $('.forge-iris-input').wpColorPicker({
                         if (data.success) {
                             showNotice(data.data.message, false);
                         } else {
-                            showNotice((data.data && data.data.message) || 'Error saving.', true);
+                            showNotice((data.data && data.data.message) || '<?php echo esc_js(__('Error saving.', 'form-forge')); ?>', true);
                         }
                     })
                     .catch(function(){
                         if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
-                        showNotice('Network error.', true);
+                        showNotice('<?php echo esc_js(__('Network error', 'form-forge')); ?>', true);
                     });
                 }); }); // requestAnimationFrame double-frame
             });
@@ -2746,9 +2746,10 @@ $('.forge-iris-input').wpColorPicker({
                 'code'    => 'plugin_mismatch',
                 'message' => __('Plugin name does not match.', 'form-forge'),
                 'text'    => sprintf(
+                    // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- not HTML: this JSON field is rendered client-side via createTextNode()/textContent (see FormSettings.php JS), never innerHTML, so esc_html() here would corrupt the text (double-encode) instead of protecting anything.
                     /* translators: %s: the plugin field value from the uploaded JSON */
                     __('The "plugin" field reads "%s" — this does not appear to be a key from this plugin.', 'form-forge'), // phpcs:ignore Generic.Files.LineLength
-                    esc_html($plugin_field)
+                    $plugin_field
                 ),
                 'confirm' => __('Are you sure you want to import this key?', 'form-forge'), // phpcs:ignore Generic.Files.LineLength
                 ]
@@ -2790,7 +2791,6 @@ $('.forge-iris-input').wpColorPicker({
      * Sanitizes a permissions array for a role or user.
      *
      * @param array $raw Raw permissions array from POST.
-     *
      * @return array Sanitized permissions array.
      */
     private static function sanitizePerms(array $raw): array
@@ -2855,7 +2855,6 @@ $('.forge-iris-input').wpColorPicker({
      *
      * @param int    $form_id Form post ID.
      * @param string $slug    Notification slug.
-     *
      * @return bool True if PDF should be attached.
      */
     public static function shouldAttachPdf(int $form_id, string $slug): bool

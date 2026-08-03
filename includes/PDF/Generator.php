@@ -37,7 +37,6 @@ class Generator
      * @param array  $mapped     Normalized field data from FieldRegistry::mapSubmission().
      * @param int    $form_id    The form identifier.
      * @param string $form_title Human-readable form title used in the PDF header.
-     *
      * @return string|false Absolute path to the generated PDF, or false on failure.
      */
     // Renders the PDF twice (see PASS 1 / PASS 2 below): the seal must be an HMAC of the
@@ -105,16 +104,25 @@ class Generator
             // silently strip it back down to bare text, so such fields get the same
             // wider allowlist their own sanitizer already enforced instead. Anything
             // not marked trusted still gets the narrow default.
+            // Defensive: pdfData() is a soft contract (see BaseField::pdfData() docblock),
+            // not an enforced interface shape — a third-party field type registered via
+            // FieldRegistry could return an array missing one of these keys. Falling back
+            // to [] / '' here (instead of touching $pdf[...] directly) keeps one
+            // misbehaving field handler from fataling PDF generation for the whole
+            // submission (array_keys(null) is a TypeError under PHP 8).
+            $pdf_image_vars     = is_array($pdf['image_vars'] ?? null) ? $pdf['image_vars'] : [];
+            $pdf_sealed_uploads = is_array($pdf['sealed_uploads'] ?? null) ? $pdf['sealed_uploads'] : [];
+
             $allowed_tags = ($pdf['trusted_rich_html'] ?? false)
                 ? HtmlField::trustedPdfAllowedTags()
                 : PDF_ALLOWED_VALUE_TAGS;
-            $cell_html = wp_kses($pdf['cell_html'], $allowed_tags);
-            foreach (array_keys($pdf['image_vars']) as $var) {
+            $cell_html = wp_kses((string)($pdf['cell_html'] ?? ''), $allowed_tags);
+            foreach (array_keys($pdf_image_vars) as $var) {
                 $cell_html .= $layout['image']($var);
             }
 
-            $image_vars     = array_merge($image_vars, $pdf['image_vars']);
-            $sealed_uploads = array_merge($sealed_uploads, $pdf['sealed_uploads']);
+            $image_vars     = array_merge($image_vars, $pdf_image_vars);
+            $sealed_uploads = array_merge($sealed_uploads, $pdf_sealed_uploads);
 
             $start     = '<span style="font-size:0.1px;line-height:0.1px;color:#000;position:absolute;">'
                 . '[FORGE_PDF_FIELD_' . esc_html($field_id) . ']</span>';
@@ -325,6 +333,18 @@ class Generator
         } catch (MpdfException $e) {
             \ForgeForms\forge_log('ForgeForms Generator error: ' . $e->getMessage());
             return false;
+        } catch (\Throwable $e) {
+            // Broader safety net alongside the MpdfException catch above: this method's
+            // signature promises string|false, but code inside the try block can also
+            // throw \RuntimeException (HashSeal::generate()'s master-key/JSON-encode
+            // failures) which MpdfException alone wouldn't catch. Left uncaught, that
+            // exception propagates through MailSender::onSubmission() and
+            // FormProcessor's do_action('forge_forms_submission', ...) — neither of
+            // which wrap this call in a try/catch — turning a PDF/key-config problem
+            // into an uncaught-exception fatal on the visitor's form submission, and a
+            // stack-trace disclosure (CWE-209) on any site with WP_DEBUG_DISPLAY on.
+            \ForgeForms\forge_log('ForgeForms Generator error: ' . $e->getMessage());
+            return false;
         } finally {
             // Any exit path (including a \Throwable not caught above, e.g. from
             // HashSeal::generate()/wp_json_encode failure) must restore this
@@ -337,28 +357,20 @@ class Generator
     }
 
     /**
-     * Maximum age (seconds) a generated/intermediate PDF may sit in the
-     * pdf/ or mpdf/ temp directories before the fallback sweep removes it.
-     *
-     * Both directories should normally be empty within seconds of a request
-     * finishing (the SL_*.pdf intermediate is unlinked right after use, and
-     * MailSender unlinks the final Entry_*.pdf via register_shutdown_function
-     * once it's sent) — this is only a safety net for the case where a fatal
-     * error/timeout/crash happens between creating one of those files and the
-     * code that would normally clean it up.
+     * Maximum age (seconds) a generated/intermediate PDF may sit in the pdf/ or mpdf/ temp directories before
+     * the fallback sweep removes it. Both directories should normally be empty within seconds of a request
+     * finishing (the SL_*.pdf intermediate is unlinked right after use, and MailSender unlinks the final
+     * Entry_*.pdf via register_shutdown_function once it's sent) — this is only a safety net for the case
+     * where a fatal error/timeout/crash happens between creating one of those files and the code that would
+     * normally clean it up.
      *
      * @var int
      */
     private const SWEEP_MAX_AGE = 3600;
 
-    /**
-     * WP-Cron callback (hourly): sweeps the pdf/ and mpdf/ temp directories
-     * for any *.pdf file older than self::SWEEP_MAX_AGE — a fallback for the
-     * rare case a request dies before its own cleanup code runs. Only matches
-     * *.pdf so mPDF's own persistent font/cache files in mpdf/ are left alone.
-     *
-     * @return void
-     */
+    // WP-Cron callback (hourly): sweeps the pdf/ and mpdf/ temp directories for any *.pdf file older than
+    // self::SWEEP_MAX_AGE — a fallback for the rare case a request dies before its own cleanup code runs.
+    // Only matches *.pdf so mPDF's own persistent font/cache files in mpdf/ are left alone.
     public static function cronSweepTmpDirs(): void
     {
         $upload_dir = wp_upload_dir();
@@ -387,15 +399,13 @@ class Generator
     /* ------------------------------------------------------------------ */
 
     /**
-     * Applies the shared body-background, footer, and image-vars configuration
-     * common to both PASS 1 and PASS 2 mPDF instances, so the two passes can't
-     * silently diverge over time.
+     * Applies the shared body-background, footer, and image-vars configuration common to both PASS 1 and PASS
+     * 2 mPDF instances, so the two passes can't silently diverge over time.
      *
      * @param Mpdf   $mpdf             The mPDF instance to configure.
      * @param string $grid_svg         Absolute path to the background grid SVG.
      * @param string $user_footer_text User-configured footer text (already trimmed).
      * @param array  $image_vars       Image variable map for inline images.
-     *
      * @return void
      */
     private static function configureMpdfInstance(
@@ -422,7 +432,8 @@ class Generator
     {
         $pageno = '<span style="font-size:0.1px;line-height:0.1px;color:#fff;">'
             . '[FORGE_PDF_PAGENO_START]</span>'
-            // translators: %1$s: current page number placeholder, %2$s: total page count placeholder (both substituted by mPDF at render time).
+            // translators: %1$s: current page number placeholder, %2$s: total page count placeholder (both
+            // substituted by mPDF at render time).
             . sprintf(__('Page %1$s of %2$s', 'form-forge'), '{PAGENO}', '{nbpg}')
             . '<span style="font-size:0.1px;line-height:0.1px;color:#fff;">'
             . '[FORGE_PDF_PAGENO_END]</span>';
@@ -514,7 +525,6 @@ class Generator
      * Hashes every decoded page content stream found in the raw PDF bytes.
      *
      * @param string $pdf_raw Raw PDF binary string.
-     *
      * @return array Sorted SHA-256 hashes of decoded page content streams.
      */
     private static function hashPageContentStreams(string $pdf_raw): array
@@ -557,13 +567,11 @@ class Generator
     }
 
     /**
-     * Hashes every image XObject stream in the PDF, skipping SMask alpha channels.
-     *
-     * Uses the same decoding pipeline as Verificationpage so the hashes match
-     * exactly. Called on PASS-1 output; PASS-2 produces byte-identical XObjects.
+     * Hashes every image XObject stream in the PDF, skipping SMask alpha channels. Uses the same decoding
+     * pipeline as Verificationpage so the hashes match exactly. Called on PASS-1 output; PASS-2 produces
+     * byte-identical XObjects.
      *
      * @param string $pdf_raw Raw PDF binary string.
-     *
      * @return array SHA-256 hashes of raw compressed image XObject streams.
      */
     private static function hashImageXObjects(string $pdf_raw): array
@@ -619,15 +627,12 @@ class Generator
     }
 
     /**
-     * Hashes every non-content compressed stream in the PDF.
-     *
-     * Content streams are excluded because they differ between PASS 1 and PASS 2
-     * (seal embedding changes them) and are already covered by content_streams.
-     * Catches auxiliary streams (Form XObjects, ICC profiles, CMaps, etc.)
-     * that the type-specific checks do not cover; stable across both passes.
+     * Hashes every non-content compressed stream in the PDF. Content streams are excluded because they differ
+     * between PASS 1 and PASS 2 (seal embedding changes them) and are already covered by content_streams.
+     * Catches auxiliary streams (Form XObjects, ICC profiles, CMaps, etc.) that the type-specific checks do
+     * not cover; stable across both passes.
      *
      * @param string $pdf_raw Raw PDF binary string.
-     *
      * @return array Sorted SHA-256 hashes of all non-content compressed streams.
      */
     private static function hashAllCompressedStreams(string $pdf_raw): array
@@ -674,14 +679,11 @@ class Generator
     }
 
     /**
-     * Hashes every embedded font program stream found in FontDescriptor objects.
-     *
-     * Covers TrueType, CIDFontType2, and Type1 font files referenced via
-     * /FontFile, /FontFile2, or /FontFile3. Returns sorted SHA-256 hashes so
-     * the result is order-independent and matches the Verificationpage output.
+     * Hashes every embedded font program stream found in FontDescriptor objects. Covers TrueType,
+     * CIDFontType2, and Type1 font files referenced via /FontFile, /FontFile2, or /FontFile3. Returns sorted
+     * SHA-256 hashes so the result is order-independent and matches the Verificationpage output.
      *
      * @param string $pdf_raw Raw PDF binary string.
-     *
      * @return array Sorted SHA-256 hashes of decoded font program streams.
      */
     private static function hashFontProgramStreams(string $pdf_raw): array
@@ -725,13 +727,10 @@ class Generator
     }
 
     /**
-     * Returns true when the decoded stream data looks like a PDF page content stream.
-     *
-     * Checks for printable leading bytes and the presence of common PDF graphics
-     * or text operators (BT, q, Q, cm, Tf, Tj, Td).
+     * Returns true when the decoded stream data looks like a PDF page content stream. Checks for printable
+     * leading bytes and the presence of common PDF graphics or text operators (BT, q, Q, cm, Tf, Tj, Td).
      *
      * @param string $decoded Decompressed stream data.
-     *
      * @return bool True if the stream appears to be a page content stream.
      */
     private static function isPageContentStream(string $decoded): bool
@@ -752,8 +751,6 @@ class Generator
      * @param Mpdf   $mpdf      The mPDF instance to write into.
      * @param string $html      Full HTML string to render.
      * @param int    $chunkSize Maximum byte size of each chunk.
-     *
-     * @return void
      */
     private static function writeHtmlChunked(Mpdf $mpdf, string $html, int $chunkSize = 1500000): void
     {
@@ -778,7 +775,6 @@ class Generator
      * Builds the normalized fields array used as seal input from mapped submission data.
      *
      * @param array $mapped Normalized field data from FieldRegistry::mapSubmission().
-     *
      * @return array Array of label/value pairs with normalized string values.
      */
     private static function buildSealFields(array $mapped): array
@@ -799,11 +795,9 @@ class Generator
     }
 
     /**
-     * Normalises a field value by decoding HTML entities, stripping tags,
-     * and collapsing whitespace.
+     * Normalises a field value by decoding HTML entities, stripping tags, and collapsing whitespace.
      *
      * @param string $value Raw field value string.
-     *
      * @return string Normalised plain-text value.
      */
     private static function normalizeFieldValue(string $value): string

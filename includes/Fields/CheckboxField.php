@@ -35,6 +35,8 @@ class CheckboxField extends BaseField
      */
     public function getStyles(): string
     {
+        // phpcs:disable Generic.Files.LineLength -- the checkbox-checkmark background-image is an
+        // inline SVG data URI; splitting it across lines risks corrupting the encoded markup.
         return <<<'CSS'
 .forge-checkbox-group {
     display: flex;
@@ -86,6 +88,7 @@ class CheckboxField extends BaseField
     border-color: var(--forge-accent);
 }
 CSS;
+        // phpcs:enable Generic.Files.LineLength
     }
 
     /**
@@ -152,7 +155,6 @@ CSS;
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Current field value.
-     *
      * @return string Rendered HTML.
      */
     public function render(array $config, string $field_id, mixed $value = null): string
@@ -218,8 +220,6 @@ CSS;
      * Returns the sanitized array of checked values submitted as $field_id[].
      *
      * @param string $field_id The field element ID.
-     *
-     * @return mixed
      */
     public function extractValue(string $field_id): mixed
     {
@@ -241,13 +241,10 @@ CSS;
     }
 
     /**
-     * Sanitizes a raw checkbox value from a group copy array.
-     *
-     * Always returns an array — an absent or scalar value becomes an empty array.
+     * Sanitizes a raw checkbox value from a group copy array. Always returns an array — an absent or scalar
+     * value becomes an empty array.
      *
      * @param mixed $raw The raw value from the group copy array.
-     *
-     * @return mixed
      */
     public function extractFromRaw(mixed $raw): mixed
     {
@@ -260,13 +257,11 @@ CSS;
     }
 
     /**
-     * Like extractFromRaw(), but also captures the group copy's sibling
-     * "{child_id}_other" free-text value, mirroring extractValue().
+     * Like extractFromRaw(), but also captures the group copy's sibling "{child_id}_other" free-text value,
+     * mirroring extractValue().
      *
      * @param mixed $raw       The raw value from the group copy array.
      * @param mixed $other_raw The raw "{child_id}_other" value from the same copy, if any.
-     *
-     * @return mixed
      */
     public function extractFromRawWithOther(mixed $raw, mixed $other_raw): mixed
     {
@@ -278,12 +273,10 @@ CSS;
     }
 
     /**
-     * Returns the actually-selected option values from an extractValue() array,
-     * excluding the internal __other_text__ companion entry so it never counts
-     * toward min/max selection limits or required checks.
+     * Returns the actually-selected option values from an extractValue() array, excluding the internal
+     * __other_text__ companion entry so it never counts toward min/max selection limits or required checks.
      *
      * @param array $value Raw value array from extractValue().
-     *
      * @return array Filtered, selected option values.
      */
     private static function selectedOptions(array $value): array
@@ -297,7 +290,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return bool|string True on valid, error message string on invalid.
      */
     public function validate(mixed $value, array $config): bool|string
@@ -354,7 +346,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return string Normalized field entry.
      */
     public function map(mixed $value, array $config): string

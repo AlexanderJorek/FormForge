@@ -68,8 +68,9 @@ class EmailField extends BaseField
                     var inp = fieldEl.querySelector('input[type="email"]');
                     if (!inp || !inp.value.trim()) return null;
                     var v = inp.value.trim().toLowerCase();
+                    var _i18n = window.ForgeForms && window.ForgeForms.i18n;
                     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v))
-                        return 'Please enter a valid email address.';
+                        return (_i18n && _i18n.email_invalid) || 'Please enter a valid email address.';
                     var mode = inp.dataset.filterMode || '';
                     if (!mode) return null;
                     var list = JSON.parse(inp.dataset.filterPatterns || '[]');
@@ -81,8 +82,9 @@ class EmailField extends BaseField
                         );
                         return re.test(v);
                     });
-                    if (mode === 'allow' && !matched) return 'This email address is not allowed.';
-                    if (mode === 'block' &&  matched) return 'This email address is not allowed.';
+                    var blockedMsg = (_i18n && _i18n.email_not_allowed) || 'This email address is not allowed.';
+                    if (mode === 'allow' && !matched) return blockedMsg;
+                    if (mode === 'block' &&  matched) return blockedMsg;
                     return null;
                 }
                 JS,
@@ -96,7 +98,6 @@ class EmailField extends BaseField
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Current field value.
-     *
      * @return string Rendered HTML.
      */
     public function render(array $config, string $field_id, mixed $value = null): string
@@ -119,7 +120,6 @@ class EmailField extends BaseField
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return bool|string True on valid, error message string on invalid.
      */
     public function validate(mixed $value, array $config): bool|string

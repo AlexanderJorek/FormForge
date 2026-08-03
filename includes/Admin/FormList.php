@@ -51,7 +51,6 @@ class FormList
      * Appends a CSS class on the list page.
      *
      * @param string $classes Existing admin body classes.
-     *
      * @return string Modified body class string.
      */
     public static function bodyClass(string $classes): string
@@ -121,6 +120,25 @@ class FormList
 
         $forms   = FormModel::getAll();
         $new_url = admin_url('admin.php?page=forge-forms-editor');
+
+        /* Localized strings consumed by the inline <script> below for
+           dynamically-generated UI text (alerts, toasts, modal messages set
+           from JS) — mirrors the wp_localize_script i18n pattern used
+           elsewhere (e.g. Assets.php's ForgeVerifier). */
+        $list_i18n = [
+            'deleteConfirm'      => __('Really delete form?', 'form-forge'),
+            // translators: %d is replaced client-side with the number of selected forms.
+            'deleteConfirmMulti' => __('Really delete %d form(s)?', 'form-forge'),
+            'chooseAction'       => __('Choose action', 'form-forge'),
+            'chooseActionAlert'  => __('Please choose an action.', 'form-forge'),
+            // translators: %d is replaced client-side with the number of selected forms.
+            'selectedCount'      => __('%d selected', 'form-forge'),
+            'error'              => __('Error', 'form-forge'),
+            'importError'        => __('Import error', 'form-forge'),
+            'copied'             => __('Copied!', 'form-forge'),
+            'copyShortcode'      => __('Copy shortcode', 'form-forge'),
+            'copy'               => __('Copy', 'form-forge'),
+        ];
         ?>
         <canvas id="forge-particle-canvas"></canvas>
 
@@ -274,7 +292,7 @@ class FormList
                 <!-- Result state -->
                 <div id="forge-export-result" hidden>
                     <p class="forge-modal-hint">
-                        Kopieren Sie diesen String. Er enthält alle Felder, Benachrichtigungen und Einstellungen.
+                        <?php esc_html_e('Copy this string. It contains all fields, notifications and settings.', 'form-forge'); ?>
                     </p>
                     <textarea id="forge-export-string" class="forge-modal-textarea" readonly rows="6"></textarea>
                     <div class="forge-modal-actions">
@@ -300,6 +318,12 @@ class FormList
 
         <script>
         (function() {
+
+            /* Localized strings for dynamically-generated UI text (alerts, toasts,
+               modal messages set from JS) — mirrors the wp_localize_script i18n
+               pattern used elsewhere (e.g. Assets.php's ForgeVerifier), inlined here
+               since this script is embedded directly rather than a static asset. */
+            var ffi18n = <?php echo wp_json_encode($list_i18n); ?>;
 
             /* ── Dropdown: hoist to body, smart flip up/down ── */
             var openDd = null;
@@ -423,7 +447,7 @@ class FormList
             function updateBulkBar() {
                 var checked = getChecked();
                 if (bulkBar)   bulkBar.hidden = checked.length === 0;
-                if (bulkCount) bulkCount.textContent = checked.length + ' ausgewählt';
+                if (bulkCount) bulkCount.textContent = ffi18n.selectedCount.replace('%d', String(checked.length));
                 if (selectAll) {
                     var all = document.querySelectorAll('.forge-row-check');
                     selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
@@ -467,8 +491,8 @@ class FormList
                 if (copyBtn) {
                     copyBtn.addEventListener('click', function() {
                         navigator.clipboard.writeText(copyBtn.dataset.code).then(function() {
-                            copyBtn.textContent = '✓ Kopiert!';
-                            setTimeout(function() { copyBtn.textContent = '📋 Shortcode kopieren'; }, 1500);
+                            copyBtn.innerHTML = '<i class="fa-solid fa-check" aria-hidden="true"></i> ' + ffi18n.copied;
+                            setTimeout(function() { copyBtn.innerHTML = '<i class="fa-regular fa-clipboard" aria-hidden="true"></i> ' + ffi18n.copyShortcode; }, 1500);
                         });
                         closeAllDropdowns();
                     });
@@ -502,7 +526,7 @@ class FormList
                                     bindRow(newRow);
                                 }
                             } else {
-                                alert((data.data && data.data.message) || 'Fehler');
+                                alert((data.data && data.data.message) || ffi18n.error);
                             }
                         });
                     });
@@ -514,7 +538,7 @@ class FormList
                         var formId = delBtn.dataset.id;
                         var nonce  = delBtn.dataset.nonce;
                         var rowEl  = row;
-                        showDeleteModal('Formular wirklich löschen?').then(function(confirmed) {
+                        showDeleteModal(ffi18n.deleteConfirm).then(function(confirmed) {
                             if (!confirmed) return;
                             fetch(ajaxurl, {
                                 method: 'POST',
@@ -530,7 +554,7 @@ class FormList
                                 if (data.success) {
                                     if (rowEl) fadeRemoveRow(rowEl, updateBulkBar);
                                 } else {
-                                    alert((data.data && data.data.message) || 'Fehler');
+                                    alert((data.data && data.data.message) || ffi18n.error);
                                 }
                             });
                         });
@@ -556,7 +580,7 @@ class FormList
                                 showExportResult(data.data.string);
                             } else {
                                 closeExportModal();
-                                alert((data.data && data.data.message) || 'Fehler');
+                                alert((data.data && data.data.message) || ffi18n.error);
                             }
                         });
                     });
@@ -581,7 +605,7 @@ class FormList
                 bulkApply.addEventListener('click', function() {
                     var action  = selectedBulkAction;
                     var checked = getChecked();
-                    if (!action)         { alert('Bitte eine Aktion wählen.'); return; }
+                    if (!action)         { alert(ffi18n.chooseActionAlert); return; }
                     if (!checked.length) return;
 
                     var ids    = [];
@@ -592,7 +616,7 @@ class FormList
                     });
 
                     if (action === 'delete') {
-                        showDeleteModal(checked.length + ' Formular(e) wirklich löschen?').then(function(confirmed) {
+                        showDeleteModal(ffi18n.deleteConfirmMulti.replace('%d', String(checked.length))).then(function(confirmed) {
                         if (!confirmed) return;
                         bulkApply.disabled = true;
                         fetch(ajaxurl, {
@@ -613,11 +637,11 @@ class FormList
                                     if (row) fadeRemoveRow(row, updateBulkBar);
                                 });
                             } else {
-                                alert((data.data && data.data.message) || 'Fehler');
+                                alert((data.data && data.data.message) || ffi18n.error);
                             }
                             bulkApply.disabled = false;
                             selectedBulkAction = '';
-                            if (bulkActionLbl) bulkActionLbl.textContent = 'Aktion wählen';
+                            if (bulkActionLbl) bulkActionLbl.textContent = ffi18n.chooseAction;
                         });
                         }); // showDeleteModal
 
@@ -640,7 +664,7 @@ class FormList
                             if (data.success && data.data.created && data.data.created.length) {
                                 window.location.reload();
                             } else if (!data.success) {
-                                alert((data.data && data.data.message) || 'Fehler');
+                                alert((data.data && data.data.message) || ffi18n.error);
                             }
                         });
                     }
@@ -698,9 +722,9 @@ class FormList
                 exportCopy.addEventListener('click', function() {
                     exportString.select();
                     navigator.clipboard.writeText(exportString.value).then(function() {
-                        exportCopy.textContent = '✓ Kopiert!';
+                        exportCopy.innerHTML = '<i class="fa-solid fa-check" aria-hidden="true"></i> ' + ffi18n.copied;
                         setTimeout(function() {
-                            exportCopy.innerHTML = '<i class="fa-solid fa-copy"></i> Kopieren';
+                            exportCopy.innerHTML = '<i class="fa-solid fa-copy"></i> ' + ffi18n.copy;
                         }, 1500);
                     });
                 });
@@ -744,7 +768,7 @@ class FormList
                         }
                         if (importInput) importInput.value = '';
                     } else {
-                        alert((data.data && data.data.message) || 'Importfehler');
+                        alert((data.data && data.data.message) || ffi18n.importError);
                         if (importInput) importInput.value = '';
                     }
                 });
@@ -856,7 +880,6 @@ class FormList
      * Renders the HTML for a single form-list row.
      *
      * @param \ForgeForms\Form\FormModel $form The form model instance.
-     *
      * @return string Row HTML.
      */
     private static function renderRow(\ForgeForms\Form\FormModel $form): string
@@ -1134,7 +1157,6 @@ class FormList
      * Remove field config keys that match the field type's defaults.
      *
      * @param array $fields Fields array from the form model.
-     *
      * @return array Compacted fields array without redundant keys.
      */
     private static function stripFieldDefaults(array $fields): array
@@ -1168,7 +1190,6 @@ class FormList
      * Re-merge field defaults stripped during export.
      *
      * @param array $fields Compacted fields array from import payload.
-     *
      * @return array Fields array with defaults restored.
      */
     private static function restoreFieldDefaults(array $fields): array

@@ -91,6 +91,11 @@ class Assets
             'i18n'         => [
                 'submitting'              => __('Sending…', 'form-forge'),
                 'error_server'            => __('Server error. Please try again.', 'form-forge'),
+                'field_required'          => __('This field is required.', 'form-forge'),
+                'validation_both'         => __('Please fill in all required fields and correct the invalid entries.', 'form-forge'),
+                'validation_required'     => __('Please fill in all required fields.', 'form-forge'),
+                'validation_invalid'      => __('Please enter valid data.', 'form-forge'),
+                'thank_you'               => __('Thank you!', 'form-forge'),
                 // Upload field
                 'upload_remove_prefix'    => __('Remove: ', 'form-forge'),
                 // translators: %d: maximum number of files allowed (substituted client-side).
@@ -117,6 +122,44 @@ class Assets
                 'sepa_looking_up'         => __('Looking up', 'form-forge'),
                 'sepa_iban_unvalidated'   => __('Could not be validated.', 'form-forge'),
                 'sepa_country_blocked'    => __('This country is not allowed.', 'form-forge'),
+                // Phone field
+                'phone_invalid'           => __('Please enter a valid phone number.', 'form-forge'),
+                'phone_intl_required'     => __('Please enter the number with international prefix (+...).', 'form-forge'),
+                'phone_country_blocked'   => __('This phone number is not allowed for your country.', 'form-forge'),
+                // Slider field
+                'slider_invalid_value'    => __('Please enter a valid value.', 'form-forge'),
+                // translators: %1$s: minimum allowed value, %2$s: maximum allowed value (both substituted client-side).
+                'slider_out_of_range'     => __('Value outside the allowed range (%1$s–%2$s).', 'form-forge'),
+                // translators: %s: minimum allowed value (substituted client-side).
+                'slider_min'              => __('Minimum value: %s', 'form-forge'),
+                // translators: %s: maximum allowed value (substituted client-side).
+                'slider_max'              => __('Maximum value: %s', 'form-forge'),
+                // Text / textarea word limit
+                // translators: %1$d: maximum word count allowed, %2$d: current word count (both substituted client-side).
+                'word_limit_exceeded'     => __('Please enter at most %1$d words (currently: %2$d).', 'form-forge'),
+                // "Other" free-text word limit (Checkbox/Radio/Select, shared via BaseField::otherTextClientRule())
+                // translators: %1$d: maximum word count allowed, %2$d: current word count (both substituted client-side).
+                'other_word_limit_exceeded' => __('Please enter at most %1$d words for "Other" (currently: %2$d).', 'form-forge'),
+                // Website field
+                'website_invalid_url'     => __('Please enter a valid URL (e.g. https://example.com).', 'form-forge'),
+                // Currency field
+                'currency_invalid_amount' => __('Please enter a valid amount.', 'form-forge'),
+                // translators: %s: minimum allowed value (substituted client-side).
+                'currency_min'            => __('Minimum value: %s', 'form-forge'),
+                // translators: %s: maximum allowed value (substituted client-side).
+                'currency_max'            => __('Maximum value: %s', 'form-forge'),
+                // Date field
+                'date_invalid_format'     => __('Please enter a date in DD.MM.YYYY format.', 'form-forge'),
+                'date_invalid_date'       => __('Please enter a valid date.', 'form-forge'),
+                // Email field
+                'email_invalid'           => __('Please enter a valid email address.', 'form-forge'),
+                'email_not_allowed'       => __('This email address is not allowed.', 'form-forge'),
+                // Number field
+                'number_invalid'          => __('Please enter a valid number.', 'form-forge'),
+                // translators: %s: minimum allowed value (substituted client-side).
+                'number_min'              => __('Minimum value: %s', 'form-forge'),
+                // translators: %s: maximum allowed value (substituted client-side).
+                'number_max'              => __('Maximum value: %s', 'form-forge'),
             ],
             ]
         );
@@ -249,8 +292,6 @@ class Assets
      * Enqueues admin CSS and JS for FormForge admin pages.
      *
      * @param string $hook Current admin page hook suffix.
-     *
-     * @return void
      */
     public static function enqueueAdmin(string $hook): void
     {

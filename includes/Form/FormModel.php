@@ -40,7 +40,6 @@ class FormModel
      * Retrieves a form model by its post ID.
      *
      * @param int $form_id The post ID of the form.
-     *
      * @return self|null The form model, or null if not found.
      */
     public static function get(int $form_id): ?self
@@ -65,13 +64,10 @@ class FormModel
      *
      * @param array $data           Keys: title, fields, notifications, settings.
      * @param int   $form_id        Existing post ID to update, or 0 to create.
-     * @param bool  $nonce_verified Whether the caller already verified its own
-     *                              (action-specific) nonce before calling this method.
-     *                              When false (the default), a generic internal nonce
-     *                              check is performed as a backstop — see
+     * @param bool  $nonce_verified Whether the caller already verified its own (action-specific)
+     *                              nonce before calling this method. When false (the default), a generic
+     *                              internal nonce check is performed as a backstop — see
      *                              {@see self::nonceVerifiedOrCheck()}.
-     *
-     * @return int|\WP_Error
      */
     public static function save(array $data, int $form_id = 0, bool $nonce_verified = false): int|\WP_Error
     {
@@ -118,13 +114,11 @@ class FormModel
     }
 
     /**
-     * Creates a copy of an existing form.
+     * Creates a copy of an existing form. Forwarded to save() — see its docblock.
      *
      * @param int  $form_id        The post ID of the form to duplicate.
-     * @param bool $nonce_verified Whether the caller already verified its own
-     *                             (action-specific) nonce before calling this method.
-     *                             Forwarded to save() — see its docblock.
-     *
+     * @param bool $nonce_verified Whether the caller already verified its own (action-specific)
+     *                             nonce before calling this method.
      * @return int|\WP_Error New form post ID, or WP_Error on failure.
      */
     public static function duplicate(int $form_id, bool $nonce_verified = false): int|\WP_Error
@@ -150,12 +144,10 @@ class FormModel
      * Permanently deletes a form post.
      *
      * @param int  $form_id        The post ID of the form to delete.
-     * @param bool $nonce_verified Whether the caller already verified its own
-     *                             (action-specific) nonce before calling this method.
-     *                             When false (the default), a generic internal nonce
-     *                             check is performed as a backstop — see
+     * @param bool $nonce_verified Whether the caller already verified its own (action-specific)
+     *                             nonce before calling this method. When false (the default), a generic
+     *                             internal nonce check is performed as a backstop — see
      *                             {@see self::nonceVerifiedOrCheck()}.
-     *
      * @return bool True on success, false on failure.
      */
     public static function delete(int $form_id, bool $nonce_verified = false): bool
@@ -170,13 +162,10 @@ class FormModel
     }
 
     /**
-     * Returns all forge_form posts as model instances.
-     *
-     * Gated on view_forms (the least-privilege FormForge capability for read
-     * access) rather than edit_forms — every current call site (FormList.php's
-     * and FormSelectList.php's admin listing pages) is already an admin screen
-     * gated on view_forms before it ever reaches this method, so this mirrors
-     * that without narrowing legitimate access.
+     * Returns all forge_form posts as model instances. Gated on view_forms (the least-privilege FormForge
+     * capability for read access) rather than edit_forms — every current call site (FormList.php's and
+     * FormSelectList.php's admin listing pages) is already an admin screen gated on view_forms before it ever
+     * reaches this method, so this mirrors that without narrowing legitimate access.
      *
      * @return self[]
      */
@@ -217,7 +206,6 @@ class FormModel
      *
      * @param int    $id  Post ID.
      * @param string $key Meta key to decode.
-     *
      * @return array Decoded array, or empty array on failure.
      */
     private static function decodeMeta(int $id, string $key): array
@@ -234,19 +222,14 @@ class FormModel
     }
 
     /**
-     * CSRF backstop for save()/duplicate()/delete().
-     *
-     * Every current admin call site (FormEditor.php, FormList.php) already
-     * performs its own, more specific nonce check — a per-form action like
-     * 'forge_forms_delete_{id}', or the shared 'forge_forms_admin_nonce' for
-     * save/import — before calling into this model, and passes
-     * $nonce_verified: true to acknowledge that so this method is a no-op for
-     * them. If a future (or forgotten) call site omits $nonce_verified, this
-     * falls back to checking the shared admin AJAX nonce so the request is
-     * never silently accepted without any CSRF check at all.
+     * CSRF backstop for save()/duplicate()/delete(). Every current admin call site (FormEditor.php,
+     * FormList.php) already performs its own, more specific nonce check — a per-form action like
+     * 'forge_forms_delete_{id}', or the shared 'forge_forms_admin_nonce' for save/import — before calling
+     * into this model, and passes $nonce_verified: true to acknowledge that so this method is a no-op for
+     * them. If a future (or forgotten) call site omits $nonce_verified, this falls back to checking the
+     * shared admin AJAX nonce so the request is never silently accepted without any CSRF check at all.
      *
      * @param bool $nonce_verified Whether the caller already verified its own nonce.
-     *
      * @return bool True if the request may proceed.
      */
     private static function nonceVerifiedOrCheck(bool $nonce_verified): bool

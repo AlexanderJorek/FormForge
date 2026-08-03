@@ -148,7 +148,6 @@ CSS;
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Current field value.
-     *
      * @return string Rendered HTML.
      */
     public function render(array $config, string $field_id, mixed $value = null): string
@@ -209,9 +208,8 @@ CSS;
      * Returns the selected option, plus the typed "Other" text when present.
      *
      * @param string $field_id The field element ID.
-     *
-     * @return mixed String selection, or ['value' => ..., '__other_text__' => ...]
-     *               when "Other" was selected and a companion text field was submitted.
+     * @return mixed String selection, or ['value' => ..., '__other_text__' => ...] when "Other" was
+     *               selected and a companion text field was submitted.
      */
     public function extractValue(string $field_id): mixed
     {
@@ -233,7 +231,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return bool|string True on valid, error message string on invalid.
      */
     public function validate(mixed $value, array $config): bool|string
@@ -271,13 +268,10 @@ CSS;
     }
 
     /**
-     * Like extractFromRaw(), but also captures the group copy's sibling
-     * "{child_id}_other" free-text value, mirroring extractValue().
+     * Like extractFromRaw(), but also captures the group copy's sibling "{child_id}_other" free-text value, mirroring extractValue().
      *
      * @param mixed $raw       The raw value from the group copy array.
      * @param mixed $other_raw The raw "{child_id}_other" value from the same copy, if any.
-     *
-     * @return mixed
      */
     public function extractFromRawWithOther(mixed $raw, mixed $other_raw): mixed
     {
@@ -296,7 +290,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return string Normalized field entry.
      */
     public function map(mixed $value, array $config): string

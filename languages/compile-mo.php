@@ -20,51 +20,84 @@ if (!file_exists($poFile)) {
 
 $moFile = preg_replace('/\.po$/', '.mo', $poFile);
 
-// Parse .po file into msgid => msgstr pairs.
+// Parse .po file into msgid => msgstr pairs. Plural entries (msgid_plural +
+// msgstr[0]/msgstr[1]/...) are stored with the gettext-standard compound key
+// "singular\0plural" and NUL-joined translation forms, matching the MO binary
+// format's own plural convention (see GNU gettext's PO/MO format docs).
 $strings = [];
-$lines   = file($poFile, FILE_IGNORE_NEW_LINES);
-$msgid   = null;
-$msgstr  = null;
-$inId    = false;
-$inStr   = false;
+$lines    = file($poFile, FILE_IGNORE_NEW_LINES);
+
+$msgid        = null;
+$msgidPlural  = null;
+$msgstr       = null;
+$msgstrPlural = []; // index => string
+
+// $target tracks which piece a bare continuation "..." line belongs to:
+// 'id', 'id_plural', 'str', or an int (plural index) for 'str[N]'.
+$target = null;
 
 $unescape = static function (string $s): string {
     return str_replace(['\\n', '\\t', '\\"', '\\\\'], ["\n", "\t", '"', '\\'], $s);
 };
 
+$flush = static function () use (&$msgid, &$msgidPlural, &$msgstr, &$msgstrPlural, &$strings): void {
+    if ($msgid === null || $msgid === '') {
+        return;
+    }
+    if ($msgidPlural !== null) {
+        if (empty($msgstrPlural)) {
+            return;
+        }
+        ksort($msgstrPlural);
+        $strings[$msgid . "\0" . $msgidPlural] = implode("\0", $msgstrPlural);
+        return;
+    }
+    if ($msgstr !== null) {
+        $strings[$msgid] = $msgstr;
+    }
+};
+
 foreach ($lines as $line) {
     $line = trim($line);
+
     if ($line === '' || str_starts_with($line, '#')) {
-        if ($msgid !== null && $msgstr !== null && $msgid !== '') {
-            $strings[$msgid] = $msgstr;
-        }
-        $msgid  = null;
-        $msgstr = null;
-        $inId   = false;
-        $inStr  = false;
+        $flush();
+        $msgid        = null;
+        $msgidPlural  = null;
+        $msgstr       = null;
+        $msgstrPlural = [];
+        $target       = null;
         continue;
     }
-    if (str_starts_with($line, 'msgid "')) {
-        $msgid = $unescape(substr($line, 7, -1));
-        $inId  = true;
-        $inStr = false;
+
+    if (str_starts_with($line, 'msgid_plural "')) {
+        $msgidPlural = $unescape(substr($line, 14, -1));
+        $target      = 'id_plural';
+    } elseif (str_starts_with($line, 'msgid "')) {
+        $msgid  = $unescape(substr($line, 7, -1));
+        $target = 'id';
+    } elseif (preg_match('/^msgstr\[(\d+)\]\s+"(.*)"$/s', $line, $m)) {
+        $idx                = (int) $m[1];
+        $msgstrPlural[$idx] = $unescape($m[2]);
+        $target             = $idx;
     } elseif (str_starts_with($line, 'msgstr "')) {
         $msgstr = $unescape(substr($line, 8, -1));
-        $inId   = false;
-        $inStr  = true;
+        $target = 'str';
     } elseif (str_starts_with($line, '"') && str_ends_with($line, '"')) {
         $chunk = $unescape(substr($line, 1, -1));
-        if ($inId) {
+        if ($target === 'id') {
             $msgid .= $chunk;
-        } elseif ($inStr) {
+        } elseif ($target === 'id_plural') {
+            $msgidPlural .= $chunk;
+        } elseif ($target === 'str') {
             $msgstr .= $chunk;
+        } elseif (is_int($target)) {
+            $msgstrPlural[$target] .= $chunk;
         }
     }
 }
 // Flush last entry.
-if ($msgid !== null && $msgstr !== null && $msgid !== '') {
-    $strings[$msgid] = $msgstr;
-}
+$flush();
 
 // Build .mo binary (little-endian).
 $magic    = 0x950412de;
@@ -116,7 +149,8 @@ foreach ($values as $i => $val) {
 $origData  = implode("\0", $keys) . "\0";
 $transData = implode("\0", $values) . "\0";
 
-$header = pack('VVVVVVV',
+$header = pack(
+    'VVVVVVV',
     $magic,
     $revision,
     $count,

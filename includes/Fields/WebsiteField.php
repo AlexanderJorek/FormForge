@@ -64,8 +64,9 @@ class WebsiteField extends BaseField
             function (fieldEl) {
                 var inp = fieldEl.querySelector('input[type="url"]');
                 if (!inp || !inp.value.trim() || inp.dataset.validateUrl !== '1') return null;
-                return /^https?:\/\/.+\..+/.test(inp.value.trim())
-                    ? null : 'Please enter a valid URL (e.g. https://example.com).';
+                if (/^https?:\/\/.+\..+/.test(inp.value.trim())) return null;
+                var _i18n = window.ForgeForms && window.ForgeForms.i18n;
+                return (_i18n && _i18n.website_invalid_url) || 'Please enter a valid URL (e.g. https://example.com).';
             }
             JS]];
     }
@@ -76,7 +77,6 @@ class WebsiteField extends BaseField
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Current field value.
-     *
      * @return string Rendered HTML.
      */
     public function render(array $config, string $field_id, mixed $value = null): string
@@ -94,7 +94,6 @@ class WebsiteField extends BaseField
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return bool|string True on valid, error message string on invalid.
      */
     public function validate(mixed $value, array $config): bool|string

@@ -58,7 +58,6 @@ class TextField extends BaseField
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Current field value.
-     *
      * @return string Rendered HTML.
      */
     public function render(array $config, string $field_id, mixed $value = null): string
@@ -79,7 +78,6 @@ class TextField extends BaseField
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return bool|string True on valid, error message string on invalid.
      */
     public function validate(mixed $value, array $config): bool|string
@@ -133,8 +131,10 @@ class TextField extends BaseField
                 var limit = parseInt(inp.dataset.wordLimit, 10);
                 if (!limit) return null;
                 var count = inp.value.trim().split(/\s+/).filter(Boolean).length;
-                return count <= limit ? null
-                    : 'Please enter at most ' + limit + ' words (currently: ' + count + ').';
+                if (count <= limit) return null;
+                var _i18n = window.ForgeForms && window.ForgeForms.i18n;
+                return ((_i18n && _i18n.word_limit_exceeded) || 'Please enter at most %1$d words (currently: %2$d).')
+                    .replace('%1$d', limit).replace('%2$d', count);
             }
             JS]];
     }

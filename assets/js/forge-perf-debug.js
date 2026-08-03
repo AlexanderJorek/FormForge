@@ -3,17 +3,10 @@
  * @copyright 2026 Alexander Jorek
  * @license   GPL-3.0-or-later
  *
- * Toggle via the fa-gauge-high button (#forge-perf-btn) in the form editor header (WP_DEBUG + manage_options only).
- *
- * Loaded only by includes/Admin/FormEditor.php, and only when $perf_mode is
- * true (WP_DEBUG + manage_options). It is enqueued with $in_footer=false so
- * it lands in <head> and runs before admin-builder.js — that ordering is
- * required because the setTimeout/setInterval patch below (see "Timer
- * interception") must wrap the native timer functions before any other
- * script schedules a callback with them, or timers set during
- * admin-builder.js's early boot would be invisible to this profiler.
- * ForgePerfData (phpRenderMs/formId/fieldCount) is injected server-side via
- * wp_localize_script() in the same PHP method.
+ * Enqueued with $in_footer=false so it lands in <head> and runs before
+ * admin-builder.js — the timer-interception patch below must wrap the
+ * native timer functions before any other script schedules a callback,
+ * or early timers would be invisible to this profiler.
  */
 (function () {
 'use strict';
@@ -105,12 +98,9 @@ function startFpsMonitor() {
 }
 
 /* ── Field-list render timing ────────────────────────────────────────────── */
-/* renderFieldList() is one synchronous task: innerHTML='' + all appendChilds
-   arrive in a SINGLE MutationObserver callback, so we can't separate start/end
-   via mutation records alone.
-   Fix: shadow the `innerHTML` property on the specific list element to capture
-   the exact moment the clear is called, then measure elapsed when the observer
-   fires. This only patches the one element instance, not the prototype. */
+/* The clear + all appendChilds arrive in a single MutationObserver callback,
+   so we can't separate start/end via mutation records alone. Shadow the
+   `innerHTML` setter on this one element instance to capture the clear time. */
 
 var _renderClearT = 0;
 
@@ -163,8 +153,8 @@ function buildPanel() {
     head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;' +
         'padding:8px 12px;background:#2c3338;border-radius:8px 8px 0 0;' +
         'cursor:move;user-select:none;flex-shrink:0;';
-    head.innerHTML = '<span style="font-weight:700;color:#a7aaad;">⚡ FormForge Perf</span>' +
-        '<span id="forge-perf-toggle" style="color:#72aee6;cursor:pointer;">▼</span>';
+    head.innerHTML = '<span style="font-weight:700;color:#a7aaad;"><i class="fa-solid fa-bolt" aria-hidden="true"></i> FormForge Perf</span>' +
+        '<span id="forge-perf-toggle" style="color:#72aee6;cursor:pointer;"><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></span>';
 
     _body = document.createElement('div');
     _body.style.cssText = 'overflow-y:auto;overflow-x:hidden;padding:8px 10px;flex:1 1 0;min-height:0;';
@@ -201,7 +191,9 @@ function buildPanel() {
             resizeHandle.style.display = 'none';
             wrap.style.height = 'auto';
         }
-        toggle.textContent = _open ? '▼' : '▲';
+        toggle.innerHTML = _open
+            ? '<i class="fa-solid fa-chevron-down" aria-hidden="true"></i>'
+            : '<i class="fa-solid fa-chevron-up" aria-hidden="true"></i>';
     });
 
     /* ── Drag / resize logic ── */
@@ -411,7 +403,10 @@ document.addEventListener('DOMContentLoaded', function () {
     var perfBtn = document.getElementById('forge-perf-btn');
     if (perfBtn) {
         var isOn = _active;
-        perfBtn.title = isOn ? 'Perf-Overlay ausblenden' : 'Perf-Overlay anzeigen';
+        var _pi18n = (window.ForgePerfData && ForgePerfData.i18n) || {};
+        perfBtn.title = isOn
+            ? (_pi18n.toggleHide || 'Hide performance overlay')
+            : (_pi18n.toggleShow || 'Show performance overlay');
         perfBtn.style.opacity = isOn ? '1' : '0.45';
         perfBtn.addEventListener('click', function () {
             if (localStorage.getItem(STORAGE_KEY) === '1') {

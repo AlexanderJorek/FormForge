@@ -30,13 +30,10 @@ defined('ABSPATH') || exit;
 class ClientIp
 {
     /**
-     * Returns the IP address to key rate limiting on.
-     *
-     * By default this is REMOTE_ADDR — the only value that can't be spoofed by the
-     * client. X-Forwarded-For is only consulted when REMOTE_ADDR is in the site's
-     * FORGE_TRUSTED_PROXIES allowlist (a comma-separated constant defined in
-     * wp-config.php), since otherwise any client could forge that header to dodge
-     * the limit or to frame another visitor's IP.
+     * Returns the IP address to key rate limiting on. By default this is REMOTE_ADDR — the only value that
+     * can't be spoofed by the client. X-Forwarded-For is only consulted when REMOTE_ADDR is in the site's
+     * FORGE_TRUSTED_PROXIES allowlist (a comma-separated constant defined in wp-config.php), since otherwise
+     * any client could forge that header to dodge the limit or to frame another visitor's IP.
      *
      * @return string Client IP address, or '' if unavailable.
      */
@@ -80,7 +77,6 @@ class ClientIp
      * Checks whether an address is listed in FORGE_TRUSTED_PROXIES.
      *
      * @param string $ip Address to check.
-     *
      * @return bool True when the site has explicitly marked $ip as a trusted proxy.
      */
     private static function isTrustedProxy(string $ip): bool

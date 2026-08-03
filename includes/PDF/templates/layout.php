@@ -171,12 +171,8 @@ return [
             }
             $header_h_mm = round($max_bottom * $cell_mm, 2);
 
-            /*
-             * Spacer div occupies the header area in the content flow so that
-             * the fields below start after the header. The header elements themselves
-             * are position:absolute (page-relative in mPDF), placed at their exact
-             * page coordinates derived from the grid.
-             */
+            // Spacer div occupies the header area in the content flow so fields below
+            // start after it; the header elements themselves are position:absolute.
             $out = '<div style="height:' . $header_h_mm . 'mm;">&nbsp;</div>';
 
             foreach ($elements as $el) {

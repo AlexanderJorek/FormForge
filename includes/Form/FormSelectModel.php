@@ -53,7 +53,6 @@ class FormSelectModel
      * Returns a single form-select model by ID.
      *
      * @param int $id The record ID.
-     *
      * @return self|null The model instance, or null if not found.
      */
     public static function get(int $id): ?self
@@ -74,12 +73,16 @@ class FormSelectModel
     /**
      * Creates or updates a form-select record, returns its ID.
      *
-     * @param array $data Form-select data array.
-     * @param int   $id   Existing record ID, or 0 to create new.
-     *
+     * @param array $data           Form-select data array.
+     * @param int   $id             Existing record ID, or 0 to create new.
+     * @param bool  $nonce_verified Whether the caller already verified its own
+     *                              (action-specific) nonce before calling this
+     *                              method. When false (the default), a generic
+     *                              internal nonce check is performed as a
+     *                              backstop — see {@see self::nonceVerifiedOrCheck()}.
      * @return int The saved record ID.
      */
-    public static function save(array $data, int $id = 0): int
+    public static function save(array $data, int $id = 0, bool $nonce_verified = false): int
     {
         // Defense-in-depth: both current call sites already gate on
         // Plugin::userCan('edit_forms') before reaching here — this model
@@ -87,10 +90,13 @@ class FormSelectModel
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
             return 0;
         }
+        if (!self::nonceVerifiedOrCheck($nonce_verified)) {
+            return 0;
+        }
         $all   = self::getRaw();
         $title = sanitize_text_field(\ForgeForms\Utils\Sanitize::str($data['title'] ?? null));
         if ($title === '') {
-            $title = 'Formular-Auswahl';
+            $title = __('Form Selection', 'form-forge');
         }
 
         $items = [];
@@ -126,12 +132,9 @@ class FormSelectModel
     }
 
     /**
-     * Removes all items referencing a given form ID from every select list.
-     * Hooked to before_delete_post so deleted forms disappear from selects.
+     * Removes all items referencing a given form ID from every select list. Hooked to before_delete_post so deleted forms disappear from selects.
      *
      * @param int $post_id The WordPress post ID being deleted.
-     *
-     * @return void
      */
     public static function removeFormId(int $post_id): void
     {
@@ -161,13 +164,18 @@ class FormSelectModel
     /**
      * Deletes a form-select record by ID.
      *
-     * @param int $id The record ID to delete.
-     *
-     * @return void
+     * @param int  $id             The record ID to delete.
+     * @param bool $nonce_verified Whether the caller already verified its own
+     *                             (action-specific) nonce before calling this
+     *                             method. Forwarded the same way as save() —
+     *                             see its docblock.
      */
-    public static function delete(int $id): void
+    public static function delete(int $id, bool $nonce_verified = false): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
+            return;
+        }
+        if (!self::nonceVerifiedOrCheck($nonce_verified)) {
             return;
         }
         $all = array_values(
@@ -194,7 +202,6 @@ class FormSelectModel
      * Constructs a FormSelectModel instance from a raw data array.
      *
      * @param array $data Raw data array.
-     *
      * @return self New FormSelectModel instance.
      */
     private static function fromArray(array $data): self
@@ -215,10 +222,32 @@ class FormSelectModel
     }
 
     /**
+     * CSRF backstop for save()/delete().
+     *
+     * Both current call sites (FormSelectList.php's ajaxSave()/ajaxDelete())
+     * already perform their own, more specific nonce check ('forge_fsel_save'
+     * or the per-record 'forge_fsel_delete_{id}') before calling into this
+     * model, and pass $nonce_verified: true to acknowledge that so this method
+     * is a no-op for them — mirrors {@see FormModel::nonceVerifiedOrCheck()}.
+     * If a future (or forgotten) call site omits $nonce_verified, this falls
+     * back to checking the shared admin AJAX nonce so the request is never
+     * silently accepted without any CSRF check at all.
+     *
+     * @param bool $nonce_verified Whether the caller already verified its own nonce.
+     * @return bool True if the request may proceed.
+     */
+    private static function nonceVerifiedOrCheck(bool $nonce_verified): bool
+    {
+        if ($nonce_verified) {
+            return true;
+        }
+        return (bool) check_ajax_referer('forge_forms_admin_nonce', 'nonce', false);
+    }
+
+    /**
      * Returns the next available integer ID for a new record.
      *
      * @param array $all Existing records array.
-     *
      * @return int Next available ID.
      */
     private static function nextId(array $all): int

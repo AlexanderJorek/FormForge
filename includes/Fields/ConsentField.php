@@ -35,6 +35,8 @@ class ConsentField extends BaseField
      */
     public function getStyles(): string
     {
+        // phpcs:disable Generic.Files.LineLength -- the checkbox-checkmark background-image is an
+        // inline SVG data URI; splitting it across lines risks corrupting the encoded markup.
         return <<<'CSS'
 .forge-consent-label {
     display: flex;
@@ -75,6 +77,7 @@ class ConsentField extends BaseField
 .forge-consent-text a { color: var(--forge-accent); text-decoration: underline; }
 .forge-consent-text a:hover { color: var(--forge-accent-dark); }
 CSS;
+        // phpcs:enable Generic.Files.LineLength
     }
 
     /**
@@ -108,7 +111,6 @@ CSS;
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Current field value.
-     *
      * @return string Rendered HTML.
      */
     public function render(array $config, string $field_id, mixed $value = null): string
@@ -131,7 +133,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return bool|string True on valid, error message string on invalid.
      */
     public function validate(mixed $value, array $config): bool|string
@@ -145,16 +146,13 @@ CSS;
     }
 
     /**
-     * Maps the field value to a human-readable string for email and PDF output.
-     *
-     * Embeds the actual consent text shown at submission time and a timestamp (not
-     * just "Yes"/"No") so the sealed PDF record can independently demonstrate what was
-     * agreed to and when — GDPR Art. 7(1) requires the controller to be able to
-     * demonstrate consent; a bare "Yes" can't do that if consent_text is edited later.
+     * Maps the field value to a human-readable string for email and PDF output. Embeds the actual consent
+     * text shown at submission time and a timestamp (not just "Yes"/"No") so the sealed PDF record can
+     * independently demonstrate what was agreed to and when — GDPR Art. 7(1) requires the controller to be
+     * able to demonstrate consent; a bare "Yes" can't do that if consent_text is edited later.
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return string Human-readable representation.
      */
     public function map(mixed $value, array $config): string

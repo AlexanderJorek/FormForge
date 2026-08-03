@@ -243,7 +243,6 @@ CSS;
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Current field value.
-     *
      * @return string Rendered HTML.
      */
     public function render(array $config, string $field_id, mixed $value = null): string
@@ -277,13 +276,9 @@ CSS;
     }
 
     /**
-     * Returns the sanitized base64 data-URI submitted by the signature canvas.
-     *
-     * Returns null when the hidden input is absent (isEmpty() treats null as empty).
+     * Returns the sanitized base64 data-URI submitted by the signature canvas. Returns null when the hidden input is absent (isEmpty() treats null as empty).
      *
      * @param string $field_id The field element ID.
-     *
-     * @return mixed
      */
     public function extractValue(string $field_id): mixed
     {
@@ -292,7 +287,7 @@ CSS;
     }
 
     /**
-     * Signature values are data URIs — excluded from the HMAC seal text.
+     * Signature values are data URIs â€” excluded from the HMAC seal text.
      *
      * @return bool
      */
@@ -306,7 +301,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return bool|string True on valid, error message string on invalid.
      */
     public function validate(mixed $value, array $config): bool|string
@@ -333,7 +327,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return string Human-readable representation.
      */
     public function map(mixed $value, array $config): string
@@ -349,7 +342,6 @@ CSS;
      * @param mixed  $value    Raw submitted value.
      * @param array  $config   Field configuration.
      * @param array  $context  Submission context.
-     *
      * @return array<string, array>
      */
     public function mapNormalized(
@@ -369,11 +361,9 @@ CSS;
     }
 
     /**
-     * Override: show only the drawn image, not the placeholder text.
-     * The image goes in the media section below the text fields.
+     * Override: show only the drawn image, not the placeholder text. The image goes in the media section below the text fields.
      *
      * @param array $field Normalized entry from FieldRegistry::mapSubmission().
-     *
      * @return array PDF render descriptor.
      */
     public function pdfData(array $field): array

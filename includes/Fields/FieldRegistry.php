@@ -29,11 +29,10 @@ defined('ABSPATH') || exit;
 class FieldRegistry
 {
     /**
-     * Single point of definition for every field type: ClassName => 'group:slug'.
-     * Doubles as the Plugin.php load allowlist (filename alone isn't a trust
-     * boundary) and the palette group/order. slug is a typo-check only —
-     * getType() is still authoritative; registerDefaults() warns on mismatch.
-     * Add a field: implement the class, drop the file, add one line here.
+     * Single point of definition for every field type: ClassName => 'group:slug'. Doubles as the Plugin.php
+     * load allowlist (filename alone isn't a trust boundary) and the palette group/order. slug is a
+     * typo-check only — getType() is still authoritative; registerDefaults() warns on mismatch. Add a
+     * field: implement the class, drop the file, add one line here.
      *
      * @var array<string, string>
      */
@@ -93,8 +92,6 @@ class FieldRegistry
      *
      * @param string $type  Field type slug.
      * @param string $class Fully-qualified class name.
-     *
-     * @return void
      */
     public static function register(string $type, string $class): void
     {
@@ -114,7 +111,6 @@ class FieldRegistry
      * Returns a new instance of the handler for the given field type.
      *
      * @param string $type Field type slug.
-     *
      * @return BaseField|null Handler instance, or null if the type is unknown.
      */
     public static function get(string $type): ?BaseField
@@ -140,8 +136,6 @@ class FieldRegistry
      * Returns true if the given field type slug is registered.
      *
      * @param string $type Field type slug.
-     *
-     * @return bool
      */
     public static function hasType(string $type): bool
     {
@@ -188,7 +182,7 @@ class FieldRegistry
      * Returns palette data as an array of groups for the builder UI.
      *
      * Shape: [ { label, items: [ { type, label, icon, defaults, schema } ] } ]
-     * Order is explicit — most-used fields first.
+     * Order is explicit â€” most-used fields first.
      *
      * @return array
      */
@@ -241,12 +235,10 @@ class FieldRegistry
     }
 
     /**
-     * Translates a GROUP_META key. A literal switch (not a variable passed to
-     * __()) so i18n string extraction can still find these.
+     * Translates a GROUP_META key. A literal switch (not a variable passed to __()) so i18n string extraction
+     * can still find these.
      *
      * @param string $group Group key from GROUP_META.
-     *
-     * @return string
      */
     private static function translateGroupLabel(string $group): string
     {
@@ -262,16 +254,13 @@ class FieldRegistry
     }
 
     /**
-     * Maps raw form submission values to a normalized array for PDF/email.
-     *
-     * Iterates form fields, calls each handler's mapNormalized(), and merges
-     * all returned entries. Fields that produce no output (pagebreak, empty html)
-     * return an empty array and are silently skipped.
+     * Maps raw form submission values to a normalized array for PDF/email. Iterates form fields, calls each
+     * handler's mapNormalized(), and merges all returned entries. Fields that produce no output (pagebreak,
+     * empty html) return an empty array and are silently skipped.
      *
      * @param array $fields     Form field configuration array.
      * @param array $raw_values Raw submitted POST values.
      * @param array $files      Uploaded files ($_FILES).
-     *
      * @return array Normalized mapped values.
      */
     public static function mapSubmission(

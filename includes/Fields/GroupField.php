@@ -117,15 +117,13 @@ CSS;
     }
 
     /**
-     * Expands a group's (possibly repeated) child values into flat, individually
-     * labeled entries for the normalized submission map.
+     * Expands a group's (possibly repeated) child values into flat, individually labeled entries for the normalized submission map.
      *
      * @param string $field_id Group field id (unused; children get their own keys).
      * @param string $label    Group label (unused; children use their own labels).
      * @param mixed  $value    Per-copy child values, see inline comment below.
      * @param array  $config   Group field configuration (includes 'children').
      * @param array  $context  Normalization context passed through to child handlers.
-     *
      * @return array Flat map of child_id (or child_id_copy_N) => ['label'=>, 'value'=>].
      */
     public function mapNormalized(
@@ -223,7 +221,7 @@ CSS;
     }
 
     /**
-     * Returns true — group fields DO have a settings panel in the builder
+     * Returns true â€” group fields DO have a settings panel in the builder
      * (used to configure the child field list and repeat behavior).
      *
      * @return bool
@@ -244,13 +242,10 @@ CSS;
     }
 
     /**
-     * Returns the opening wrapper tag for this group.
-     *
-     * Children are injected by FormRenderer — this just provides the container.
+     * Returns the opening wrapper tag for this group. Children are injected by FormRenderer — this just provides the container.
      *
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
-     *
      * @return string Opening HTML tag.
      */
     public function openTag(array $config, string $field_id): string
@@ -267,8 +262,6 @@ CSS;
      * Returns the data-conditions attribute string for the group's outer row wrapper.
      *
      * @param array $config Field configuration.
-     *
-     * @return string
      */
     public function rowCondAttr(array $config): string
     {
@@ -289,15 +282,11 @@ CSS;
     }
 
     /**
-     * Renders the field HTML.
-     *
-     * Fallback only — not called during normal rendering; FormRenderer uses
-     * openTag() and closeTag() directly to inject child fields.
+     * Renders the field HTML. Fallback only — not called during normal rendering; FormRenderer uses openTag() and closeTag() directly to inject child fields.
      *
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Current field value.
-     *
      * @return string Rendered HTML.
      */
     public function render(array $config, string $field_id, mixed $value = null): string
@@ -310,7 +299,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return string Human-readable representation.
      */
     public function map(mixed $value, array $config): string

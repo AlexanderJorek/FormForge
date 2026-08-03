@@ -179,15 +179,12 @@ CSS;
     }
 
     /**
-     * Renders the page-transition HTML emitted at this break point.
-     *
-     * Closes the current page <div>, emits bottom nav (prev + next), opens the next
-     * page <div>, and adds a top-of-page prev button. The $page argument is the
-     * 1-based index of the page being opened (already incremented by FormRenderer).
+     * Renders the page-transition HTML emitted at this break point. Closes the current page <div>, emits
+     * bottom nav (prev + next), opens the next page <div>, and adds a top-of-page prev button. The $page
+     * argument is the 1-based index of the page being opened (already incremented by FormRenderer).
      *
      * @param array $config Field configuration.
      * @param int   $page   Index of the page being opened (1 = first page after a break).
-     *
      * @return string HTML for the page transition.
      */
     public function renderBreak(array $config, int $page): string
@@ -207,15 +204,12 @@ CSS;
     }
 
     /**
-     * Renders the field HTML.
-     *
-     * Not called during normal form rendering — FormRenderer calls renderBreak() instead.
-     * Provided as a fallback for contexts that call render() generically.
+     * Renders the field HTML. Not called during normal form rendering — FormRenderer calls renderBreak()
+     * instead. Provided as a fallback for contexts that call render() generically.
      *
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Current field value.
-     *
      * @return string Rendered HTML.
      */
     public function render(array $config, string $field_id, mixed $value = null): string
@@ -231,7 +225,6 @@ CSS;
      * @param mixed  $value    Raw submitted value.
      * @param array  $config   Field configuration.
      * @param array  $context  Submission context.
-     *
      * @return array<string, array>
      */
     public function mapNormalized(
@@ -249,7 +242,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return string Human-readable representation.
      */
     public function map(mixed $value, array $config): string

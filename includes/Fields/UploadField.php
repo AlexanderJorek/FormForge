@@ -374,7 +374,6 @@ CSS;
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Current field value.
-     *
      * @return string Rendered HTML.
      */
     public function render(array $config, string $field_id, mixed $value = null): string
@@ -418,14 +417,11 @@ CSS;
     }
 
     /**
-     * Returns the effective max file size in MB, clamping the admin-configured
-     * max_size_mb against self::MAX_SIZE_MB_HARD_CAP so the value used to compute
-     * the actual byte limit can never exceed the hard ceiling, regardless of what
-     * is stored in the field config.
+     * Returns the effective max file size in MB, clamping the admin-configured max_size_mb against
+     * self::MAX_SIZE_MB_HARD_CAP so the value used to compute the actual byte limit can never exceed the hard
+     * ceiling, regardless of what is stored in the field config.
      *
      * @param array $config Field configuration.
-     *
-     * @return int
      */
     private static function maxSizeMb(array $config): int
     {
@@ -436,7 +432,6 @@ CSS;
      * Builds the accept attribute value from allowed file type groups and custom types.
      *
      * @param array $config Field configuration.
-     *
      * @return string Comma-separated list of allowed file extensions.
      */
     private function buildAccept(array $config): string
@@ -486,8 +481,6 @@ CSS;
      * Returns the raw $_FILES entry for this upload field.
      *
      * @param string $field_id The field element ID.
-     *
-     * @return mixed
      */
     public function extractValue(string $field_id): mixed
     {
@@ -503,13 +496,10 @@ CSS;
     }
 
     /**
-     * Returns true when $_FILES-shaped 'name' (scalar or array, for multi-file
-     * inputs) actually contains a filename — a file literally named "0" must
-     * not be treated the same as "no file" by empty().
+     * Returns true when $_FILES-shaped 'name' (scalar or array, for multi-file inputs) actually contains a
+     * filename — a file literally named "0" must not be treated the same as "no file" by empty().
      *
      * @param mixed $name The 'name' value from a $_FILES-shaped array.
-     *
-     * @return bool
      */
     private static function hasFileName(mixed $name): bool
     {
@@ -529,7 +519,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return bool|string True on valid, error message string on invalid.
      */
     public function validate(mixed $value, array $config): bool|string
@@ -548,6 +537,24 @@ CSS;
             $names     = is_array($file['name']) ? $file['name'] : [$file['name']];
             $tmp_names = is_array($file['tmp_name'] ?? null) ? $file['tmp_name'] : [$file['tmp_name'] ?? ''];
             $sizes     = is_array($file['size'] ?? null) ? $file['size'] : [$file['size'] ?? 0];
+
+            // Server-side backstop for the file-count limit — render()'s plain (non-`[]`)
+            // input name and front.js's checkLimit() only constrain the browser's file
+            // picker; a direct POST can send array-keyed file parts under this field's
+            // name regardless of those client-side constraints, so a "single file" field
+            // must still be re-checked here. Multiple mode falls back to the same
+            // max_file_uploads ceiling used for the client-side hint in render().
+            $max_files = empty($config['multiple']) ? 1 : max(1, (int)(ini_get('max_file_uploads') ?: 20));
+            if (count($names) > $max_files) {
+                return empty($config['multiple'])
+                    ? __('Only one file may be uploaded for this field.', 'form-forge')
+                    : sprintf(
+                        // translators: %d: maximum number of files allowed.
+                        __('Too many files uploaded (maximum: %d).', 'form-forge'),
+                        $max_files
+                    );
+            }
+
             $max_bytes = self::maxSizeMb($config) * 1024 * 1024;
             $finfo     = new \finfo(FILEINFO_MIME_TYPE);
             // Enforce the admin-configured allow-list server-side too — the <input accept>
@@ -607,7 +614,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return string Normalized field entry.
      */
     public function map(mixed $value, array $config): string
@@ -626,7 +632,6 @@ CSS;
      * @param mixed  $value    Raw submitted value.
      * @param array  $config   Field configuration.
      * @param array  $context  Submission context (carries 'files').
-     *
      * @return array<string, array>
      */
     public function mapNormalized(
@@ -720,11 +725,10 @@ CSS;
     }
 
     /**
-     * Override: show filename as text; embed images inline.
-     * Non-image files (PDF, Word, audio, video, archives) show filename only.
+     * Override: show filename as text; embed images inline. Non-image files (PDF, Word, audio, video,
+     * archives) show filename only.
      *
      * @param array $field Normalized entry from FieldRegistry::mapSubmission().
-     *
      * @return array PDF render descriptor.
      */
     public function pdfData(array $field): array

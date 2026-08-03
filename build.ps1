@@ -24,7 +24,7 @@ if (Test-Path $buildDir) { Remove-Item -Recurse -Force $buildDir }
 New-Item -ItemType Directory -Path $stageDir | Out-Null
 
 Write-Host "Copying plugin files..." -ForegroundColor Cyan
-$exclude = @('.git', '.claude', '.vscode', '.gitignore', 'build', 'node_modules', 'vendor', 'tests', '.phpcs.xml', 'build.ps1', 'CLAUDE.md')
+$exclude = @('.git', '.claude', '.vscode', '.gitignore', 'build', 'node_modules', 'vendor', 'tests', '.phpcs.xml', '.phpcs-security.xml', 'build.ps1', 'CLAUDE.md')
 Get-ChildItem -Path $root -Force | Where-Object { $exclude -notcontains $_.Name } | ForEach-Object {
     Copy-Item -Path $_.FullName -Destination $stageDir -Recurse -Force
 }

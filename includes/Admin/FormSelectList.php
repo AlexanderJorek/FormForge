@@ -44,7 +44,6 @@ class FormSelectList
      * Appends a CSS class on the form-select page.
      *
      * @param string $classes Existing admin body classes.
-     *
      * @return string Modified body class string.
      */
     public static function bodyClass(string $classes): string
@@ -177,16 +176,16 @@ class FormSelectList
                         <div class="forge-sp-row">
                             <label class="forge-sp-label"><?php esc_html_e('Name of this selection', 'form-forge'); ?></label>
                             <input type="text" id="forge-fsel-title-input" class="forge-sp-input"
-                                   placeholder="z.B. Kontakt-Auswahl">
+                                   placeholder="<?php echo esc_attr__('e.g. Contact Selection', 'form-forge'); ?>">
                         </div>
 
                         <div class="forge-sp-row">
                             <label class="forge-sp-label"><?php esc_html_e('Forms in this selection', 'form-forge'); ?></label>
                             <div class="forge-fsel-cols-header" id="forge-fsel-col-header" hidden>
                                 <span></span>
-                                <span>Formular</span>
-                                <span>Bezeichnung</span>
-                                <span>Beschreibung</span>
+                                <span><?php esc_html_e('Form', 'form-forge'); ?></span>
+                                <span><?php esc_html_e('Label', 'form-forge'); ?></span>
+                                <span><?php esc_html_e('Description', 'form-forge'); ?></span>
                                 <span><i class="fa-regular fa-star"></i></span>
                                 <span></span>
                             </div>
@@ -319,8 +318,6 @@ class FormSelectList
      * Renders a single form-select list row.
      *
      * @param FormSelectModel $fsel The form-select model instance to render.
-     *
-     * @return void
      */
     private static function renderRow(FormSelectModel $fsel): void
     {
@@ -398,14 +395,14 @@ class FormSelectList
         $title     = sanitize_text_field(\ForgeForms\Utils\Sanitize::str(wp_unslash($_POST['title'] ?? '')));
         $items_raw = json_decode(\ForgeForms\Utils\Sanitize::str(sanitize_textarea_field(wp_unslash($_POST['items'] ?? '[]'))), true);
         if (!is_array($items_raw)) {
-            wp_send_json_error(['message' => 'Ungültige Daten.']);
+            wp_send_json_error(['message' => 'Invalid data.']);
         }
         if (count($items_raw) > 200) {
             wp_send_json_error(['message' => 'Too many items.']);
             return;
         }
 
-        $new_id = FormSelectModel::save(['title' => $title, 'items' => $items_raw], $id);
+        $new_id = FormSelectModel::save(['title' => $title, 'items' => $items_raw], $id, true);
         $fsel   = FormSelectModel::get($new_id);
 
         ob_start();
@@ -435,7 +432,7 @@ class FormSelectList
         $id = isset($_POST['id']) ? absint(wp_unslash($_POST['id'])) : 0;
         check_ajax_referer('forge_fsel_delete_' . $id, 'nonce');
 
-        FormSelectModel::delete($id);
+        FormSelectModel::delete($id, true);
         wp_send_json_success();
     }
 
@@ -447,7 +444,6 @@ class FormSelectList
      * Renders the forge_form_select shortcode output.
      *
      * @param array $atts Shortcode attributes.
-     *
      * @return string Rendered HTML output.
      */
     public static function shortcode(array $atts): string
@@ -548,10 +544,29 @@ class FormSelectList
      */
     private static function renderScript(): void
     {
+        /* Localized strings consumed by the inline <script> below for
+           dynamically-generated UI text — mirrors the wp_localize_script i18n
+           pattern used elsewhere (e.g. Assets.php's ForgeVerifier), inlined here
+           since this script is embedded directly rather than a static asset. */
+        $fsel_i18n = [
+            // translators: %d is replaced client-side with the number of selected form selections.
+            'selectedCount'    => __('%d selected', 'form-forge'),
+            'createTitle'      => __('Create new selection', 'form-forge'),
+            'newSelectionName' => __('New selection', 'form-forge'),
+            'create'           => __('Create', 'form-forge'),
+            'editTitle'        => __('Edit selection', 'form-forge'),
+            'save'             => __('Save', 'form-forge'),
+            'label'            => __('Label', 'form-forge'),
+            'description'      => __('Description', 'form-forge'),
+            'preselectDefault' => __('Preselect as default', 'form-forge'),
+            'remove'           => __('Remove', 'form-forge'),
+            'noFormsFound'     => __('No forms found.', 'form-forge'),
+        ];
         ?>
         <script>
         (function () {
             var ajaxurl   = <?php echo wp_json_encode(admin_url('admin-ajax.php')); ?>;
+            var fseli18n  = <?php echo wp_json_encode($fsel_i18n); ?>;
             var saveNonce = window._forgeFselSaveNonce;
             var allForms  = window._forgeAllForms  || [];
             var fselData  = window._forgeFselData  || [];
@@ -599,7 +614,7 @@ class FormSelectList
                 var bulkBar = document.getElementById('forge-fsel-bulk-bar');
                 var countEl = document.getElementById('forge-fsel-bulk-count');
                 if (bulkBar) { bulkBar.hidden = checked.length === 0; }
-                if (countEl) { countEl.textContent = checked.length + ' ausgewählt'; }
+                if (countEl) { countEl.textContent = fseli18n.selectedCount.replace('%d', String(checked.length)); }
             }
 
             function syncEmpty() {
@@ -660,12 +675,12 @@ class FormSelectList
                 closeSearch();
 
                 if (id === 0) {
-                    modalTitle.textContent = 'Neue Auswahl erstellen';
-                    titleInput.value = 'Neue Auswahl';
-                    saveBtn.textContent = 'Erstellen';
+                    modalTitle.textContent = fseli18n.createTitle;
+                    titleInput.value = fseli18n.newSelectionName;
+                    saveBtn.textContent = fseli18n.create;
                 } else {
-                    modalTitle.textContent = 'Auswahl bearbeiten';
-                    saveBtn.textContent = 'Speichern';
+                    modalTitle.textContent = fseli18n.editTitle;
+                    saveBtn.textContent = fseli18n.save;
                     var rec = fselData.find(function (r) { return r.id === id; });
                     if (rec) {
                         titleInput.value = rec.title;
@@ -703,16 +718,16 @@ class FormSelectList
                     '</span>' +
                     '<input type="text" class="forge-fsel-item-label" ' +
                            'value="' + escHtml(label || '') + '" ' +
-                           'placeholder="Bezeichnung">' +
+                           'placeholder="' + escHtml(fseli18n.label) + '">' +
                     '<input type="text" class="forge-fsel-item-desc" ' +
                            'value="' + escHtml(desc || '') + '" ' +
-                           'placeholder="Beschreibung">' +
-                    '<label class="forge-fsel-item-fav" title="Als Standard vorauswählen">' +
+                           'placeholder="' + escHtml(fseli18n.description) + '">' +
+                    '<label class="forge-fsel-item-fav" title="' + escHtml(fseli18n.preselectDefault) + '">' +
                         '<input type="radio" name="' + favName + '" ' +
                                'class="forge-fsel-item-fav-radio" ' + isChecked + '>' +
                         '<i class="' + (isChecked ? 'fa-solid' : 'fa-regular') + ' fa-star"></i>' +
                     '</label>' +
-                    '<button type="button" class="forge-fsel-item-remove" title="Entfernen">' +
+                    '<button type="button" class="forge-fsel-item-remove" title="' + escHtml(fseli18n.remove) + '">' +
                         '<i class="fa-solid fa-trash"></i>' +
                     '</button>';
 
@@ -763,7 +778,7 @@ class FormSelectList
                 if (forms.length === 0) {
                     var empty = document.createElement('div');
                     empty.className = 'forge-fsel-sr-empty';
-                    empty.textContent = 'Keine Formulare gefunden.';
+                    empty.textContent = fseli18n.noFormsFound;
                     searchResults.appendChild(empty);
                 } else {
                     forms.forEach(function (f) {

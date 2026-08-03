@@ -29,18 +29,11 @@ defined('ABSPATH') || exit;
 abstract class BaseField
 {
     /**
-     * Caps an array-valued raw POST value to at most $max_keys entries before
-     * it is handed to map_deep()/sanitize_text_field(). Composite fields (Name,
-     * Address, SEPA, ...) only ever read a handful of known subfield keys back
-     * out, so an attacker submitting a much larger array as $field_id[...] would
-     * otherwise cost an unbounded number of sanitize calls before that read
-     * happens — this must run BEFORE any map_deep()/recursive-sanitize pass,
-     * not after, or the uncapped array has already been walked in full.
+     * Caps an array-valued raw POST value before sanitizing, so a submitted
+     * $field_id[...] array can't force unbounded sanitize calls. Must run
+     * BEFORE any map_deep()/recursive-sanitize pass, not after.
      *
-     * @param mixed $raw      Raw (still wp_unslash()-only) POST value.
-     * @param int   $max_keys Maximum number of array entries to keep.
-     *
-     * @return mixed The original scalar, or the array truncated to $max_keys entries.
+     * @return mixed Original scalar, or array truncated to $max_keys entries.
      */
     protected static function capRawArray(mixed $raw, int $max_keys = 32): mixed
     {
@@ -50,43 +43,21 @@ abstract class BaseField
         return array_slice($raw, 0, $max_keys, true);
     }
 
-    /**
-     * Hard security ceiling for the "Other" free-text companion value —
-     * independent of (and always at least as large as) the admin-configurable
-     * other_max_length. This must stay comfortably above any realistic
-     * configured limit: capOtherText() truncates before validateOtherText()
-     * ever runs, so if the hard cap were smaller than a configured limit, the
-     * configured "too long" error could never fire — the value would already
-     * be silently cut, not rejected. otherInputAttrs()/validateOtherText()
-     * both clamp the configured limit to this same ceiling so the two checks
-     * can never disagree.
-     */
+    // Hard ceiling for the "Other" free-text value, always >= the admin-configured
+    // other_max_length so capOtherText()'s truncation can never pre-empt
+    // validateOtherText()'s "too long" error.
     private const OTHER_TEXT_HARD_CAP = 5000;
 
-    /**
-     * Shared cap for the free-text companion value of a "___other___" option
-     * (Select/Radio/Checkbox fields). Kept as one helper so the limit can't
-     * drift between the near-identical extractValue()/extractFromRaw()
-     * implementations of those three field types.
-     *
-     * @param mixed $raw Raw (still wp_unslash()-only) "_other" POST value.
-     *
-     * @return string Sanitized value truncated to self::OTHER_TEXT_HARD_CAP characters.
-     */
+    // Shared cap for the "___other___" free-text companion value (Select/Radio/
+    // Checkbox), so the limit can't drift between those fields' extractValue()/
+    // extractFromRaw() implementations.
     protected static function capOtherText(mixed $raw): string
     {
         return mb_substr(sanitize_text_field(wp_unslash($raw)), 0, self::OTHER_TEXT_HARD_CAP);
     }
 
-    /**
-     * Returns the HTML attribute enforcing the configurable "Other" text limit
-     * (Select/Radio/Checkbox fields), mirroring TextField's char/word limit UI.
-     * Purely a client-side hint — validateOtherText() is the server-side backstop.
-     *
-     * @param array $config Field configuration.
-     *
-     * @return string HTML attribute string (possibly empty).
-     */
+    // Client-side hint attribute for the configurable "Other" text limit;
+    // validateOtherText() is the server-side backstop.
     protected static function otherInputAttrs(array $config): string
     {
         $max = self::clampOtherMax((int)($config['other_max_length'] ?? 0));
@@ -97,15 +68,8 @@ abstract class BaseField
         return $type === 'words' ? ' data-word-limit="' . $max . '"' : ' maxlength="' . $max . '"';
     }
 
-    /**
-     * Validates the "Other" free-text companion value against the configurable
-     * other_max_type/other_max_length limit (Select/Radio/Checkbox fields).
-     *
-     * @param string $other  The trimmed "Other" text value.
-     * @param array  $config Field configuration.
-     *
-     * @return bool|string True on valid, error message string on invalid.
-     */
+    // Validates the "Other" value against the configured other_max_type/
+    // other_max_length limit.
     protected static function validateOtherText(string $other, array $config): bool|string
     {
         $max = self::clampOtherMax((int)($config['other_max_length'] ?? 0));
@@ -128,58 +92,27 @@ abstract class BaseField
         return true;
     }
 
-    /**
-     * Clamps an admin-configured other_max_length to self::OTHER_TEXT_HARD_CAP
-     * so a config value above the hard cap can never make validateOtherText()
-     * expect text longer than what capOtherText() would have already truncated.
-     *
-     * @param int $configured Admin-configured limit (0/negative = unlimited).
-     *
-     * @return int
-     */
+    // Clamps an admin-configured other_max_length to OTHER_TEXT_HARD_CAP so
+    // validateOtherText() can't expect text longer than capOtherText() allows.
     private static function clampOtherMax(int $configured): int
     {
         return $configured > 0 ? min($configured, self::OTHER_TEXT_HARD_CAP) : $configured;
     }
 
-    /**
-     * Hard security ceiling for Text/Textarea field content, applied even when
-     * the admin has left limit_max unset (0 = "no limit"). Unlike
-     * OTHER_TEXT_HARD_CAP, this exists to bound worst-case PDF-generation and
-     * PDF-verification cost — decompressed text volume drives the verifier's
-     * parse-time budget (see Verificationpage.php) independently of the final
-     * PDF's byte size, since text compresses well but must still be fully
-     * decompressed and regex-scanned during verification. 100k characters is
-     * generous for any legitimate single-field answer.
-     */
+    // Hard ceiling for Text/Textarea content, applied even when limit_max is
+    // unset. Bounds worst-case PDF generation/verification cost (see
+    // Verificationpage.php), independent of the configured limit.
     private const TEXT_FIELD_HARD_CAP = 100000;
 
-    /**
-     * Clamps an admin-configured limit_max to self::TEXT_FIELD_HARD_CAP, and
-     * substitutes the hard cap itself when no limit is configured (0/negative),
-     * so render()'s maxlength hint and validate()'s server-side backstop can
-     * never disagree, and a Text/Textarea field can never be truly unbounded.
-     *
-     * @param int $configured Admin-configured limit_max (0/negative = unset).
-     *
-     * @return int
-     */
+    // Clamps limit_max to TEXT_FIELD_HARD_CAP, substituting the hard cap when
+    // unset, so the render() hint and validate() backstop can't disagree.
     protected static function clampTextMax(int $configured): int
     {
         return $configured > 0 ? min($configured, self::TEXT_FIELD_HARD_CAP) : self::TEXT_FIELD_HARD_CAP;
     }
 
-    /**
-     * Absolute server-side character-count backstop for Text/Textarea fields,
-     * enforced regardless of the admin's configured limit_type/limit_max — a
-     * "words" limit doesn't bound character length (a single "word" can be
-     * arbitrarily long), so this always checks raw character count against
-     * self::TEXT_FIELD_HARD_CAP independent of that configured limit.
-     *
-     * @param string $value Submitted field value.
-     *
-     * @return bool|string True if within the hard cap, error message string otherwise.
-     */
+    // Server-side char-count backstop, enforced regardless of configured
+    // limit_type/limit_max — a "words" limit doesn't bound character length.
     protected static function validateTextHardCap(string $value): bool|string
     {
         $length = function_exists('mb_strlen') ? mb_strlen($value) : strlen($value);
@@ -190,21 +123,9 @@ abstract class BaseField
         return true;
     }
 
-    /**
-     * Checks whether $value looks like a real signature-canvas data URI.
-     *
-     * Shared by SignatureField and SepaField so the two fields' "does this look
-     * like real image data" prefix checks can't silently drift apart again —
-     * both fields independently re-verify real PNG/JPEG magic bytes via
-     * materializeSignature() before trusting either, so this is a cheap format
-     * sanity check, not the security boundary.
-     *
-     * @param string $value           Submitted value.
-     * @param string $expected_format Optional exact format ('png'|'jpeg'); when
-     *                                 empty, any 'data:image/' prefix is accepted.
-     *
-     * @return bool
-     */
+    // Cheap prefix sanity check for a signature-canvas data URI, shared by
+    // SignatureField/SepaField. Not the security boundary — both fields still
+    // verify real PNG/JPEG magic bytes via materializeSignature().
     protected static function isSignatureDataUri(string $value, string $expected_format = ''): bool
     {
         if ($expected_format !== '') {
@@ -228,25 +149,17 @@ abstract class BaseField
                 var limit = parseInt(inp.dataset.wordLimit, 10);
                 if (!limit) return null;
                 var count = inp.value.trim().split(/\s+/).filter(Boolean).length;
-                return count <= limit ? null
-                    : 'Please enter at most ' + limit + ' words (currently: ' + count + ').';
+                if (count <= limit) return null;
+                var _i18n = window.ForgeForms && window.ForgeForms.i18n;
+                return ((_i18n && _i18n.other_word_limit_exceeded) || 'Please enter at most %1$d words for "Other" (currently: %2$d).')
+                    .replace('%1$d', limit).replace('%2$d', count);
             }
             JS];
     }
 
-    /**
-     * Returns the field type slug used to identify this field in forms and the registry.
-     *
-     * IMPORTANT: FieldRegistry::registerDefaults() instantiates every declared
-     * BaseField subclass in this namespace (via `new $class()`) purely to read
-     * this value during plugin bootstrap. Field constructors — including any
-     * constructor added to BaseField itself — must therefore stay free of side
-     * effects (no DB/HTTP calls, no static-state mutation). If that constraint
-     * ever needs to be relaxed, switch registerDefaults() to a static type()
-     * method on each field class instead of instantiating.
-     *
-     * @return string
-     */
+    // Field type slug. IMPORTANT: FieldRegistry::registerDefaults() instantiates
+    // every subclass just to read this at bootstrap, so field constructors
+    // (including any added to BaseField) must stay free of side effects.
     abstract public function getType(): string;
 
     /**
@@ -287,13 +200,11 @@ abstract class BaseField
     }
 
     /**
-     * Page-navigation markup for a page-break field. Only called when
-     * isPageBreak() returns true; PageBreakField overrides this.
+     * Page-navigation markup for a page-break field. Only called when isPageBreak() returns true;
+     * PageBreakField overrides this.
      *
      * @param array $config Field configuration.
      * @param int   $page   The page number being closed/opened.
-     *
-     * @return string
      */
     public function renderBreak(array $config, int $page): string
     {
@@ -314,13 +225,11 @@ abstract class BaseField
     }
 
     /**
-     * Opening wrapper markup for a group container field. Only called when
-     * isGroupContainer() returns true; group field classes override this.
+     * Opening wrapper markup for a group container field. Only called when isGroupContainer() returns true;
+     * group field classes override this.
      *
      * @param array  $config   Field configuration.
      * @param string $field_id Resolved field identifier.
-     *
-     * @return string
      */
     public function openTag(array $config, string $field_id): string
     {
@@ -376,29 +285,15 @@ abstract class BaseField
         return true;
     }
 
-    /**
-     * Whether this field's value is included in the HMAC integrity seal.
-     *
-     * Generator::buildSealFields() sets the value to '' when this returns false.
-     * Override in fields whose value is a data URI or binary blob that must be
-     * excluded from the seal text (e.g. SignatureField).
-     *
-     * @return bool
-     */
+    // Whether this field's value is included in the HMAC integrity seal.
+    // Override to false for values that are a data URI or binary blob (e.g. SignatureField).
     public function includeValueInSeal(): bool
     {
         return true;
     }
 
-    /**
-     * Whether this field represents a plain-text value suitable for PDF preview tokens.
-     *
-     * PDFLayoutEditor uses this to filter dummy fields for the token-picker preview,
-     * keeping only fields whose value can be represented as a short text string.
-     * Override to true in text-like fields (TextField, EmailField, TextareaField).
-     *
-     * @return bool
-     */
+    // Whether this field's value is a short text string, suitable for the
+    // PDFLayoutEditor token-picker preview. Override to true in text-like fields.
     public function hasTextPreview(): bool
     {
         return false;
@@ -420,35 +315,17 @@ abstract class BaseField
      * @param array  $config   Field configuration from form definition.
      * @param string $field_id Element ID (e.g. "field-3").
      * @param mixed  $value    Pre-filled value (for re-displaying on error).
-     *
-     * @return string
      */
     abstract public function render(array $config, string $field_id, mixed $value = null): string;
 
     /**
-     * The extractValue() counterpart for a field living inside a repeatable
-     * Group. A normal field reads itself straight out of $_POST[$field_id].
-     * A field inside a Group copy can't do that: the browser submits it
-     * nested under the group's own key instead, e.g. for a "family members"
-     * group repeated twice, with a "name" child field:
+     * The extractValue() counterpart for a field inside a repeatable Group.
+     * FormProcessor slices the raw per-copy value out of $_POST and passes it
+     * here as $raw instead of it being read directly from $_POST[$field_id].
+     * Mirror whatever sanitizing extractValue() does so behavior matches
+     * whether the field is used standalone or inside a Group.
      *
-     *   $_POST['group-5'][0]['name'] = 'Alice'
-     *   $_POST['group-5'][1]['name'] = 'Bob'
-     *
-     * FormProcessor slices out each copy's raw value (e.g. 'Alice') and
-     * passes it here as $raw — extractFromRaw() then applies the exact same
-     * sanitizing extractValue() would have applied, just to a value handed
-     * in as a parameter instead of read from $_POST directly.
-     *
-     * Rule of thumb: whatever sanitizing you write in extractValue(), mirror
-     * it here so a field behaves identically whether it's used standalone
-     * or inside a Group. The default sanitizes a scalar or a flat array with
-     * sanitize_text_field() — override when extractValue() does something
-     * else (textarea sanitizer, always-array shape like checkboxes, etc.).
-     *
-     * @param mixed $raw The raw value already sliced out of the group copy array.
-     *
-     * @return mixed
+     * @param mixed $raw Raw value already sliced out of the group copy array.
      */
     public function extractFromRaw(mixed $raw): mixed
     {
@@ -459,42 +336,22 @@ abstract class BaseField
     }
 
     /**
-     * extractFromRaw() variant for Checkbox/Radio/Select's "Other" free-text
-     * option. Those fields submit the typed "Other" text as a *sibling*
-     * top-level key, not nested under the child's own key, e.g.:
+     * extractFromRaw() variant for Checkbox/Radio/Select's "Other" option,
+     * whose typed text arrives as a *sibling* POST key (e.g. 'choice_other')
+     * that extractFromRaw() alone can't reach. Default ignores $other_raw and
+     * delegates to extractFromRaw(); override only if extractValue() also
+     * attaches a '__other_text__' key.
      *
-     *   $_POST['group-5'][0]['choice']       = '__other__'
-     *   $_POST['group-5'][0]['choice_other'] = 'Something custom'
-     *
-     * extractFromRaw($raw) alone only ever sees the 'choice' slice — it has
-     * no way to reach the sibling 'choice_other' value. FormProcessor calls
-     * this method instead when both pieces need to be combined, passing the
-     * sibling in as $other_raw. Default ignores $other_raw and delegates to
-     * extractFromRaw(); override only in fields whose extractValue() also
-     * attaches a '__other_text__' key (mirror that shape here).
-     *
-     * @param mixed $raw       The raw value from the group copy array (same as extractFromRaw()).
-     * @param mixed $other_raw The raw "{child_id}_other" sibling value from the same copy, if any.
-     *
-     * @return mixed
+     * @param mixed $other_raw The "{child_id}_other" sibling value, if any.
      */
     public function extractFromRawWithOther(mixed $raw, mixed $other_raw): mixed
     {
         return $this->extractFromRaw($raw);
     }
 
-    /**
-     * Extracts the submitted value for this field from $_POST or $_FILES.
-     *
-     * Called by FormProcessor before validate(). The default reads a single text value from
-     * $_POST and sanitizes it with sanitize_text_field(). Override in fields whose value shape
-     * differs: array POST keys (name, address, checkbox), textarea sanitization, $_FILES
-     * (upload), or composite keys (sepa uses $field_id . '-sig' for the signature canvas).
-     *
-     * @param string $field_id The field element ID.
-     *
-     * @return mixed
-     */
+    // Extracts the submitted value from $_POST/$_FILES, called by
+    // FormProcessor before validate(). Override for fields whose value shape
+    // differs (array POST keys, textarea, $_FILES, composite keys).
     public function extractValue(string $field_id): mixed
     {
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
@@ -521,16 +378,8 @@ abstract class BaseField
         return true;
     }
 
-    /**
-     * Maps the submitted value to a human-readable string for PDF/email.
-     *
-     * May return an array with 'value' and 'files' keys for upload/signature fields.
-     *
-     * @param mixed $value  The submitted value.
-     * @param array $config Field configuration array.
-     *
-     * @return string
-     */
+    // Maps the value to a human-readable string for PDF/email; may return an
+    // array with 'value'/'files' keys for upload/signature fields.
     public function map(mixed $value, array $config): string
     {
         if ($this->isEmpty($value)) {
@@ -539,30 +388,15 @@ abstract class BaseField
         return (string) $value;
     }
 
-    /**
-     * Returns the client-side empty-check function for this field type.
-     *
-     * Return ['fn' => 'function(fieldEl){ return bool; }'] or [] to use the
-     * generic fallback (first visible input is non-empty).
-     * Collected by Assets::enqueueFront() into window.ForgeEmptyChecks keyed
-     * by field type, so front.js needs no field-specific knowledge.
-     *
-     * @return array
-     */
+    // Client-side empty-check function; [] uses the generic fallback (first
+    // visible input non-empty). Collected into window.ForgeEmptyChecks.
     public function getClientEmptyCheck(): array
     {
         return [];
     }
 
-    /**
-     * Returns client-side validation rules for this field type.
-     *
-     * Each entry: ['rule' => unique rule key, 'fn' => JS function string].
-     * Collected by Assets::enqueueFront() into window.ForgeValidators.
-     * Required/empty is handled implicitly — only declare FORMAT rules here.
-     *
-     * @return array
-     */
+    // Client-side validation rules, collected into window.ForgeValidators.
+    // Required/empty is handled implicitly — only declare FORMAT rules here.
     public function getClientValidation(): array
     {
         return [];
@@ -652,35 +486,13 @@ abstract class BaseField
         return $this->baseGeneralEntries();
     }
 
-    /**
-     * Config keys that are always rendered as plain text (esc_html()/esc_attr()
-     * at output time, never as raw/rich HTML) across every field type that
-     * defines them — confirmed by inspecting every render()/wrap()/inputAttrs()
-     * usage of these keys in includes/Fields/*.php. Kept deliberately small and
-     * conservative: any key not on this list keeps the wp_kses_post() default
-     * below, including known rich-text keys (consent_text, mandate_text,
-     * mandate_note, html_content — the latter has its own sanitizeConfigValue()
-     * override in HtmlField) and any key not fully audited across all
-     * consumers (email/PDF templates), per-field sub-labels, etc.
-     *
-     * Note: FormEditor::sanitizeFields() already treats 'label'/'placeholder'/
-     * 'description' as plain text via its own $plaintext_keys list before this
-     * method is ever reached on that save path — this allowlist exists so
-     * sanitizeConfigValue() is independently correct for any other caller.
-     *
-     * @var string[]
-     */
+    // Config keys always rendered as plain text, never raw/rich HTML. Keep
+    // deliberately small — anything not listed here keeps the wp_kses_post()
+    // default below (rich-text keys like consent_text, html_content, etc.).
     private const PLAIN_TEXT_CONFIG_KEYS = ['label', 'placeholder', 'description'];
 
-    /**
-     * Sanitizes a single string config value for this field type.
-     * Override in subclasses that need a different allowlist (e.g. HtmlField).
-     *
-     * @param string $key   Config key.
-     * @param string $value Raw value.
-     *
-     * @return string
-     */
+    // Sanitizes a single string config value; override for a different
+    // allowlist (e.g. HtmlField).
     public function sanitizeConfigValue(string $key, string $value): string
     {
         if (in_array($key, self::PLAIN_TEXT_CONFIG_KEYS, true)) {
@@ -699,31 +511,19 @@ abstract class BaseField
         return [];
     }
 
-    /**
-     * Returns what the Generator needs to render this field in the PDF.
-     *
-     * The default is correct for every plain text field: show the escaped
-     * value as a labeled row in the main body, no images or attachments.
-     * Only override this when your field needs raw HTML, attaches a file,
-     * or should appear in the media section below the text fields.
-     * Use $this->pdf($field) to build the return value — see _ExampleField.php.
-     *
-     * @param array $field Normalized entry from FieldRegistry::mapSubmission().
-     *
-     * @return array PDF render descriptor.
-     */
+    // What the Generator needs to render this field in the PDF. Default shows
+    // the escaped value as a labeled row; override for raw HTML, file
+    // attachments, or the media section. Use $this->pdf($field) to build.
     public function pdfData(array $field): array
     {
         return $this->pdf($field)->build();
     }
 
     /**
-     * Creates a PdfDescriptor pre-filled with this field's escaped text value.
-     * Chain methods on it, then call ->build() to get the array pdfData() returns.
+     * Creates a PdfDescriptor pre-filled with this field's escaped text value. Chain methods on it, then call
+     * ->build() to get the array pdfData() returns.
      *
      * @param array $field Normalized entry from FieldRegistry::mapSubmission().
-     *
-     * @return \ForgeForms\PDF\PdfDescriptor
      */
     protected function pdf(array $field): \ForgeForms\PDF\PdfDescriptor
     {
@@ -733,20 +533,16 @@ abstract class BaseField
     }
 
     /**
-     * Maps the field's submitted value to one or more normalized output entries.
-     *
-     * Returns array<string, array> keyed by output key → normalized entry.
-     * Default wraps map() in a single entry keyed by $field_id.
-     * Override for multi-entry fields (SEPA) or fields that materialize files.
-     *
-     * $context carries: ['files' => $_FILES subset, 'raw_values' => raw POST values]
+     * Maps the field's submitted value to one or more normalized output entries. Returns array<string, array>
+     * keyed by output key → normalized entry. Default wraps map() in a single entry keyed by $field_id.
+     * Override for multi-entry fields (SEPA) or fields that materialize files. $context carries: ['files' =>
+     * $_FILES subset, 'raw_values' => raw POST values]
      *
      * @param string $field_id Field identifier.
      * @param string $label    Field label.
      * @param mixed  $value    Raw submitted value.
      * @param array  $config   Field configuration.
      * @param array  $context  Submission context.
-     *
      * @return array<string, array>
      */
     public function mapNormalized(
@@ -768,7 +564,6 @@ abstract class BaseField
      *
      * @param mixed  $value    Raw signature value (data: URI).
      * @param string $filename Output filename hint.
-     *
      * @return array File descriptor array, or empty array if invalid.
      */
     protected static function materializeSignature(
@@ -809,8 +604,6 @@ abstract class BaseField
      * Checks whether a submitted value is considered empty.
      *
      * @param mixed $value The value to check.
-     *
-     * @return bool
      */
     protected function isEmpty(mixed $value): bool
     {
@@ -830,8 +623,6 @@ abstract class BaseField
      * @param array  $config      Field configuration array.
      * @param string $inner       Inner HTML content.
      * @param string $extra_class Additional CSS class(es) for the wrapper.
-     *
-     * @return string
      */
     protected function wrap(string $field_id, array $config, string $inner, string $extra_class = ''): string
     {
@@ -866,8 +657,6 @@ abstract class BaseField
      * @param string $field_id Element ID for the input.
      * @param string $type     Input type attribute value.
      * @param array  $extra    Additional attributes to merge.
-     *
-     * @return string
      */
     protected function inputAttrs(array $config, string $field_id, string $type = 'text', array $extra = []): string
     {

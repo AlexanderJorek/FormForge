@@ -253,7 +253,6 @@ CSS;
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Current field value.
-     *
      * @return string Rendered HTML.
      */
     public function render(array $config, string $field_id, mixed $value = null): string
@@ -308,14 +307,9 @@ CSS;
     }
 
     /**
-     * Returns the sanitized slider value.
-     *
-     * Ranged mode submits `$field_id[from]` and `$field_id[to]` as an array;
-     * single mode submits a scalar.
+     * Returns the sanitized slider value. Ranged mode submits `$field_id[from]` and `$field_id[to]` as an array; single mode submits a scalar.
      *
      * @param string $field_id The field element ID.
-     *
-     * @return mixed
      */
     public function extractValue(string $field_id): mixed
     {
@@ -336,7 +330,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return bool|string True on valid, error message string on invalid.
      */
     public function validate(mixed $value, array $config): bool|string
@@ -408,22 +401,26 @@ CSS;
                 if (!wrap) return null;
                 var min = parseFloat(wrap.dataset.min);
                 var max = parseFloat(wrap.dataset.max);
+                var _i18n = window.ForgeForms && window.ForgeForms.i18n;
+                var invalidMsg = (_i18n && _i18n.slider_invalid_value) || 'Please enter a valid value.';
                 if (wrap.classList.contains('forge-slider-wrap--range')) {
                     var fromInp = fieldEl.querySelector('.forge-slider-input-from');
                     var toInp   = fieldEl.querySelector('.forge-slider-input-to');
                     if (!fromInp || !toInp) return null;
                     var from = parseFloat(fromInp.value);
                     var to   = parseFloat(toInp.value);
-                    if (isNaN(from) || isNaN(to)) return 'Please enter a valid value.';
-                    if (from < min || to > max)
-                        return 'Value outside the allowed range (' + min + '–' + max + ').';
+                    if (isNaN(from) || isNaN(to)) return invalidMsg;
+                    if (from < min || to > max) {
+                        return ((_i18n && _i18n.slider_out_of_range) || 'Value outside the allowed range (%1$s–%2$s).')
+                            .replace('%1$s', min).replace('%2$s', max);
+                    }
                 } else {
                     var inp = fieldEl.querySelector('input[type="hidden"]');
                     if (!inp) return null;
                     var val = parseFloat(inp.value);
-                    if (isNaN(val)) return 'Please enter a valid value.';
-                    if (val < min) return 'Minimum value: ' + min;
-                    if (val > max) return 'Maximum value: ' + max;
+                    if (isNaN(val)) return invalidMsg;
+                    if (val < min) return ((_i18n && _i18n.slider_min) || 'Minimum value: %s').replace('%s', min);
+                    if (val > max) return ((_i18n && _i18n.slider_max) || 'Maximum value: %s').replace('%s', max);
                 }
                 return null;
             }
@@ -435,7 +432,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return string Human-readable representation.
      */
     public function map(mixed $value, array $config): string

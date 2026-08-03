@@ -287,11 +287,9 @@ add_action(
 );
 
 /**
- * Sanitizes HTML output from the PDF verifier using wp_kses,
- * with data-URI preservation.
+ * Sanitizes HTML output from the PDF verifier using wp_kses, with data-URI preservation.
  *
  * @param string $html Raw HTML to sanitize.
- *
  * @return string Sanitized HTML.
  */
 function forge_sanitize_verifier_html(string $html): string
@@ -398,41 +396,31 @@ final class Verificationpage
     }
 
     /**
-     * Maximum age (seconds) a file may sit in the verifier temp directories
-     * before the fallback sweep removes it, regardless of why the original
-     * single-event cleanup didn't run. Comfortably above the longest
-     * intentional single-event delay (600s) plus the up-to-30-minute
-     * verification window that can still be reading the file.
+     * Maximum age (seconds) a file may sit in the verifier temp directories before the fallback sweep removes
+     * it, regardless of why the original single-event cleanup didn't run. Comfortably above the longest
+     * intentional single-event delay (600s) plus the up-to-30-minute verification window that can still be
+     * reading the file.
      *
      * @var int
      */
     private const SWEEP_MAX_AGE = 3600;
 
     /**
-     * Maximum accepted PDF size for verification, in bytes.
-     *
-     * UploadField has no fixed ceiling on its own admin-configurable
-     * `max_size_mb` setting (default 10MB, but admins can raise it), and a
-     * form can carry several upload fields each allowing `multiple` files up
-     * to PHP's `max_file_uploads` ini limit — so worst case is comfortably
-     * more than one field's default. 500MB gives real headroom above a
-     * default-config worst case (e.g. 20 images @ 10MB = ~200MB raw) even
-     * before accounting for a raised max_size_mb, while still bounding
-     * worst-case memory/decompression cost via the scaled parse-time budget
+     * Maximum accepted PDF size for verification, in bytes. UploadField has no fixed ceiling on its own
+     * admin-configurable `max_size_mb` setting (default 10MB, but admins can raise it), and a form can carry
+     * several upload fields each allowing `multiple` files up to PHP's `max_file_uploads` ini limit — so
+     * worst case is comfortably more than one field's default. 500MB gives real headroom above a
+     * default-config worst case (e.g. 20 images @ 10MB = ~200MB raw) even before accounting for a raised
+     * max_size_mb, while still bounding worst-case memory/decompression cost via the scaled parse-time budget
      * in handleUpload(), which grows alongside this.
      *
      * @var int
      */
     public const MAX_PDF_BYTES = 500 * 1024 * 1024;
 
-    /**
-     * WP-Cron callback (hourly): sweeps the verifier's temp directories for
-     * any file older than self::SWEEP_MAX_AGE, as a fallback for sites where
-     * WP-Cron doesn't reliably run the one-off cleanup events scheduled by
-     * emitImageSlot()/scheduleDeletion().
-     *
-     * @return void
-     */
+    // WP-Cron callback (hourly): sweeps the verifier's temp directories for any file older than
+    // self::SWEEP_MAX_AGE, as a fallback for sites where WP-Cron doesn't reliably run the one-off cleanup
+    // events scheduled by emitImageSlot()/scheduleDeletion().
     public static function cronSweepTmpDirs(): void
     {
         $upload_dir = wp_upload_dir();
@@ -459,15 +447,11 @@ final class Verificationpage
     }
 
     /**
-     * WP-Cron callback that deletes temp verifier files after a delay.
-     *
-     * Runs on the cron schedule rather than blocking a live PHP-FPM worker
-     * with a sleep() — a handful of concurrent PDF verifications previously
+     * WP-Cron callback that deletes temp verifier files after a delay. Runs on the cron schedule rather than
+     * blocking a live PHP-FPM worker with a sleep() — a handful of concurrent PDF verifications previously
      * held a worker each for up to 120s, which could exhaust the worker pool.
      *
      * @param array<int, string> $files Absolute paths to delete.
-     *
-     * @return void
      */
     public static function cronCleanupFiles(array $files): void
     {
@@ -493,7 +477,6 @@ final class Verificationpage
      * Appends forge-verification-page body class on the verification page.
      *
      * @param string $classes Existing admin body classes.
-     *
      * @return string Modified body class string.
      */
     public static function bodyClass(string $classes): string
@@ -1024,7 +1007,9 @@ final class Verificationpage
         wp_nonce_field('forge_verifier_upload', 'forge_verifier_nonce');
         $idle_style   = $is_request_post ? ' style="' . esc_attr('display:none') . '"' : '';
         $scanmore_cls = $is_request_post ? ' class="' . esc_attr('forge-pdf-visible') . '"' : '';
-        // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- $idle_style/$scanmore_cls are already esc_attr()'d at assignment above; other interpolated values are esc_html()/esc_attr()'d inline.
+        // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- $idle_style/$scanmore_cls are
+        // already esc_attr()'d at assignment above; other interpolated values are esc_html()/esc_attr()'d
+        // inline.
         echo '
         <div id="forge-pdf-idle-state"' . $idle_style . '>
             <div class="forge-pdf-idle-card">
@@ -1404,8 +1389,6 @@ final class Verificationpage
      *
      * @param string $step Current progress step label.
      * @param int    $pct  Progress percentage (0-100).
-     *
-     * @return void
      */
     private static function setProgress(string $step, int $pct): void
     {
@@ -1420,17 +1403,14 @@ final class Verificationpage
     }
 
     /**
-     * Wall-clock checkpoint used between the heavy regex passes in handleUpload().
-     * Throws instead of continuing to consume the raised 300s time budget when a
-     * single request's parsing has already run long — caught by handleUpload()'s
-     * existing try/catch, which renders it as a friendly "Parsing timed out" notice.
+     * Wall-clock checkpoint used between the heavy regex passes in handleUpload(). Throws instead of
+     * continuing to consume the raised 300s time budget when a single request's parsing has already run long
+     * — caught by handleUpload()'s existing try/catch, which renders it as a friendly "Parsing timed out"
+     * notice.
      *
      * @param float  $startTime  Result of microtime(true) captured at parse start.
      * @param float  $maxSeconds Maximum seconds allowed before aborting.
      * @param string $passLabel  Label of the pass that just completed (for the log).
-     *
-     * @return void
-     *
      * @throws \RuntimeException When the elapsed time exceeds $maxSeconds.
      */
     private static function checkParseTimeBudget(float $startTime, float $maxSeconds, string $passLabel): void
@@ -1453,12 +1433,13 @@ final class Verificationpage
      * @param array  $file        Uploaded file data from $_FILES.
      * @param array  $visualLines Lines of text extracted for visual display.
      * @param string $progressKey Transient key for progress reporting.
-     *
-     * @return void
      */
     public static function handleUpload(array $file, array $visualLines = [], string $progressKey = ''): void
     {
-        // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- this method builds its HTML report from values that are already esc_html()/esc_attr()'d at assignment, int-cast, sha256 hashes, or drawn from fixed internal string enums (e.g. $colorspace); WPCS can't trace escaping through double-quoted string interpolation. Re-audit if new echo/interpolation is added below.
+        // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- this method builds its HTML
+        // report from values that are already esc_html()/esc_attr()'d at assignment, int-cast, sha256 hashes,
+        // or drawn from fixed internal string enums (e.g. $colorspace); WPCS can't trace escaping through
+        // double-quoted string interpolation. Re-audit if new echo/interpolation is added below.
         self::$progressKey = $progressKey;
         // Wall-clock checkpoint: this handler runs under a raised 1800s hard ceiling
         // (see set_time_limit(1800) at the top of wp_ajax_forge_verify_push_lines) that
@@ -1478,7 +1459,8 @@ final class Verificationpage
             \ForgeForms\forge_log('ForgeForms handleUpload: rejected "' . $file_name . '" — PHP upload error code ' . $file['error'] . '.');
             // translators: %s: uploaded file name.
             $msg = sprintf(__('Upload failed for %s.', 'form-forge'), esc_html($file_name));
-            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- noticeHtml() wp_kses_post()'s its $message argument internally.
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- noticeHtml() wp_kses_post()'s
+            // its $message argument internally.
             echo self::noticeHtml($msg, 'error');
             return;
         }
@@ -1489,7 +1471,8 @@ final class Verificationpage
             \ForgeForms\forge_log('ForgeForms handleUpload: rejected "' . $file_name . '" — finfo detected MIME "' . $detected_mime . '" instead of application/pdf.');
             // translators: %s: uploaded file name.
             $msg = sprintf(__('Invalid file type for %s.', 'form-forge'), esc_html($file_name));
-            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- noticeHtml() wp_kses_post()'s its $message argument internally.
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- noticeHtml() wp_kses_post()'s
+            // its $message argument internally.
             echo self::noticeHtml($msg, 'error');
             return;
         }
@@ -1530,7 +1513,8 @@ final class Verificationpage
             \ForgeForms\forge_log('ForgeForms handleUpload: rejected "' . $file_name . '" — file_get_contents() failed reading the uploaded temp file.');
             // translators: %s: uploaded file name.
             $msg = sprintf(__('Could not read PDF file: %s.', 'form-forge'), esc_html($file_name));
-            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- noticeHtml() wp_kses_post()'s its $message argument internally.
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- noticeHtml() wp_kses_post()'s
+            // its $message argument internally.
             echo self::noticeHtml($msg, 'error');
             return;
         }
@@ -1552,7 +1536,8 @@ final class Verificationpage
             \ForgeForms\forge_log('ForgeForms handleUpload: rejected "' . $file_name . '" — raw-byte preflight found no seal marker.');
             // translators: %s: uploaded file name.
             $msg = sprintf(__('%s does not contain a forge-pdf seal and cannot be verified.', 'form-forge'), esc_html($file_name)); // phpcs:ignore Generic.Files.LineLength
-            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- noticeHtml() wp_kses_post()'s its $message argument internally.
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- noticeHtml() wp_kses_post()'s
+            // its $message argument internally.
             echo self::noticeHtml($msg, 'error');
             return;
         }
@@ -1636,7 +1621,25 @@ final class Verificationpage
             $diffs = self::diffArrays($original_payload, $rebuilt_payload);
             $seal_rebuilt_match = empty($diffs);
 
-            // --- Font program integrity check (computed before the inner buffer so the fonts section can display it) ---
+            /* ---- PDF RAW PREPARATION ----
+               Hoisted here (before the font-program integrity check) because that
+               check reads $pdf_raw. It previously stayed unset until the "Multiple
+               seals detail section" much further down, so this check always ran
+               against an undefined variable — PHP treats that as null, and
+               null !== false is true, so the branch always executed with an empty
+               string in place of the real PDF bytes. hashFontProgramStreams('')
+               then always returned [], so any seal with recorded font_prog_hashes
+               was flagged as a font-program mismatch on every legitimate PDF. */
+            $pdf_raw = null;
+
+            if (!empty($file['tmp_name']) && is_readable($file['tmp_name'])) {
+                $pdf_raw = file_get_contents($file['tmp_name']);
+            } else {
+                $pdf_raw = false;
+            }
+
+            // --- Font program integrity check (computed before the inner buffer so the fonts section can
+            // display it) ---
             $font_prog_mismatch = false;
             $sealed_fp          = [];
             $live_fp            = [];
@@ -1663,7 +1666,7 @@ final class Verificationpage
                 echo "<div class='forge-pdf-detail-hdr'>";
                 echo "<button type='button' class='button button-small forge-pdf-toggle'"
                    . " data-target='" . esc_attr($struct_section_id) . "'>" . esc_html__('PDF Structure', 'form-forge') . "</button>";
-                echo "<span class='forge-pdf-detail-badge forge-pdf-badge-fail'>FAIL</span>";
+                echo "<span class='forge-pdf-detail-badge forge-pdf-badge-fail'>" . esc_html__('FAIL', 'form-forge') . "</span>";
                 echo "</div>";
                 $eof_n_disp = (int) $incremental_update_eof_count;
                 echo "<div id='" . esc_attr($struct_section_id) . "'"
@@ -1675,11 +1678,18 @@ final class Verificationpage
                 echo "<span class='forge-pdf-pill forge-pdf-pill--fail'>FAIL</span>";
                 echo "</div>";
                 echo "<p style='margin:10px 14px 8px;font-size:12px;color:#444;line-height:1.6'>";
-                echo "A valid PDF has exactly <strong>one</strong> <code>%%%%EOF</code> marker. ";
-                echo "Each extra marker signals that content was <strong>appended after the original ";
-                echo "cross-reference table</strong> was written. This is the standard technique for a ";
-                echo "<strong>PDF shadow attack / incremental update</strong>: an attacker appends new ";
-                echo "objects that override visible content while leaving the original seal intact.";
+                echo wp_kses_post(sprintf(
+                    /* translators: %s: the literal PDF "%%EOF" end-of-file marker, wrapped in <code> */
+                    __(
+                        'A valid PDF has exactly <strong>one</strong> %s marker. Each extra marker signals '
+                            . 'that content was <strong>appended after the original cross-reference table</strong> '
+                            . 'was written. This is the standard technique for a <strong>PDF shadow attack / '
+                            . 'incremental update</strong>: an attacker appends new objects that override visible '
+                            . 'content while leaving the original seal intact.',
+                        'form-forge'
+                    ),
+                    '<code>%%EOF</code>'
+                ));
                 echo "</p>";
                 echo "</div>";
                 echo "</div>";
@@ -1853,7 +1863,8 @@ final class Verificationpage
                                 return null;
                             }
 
-                            // Canonical must be fully consumed; extra trailing PDF text (layout bleed) is tolerated
+                            // Canonical must be fully consumed; extra trailing PDF text (layout bleed) is
+                            // tolerated
                             if (trim(mb_substr($canonical, $c)) !== '') {
                                 return null;
                             }
@@ -1936,16 +1947,6 @@ final class Verificationpage
             echo "</div>"; // forge-pdf-detail-content
             echo "</div>"; // forge-pdf-detail-section
 
-            /* ---- PDF RAW PREPARATION ---- */
-
-            $pdf_raw = null;
-
-            if (!empty($file['tmp_name']) && is_readable($file['tmp_name'])) {
-                $pdf_raw = file_get_contents($file['tmp_name']);
-            } else {
-                $pdf_raw = false;
-            }
-
             // --- Multiple seals detail section ---
             // Each seal found here is verified against the same server-side key lookup as the
             // primary seal — none of them are trusted based on their own embedded key_id alone.
@@ -1981,7 +1982,7 @@ final class Verificationpage
                 echo "<div class='forge-pdf-detail-hdr'>";
                 echo "<button type='button' class='button button-small forge-pdf-toggle'"
                    . " data-target='" . esc_attr($seals_section_id) . "'>" . esc_html__('Seal Blocks', 'form-forge') . "</button>";
-                echo "<span class='forge-pdf-detail-badge forge-pdf-badge-fail'>FAIL</span>";
+                echo "<span class='forge-pdf-detail-badge forge-pdf-badge-fail'>" . esc_html__('FAIL', 'form-forge') . "</span>";
                 echo "</div>";
                 echo "<div id='" . esc_attr($seals_section_id) . "'"
                    . " class='forge-pdf-hidden forge-pdf-detail-content'>";
@@ -1989,8 +1990,14 @@ final class Verificationpage
 
                 $total_seals = count($all_seals_b64);
                 echo "<p style='margin:8px 14px 4px;font-size:12px;color:#d63638;font-weight:600'>";
-                echo esc_html($total_seals) . " seal block(s) found — exactly 1 is expected. ";
-                echo "Any extra seal block is proof of tampering regardless of its HMAC status.";
+                echo esc_html(
+                    sprintf(
+                        /* translators: %d: number of seal blocks found in the PDF (should be exactly 1). */
+                        __('%d seal block(s) found — exactly 1 is expected.', 'form-forge'),
+                        $total_seals
+                    )
+                ) . ' ';
+                echo esc_html__('Any extra seal block is proof of tampering regardless of its HMAC status.', 'form-forge');
                 echo "</p>";
 
                 foreach ($all_seals_b64 as $idx => $sb64) {
@@ -2097,7 +2104,7 @@ final class Verificationpage
             echo "<div class='forge-pdf-detail-hdr'>";
             echo "<button type='button' class='button button-small forge-pdf-toggle'"
                . " data-target='" . esc_attr($fold_id) . "'>"
-               . "Annotations</button>";
+               . esc_html__('Annotations', 'form-forge') . "</button>";
             $annot_badge_id = 'forge-pdf-badge-annots-' . esc_attr($uid_prefix);
             echo "<span id='{$annot_badge_id}' class='forge-pdf-detail-badge forge-pdf-badge-pass'>PASS</span>";
             echo "</div>";
@@ -2108,7 +2115,7 @@ final class Verificationpage
             echo "<div class='forge-pdf-subsection'>";
             echo "<button type='button' class='forge-pdf-subtoggle forge-pdf-toggle'"
                . " data-target='" . esc_attr($fold_dupes_id) . "'>"
-               . "<span class='forge-pdf-subtoggle__icon'>&#9656;</span> Chunk Check"
+               . "<span class='forge-pdf-subtoggle__icon'>&#9656;</span> " . esc_html__('Chunk Check', 'form-forge')
                . "</button>";
             echo "<div id='" . esc_attr($fold_dupes_id) . "'"
                . " class='forge-pdf-hidden forge-pdf-detail-content' style='padding:0;'>";
@@ -2187,23 +2194,25 @@ final class Verificationpage
                             $label      = $payload_field['label'] ?? '';
                             $row_state  = $potential_dupe ? 'warn' : 'pass';
                             $pill_state = $potential_dupe ? 'warn' : 'pass';
-                            $pill_text  = $potential_dupe ? 'MULTI-CHUNK' : 'OK';
+                            $pill_text  = $potential_dupe ? __('MULTI-CHUNK', 'form-forge') : __('OK', 'form-forge');
                             $disp_label = $label !== '' ? esc_html($label) : esc_html($current_marker);
+                            // translators: %d: number of text chunks the field's content was split into.
+                            $chunk_count_label = sprintf(_n('%d chunk', '%d chunks', count($current_chunks), 'form-forge'), count($current_chunks));
 
                             echo "<div class='forge-pdf-cmp-row forge-pdf-cmp-row--{$row_state}'>";
                             echo "<div class='forge-pdf-cmp-header'>"
                                . "<span class='forge-pdf-cmp-label'>{$disp_label}</span>"
                                . "<span class='forge-pdf-cmp-marker'>" . esc_html($current_marker) . "</span>"
-                               . "<span class='forge-pdf-pill forge-pdf-pill--{$pill_state}'>{$pill_text}</span>"
+                               . "<span class='forge-pdf-pill forge-pdf-pill--{$pill_state}'>" . esc_html($pill_text) . "</span>"
                                . "<span style='font-size:10px;color:#787c82;margin-left:4px;'>"
-                               . count($current_chunks) . " chunk(s)</span>"
+                               . esc_html($chunk_count_label) . "</span>"
                                . "</div>";
                             echo "<div class='forge-pdf-cmp-body'>";
                             $seal_v = esc_html((string) $expected_text);
                             $pdf_v  = esc_html((string) $snippet);
-                            echo "<div class='forge-pdf-cmp-col'><div class='forge-pdf-cmp-col__label'>Seal</div>"
+                            echo "<div class='forge-pdf-cmp-col'><div class='forge-pdf-cmp-col__label'>" . esc_html__('Seal', 'form-forge') . "</div>"
                                . "<div class='forge-pdf-cmp-col__value'>{$seal_v}</div></div>";
-                            echo "<div class='forge-pdf-cmp-col'><div class='forge-pdf-cmp-col__label'>PDF chunk</div>"
+                            echo "<div class='forge-pdf-cmp-col'><div class='forge-pdf-cmp-col__label'>" . esc_html__('PDF chunk', 'form-forge') . "</div>"
                                . "<div class='forge-pdf-cmp-col__value'>{$pdf_v}</div></div>";
                             echo "</div></div>\n"; // forge-pdf-cmp-body + forge-pdf-cmp-row
 
@@ -2211,9 +2220,9 @@ final class Verificationpage
                         } else {
                             echo "<div class='forge-pdf-cmp-row forge-pdf-cmp-row--fail'>"
                                . "<div class='forge-pdf-cmp-header'>"
-                               . "<span class='forge-pdf-cmp-label'>Unknown marker</span>"
+                               . "<span class='forge-pdf-cmp-label'>" . esc_html__('Unknown marker', 'form-forge') . "</span>"
                                . "<span class='forge-pdf-cmp-marker'>" . esc_html($current_marker) . "</span>"
-                               . "<span class='forge-pdf-pill forge-pdf-pill--fail'>NOT IN SEAL</span>"
+                               . "<span class='forge-pdf-pill forge-pdf-pill--fail'>" . esc_html__('NOT IN SEAL', 'form-forge') . "</span>"
                                . "</div></div>\n";
                         }
 
@@ -2248,7 +2257,8 @@ final class Verificationpage
                 \ForgeForms\forge_log('ForgeForms handleUpload: could not re-read "' . $file_name . '" for annotation/seal extraction — file_get_contents() failed.');
                 // translators: %s: uploaded file name.
                 $msg = sprintf(__('Could not read PDF content for %s.', 'form-forge'), esc_html($file_name));
-                // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- noticeHtml() wp_kses_post()'s its $message argument internally.
+                // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- noticeHtml()
+                // wp_kses_post()'s its $message argument internally.
                 echo self::noticeHtml($msg, 'error');
             } else {
                 $annotations = [];
@@ -2348,7 +2358,7 @@ final class Verificationpage
                 $annot_btn_target = esc_attr($all_annots_id);
                 echo "<button type='button' class='forge-pdf-subtoggle forge-pdf-toggle'"
                    . " data-target='{$annot_btn_target}'>"
-                   . "<span class='forge-pdf-subtoggle__icon'>&#9656;</span> Annotation List"
+                   . "<span class='forge-pdf-subtoggle__icon'>&#9656;</span> " . esc_html__('Annotation List', 'form-forge')
                    . "</button>";
                 echo "<div id='" . esc_attr($all_annots_id) . "'"
                    . " class='forge-pdf-hidden forge-pdf-detail-content' style='padding:0;'>";
@@ -2456,17 +2466,17 @@ final class Verificationpage
                            . "</div>";
                         echo "<div class='forge-pdf-cmp-body'>";
                         echo "<div class='forge-pdf-cmp-col'>"
-                           . "<div class='forge-pdf-cmp-col__label'>PDF content</div>"
+                           . "<div class='forge-pdf-cmp-col__label'>" . esc_html__('PDF content', 'form-forge') . "</div>"
                            . "<div class='forge-pdf-cmp-col__value'>" . esc_html($content_to_match) . "</div>"
                            . "</div>";
                         echo "<div class='forge-pdf-cmp-col'>"
-                           . "<div class='forge-pdf-cmp-col__label'>Matched to seal</div>"
+                           . "<div class='forge-pdf-cmp-col__label'>" . esc_html__('Matched to seal', 'form-forge') . "</div>"
                            . "<div class='forge-pdf-cmp-col__value'>" . esc_html($matched_to_display) . "</div>"
                            . "</div>";
                         echo "</div></div>\n";
                     }
                 } else {
-                    echo "<p class='forge-pdf-empty-state'>No annotations found in PDF.</p>";
+                    echo "<p class='forge-pdf-empty-state'>" . esc_html__('No annotations found in PDF.', 'form-forge') . "</p>";
                 }
 
                 echo "</div>"; // forge-pdf-cmp-list
@@ -2497,24 +2507,24 @@ final class Verificationpage
                 echo "<div class='forge-pdf-detail-section' id='{$pgcount_sec_id}'>";
                 echo "<div class='forge-pdf-detail-hdr'>";
                 echo "<button type='button' class='button button-small forge-pdf-toggle'"
-                   . " data-target='" . esc_attr($page_box_id) . "'>Page Count</button>";
+                   . " data-target='" . esc_attr($page_box_id) . "'>" . esc_html__('Page Count', 'form-forge') . "</button>";
                 $pgcount_badge = $pagecount_mismatch ? 'forge-pdf-badge-fail' : 'forge-pdf-badge-pass';
-                $pgcount_label = $pagecount_mismatch ? 'FAIL' : 'PASS';
-                echo "<span class='forge-pdf-detail-badge {$pgcount_badge}'>{$pgcount_label}</span>";
+                $pgcount_label = $pagecount_mismatch ? __('FAIL', 'form-forge') : __('PASS', 'form-forge');
+                echo "<span class='forge-pdf-detail-badge {$pgcount_badge}'>" . esc_html($pgcount_label) . "</span>";
                 echo "</div>";
                 $pgcount_hidden = $pagecount_mismatch ? '' : ' forge-pdf-hidden';
                 echo "<div id='" . esc_attr($page_box_id) . "' class='forge-pdf-detail-content{$pgcount_hidden}'>";
                 echo "<div class='forge-pdf-stat-row'>";
-                echo "<div class='forge-pdf-stat'><div class='forge-pdf-stat__label'>Seal</div>"
+                echo "<div class='forge-pdf-stat'><div class='forge-pdf-stat__label'>" . esc_html__('Seal', 'form-forge') . "</div>"
                    . "<div class='forge-pdf-stat__value'>{$expected_pages}</div></div>";
                 echo "<div class='forge-pdf-stat-sep'>→</div>";
-                echo "<div class='forge-pdf-stat'><div class='forge-pdf-stat__label'>PDF</div>"
+                echo "<div class='forge-pdf-stat'><div class='forge-pdf-stat__label'>" . esc_html__('PDF', 'form-forge') . "</div>"
                    . "<div class='forge-pdf-stat__value'>{$object_page_count}</div></div>";
                 echo "</div>";
                 if ($pagecount_mismatch) {
-                    echo "<span class='forge-pdf-pill forge-pdf-pill--fail'>MISMATCH</span>";
+                    echo "<span class='forge-pdf-pill forge-pdf-pill--fail'>" . esc_html__('MISMATCH', 'form-forge') . "</span>";
                 } else {
-                    echo "<span class='forge-pdf-pill forge-pdf-pill--pass'>OK</span>";
+                    echo "<span class='forge-pdf-pill forge-pdf-pill--pass'>" . esc_html__('OK', 'form-forge') . "</span>";
                 }
                 echo "</div>";
                 echo "</div>";
@@ -3045,7 +3055,8 @@ final class Verificationpage
                                         $is_jpeg_obj = in_array('DCTDecode', $filters, true);
 
                                         // --- Exact XObject hash (new seals) ---
-                                        // Hash raw compressed stream bytes — identical between PASS 1 and PASS 2.
+                                        // Hash raw compressed stream bytes — identical between PASS 1 and
+                                        // PASS 2.
                                         // $stream_data is set before any decoding/predictor expansion.
                                 if ($use_exact_hashes) {
                                     $check_hash        = hash('sha256', $stream_data);
@@ -3529,7 +3540,8 @@ final class Verificationpage
 
                 self::setProgress(__('Checking fonts…', 'form-forge'), 94);
 
-                // ── Fonts section ─────────────────────────────────────────────────────
+                // ── Fonts section
+                // ─────────────────────────────────────────────────────
                 $fonts_section_id  = 'forge-pdf-content-fonts-' . $uid_prefix;
                 $fonts_section_sec = 'forge-pdf-section-fonts-' . esc_attr($uid_prefix);
                 echo "<div class='forge-pdf-detail-section' id='{$fonts_section_sec}'>";
@@ -3645,7 +3657,8 @@ final class Verificationpage
                 echo "</div>"; // close fonts foldable content
                 echo "</div>"; // close fonts section wrapper
 
-                // ── PDF Objects section ────────────────────────────────────────────────
+                // ── PDF Objects section
+                // ────────────────────────────────────────────────
                 $objects_section_id  = 'forge-pdf-content-objects-' . $uid_prefix;
                 $objects_section_sec = 'forge-pdf-section-objects-' . esc_attr($uid_prefix);
                 echo "<div class='forge-pdf-detail-section' id='{$objects_section_sec}'>";
@@ -3944,7 +3957,9 @@ final class Verificationpage
                 default
                     => $fn . ': ' . __('The document could not be processed. See server log for details.', 'form-forge'),
             };
-            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $friendly_msg is built from esc_html($file_name) and hardcoded translated strings; noticeHtml() also wp_kses_post()'s its argument.
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $friendly_msg is built from
+            // esc_html($file_name) and hardcoded translated strings; noticeHtml() also wp_kses_post()'s its
+            // argument.
             echo self::noticeHtml($friendly_msg, 'error');
         } finally {
             $pdf_content = ob_get_clean();
@@ -3957,31 +3972,36 @@ final class Verificationpage
             || ($seal_key_status ?? '') === 'compromised-legacy';
 
         if ($document_modified === null) {
+            $verdict_icon  = '';
             $verdict_label = __('Error', 'form-forge');
             $border_color  = '#b32d2e';
             $badge_bg      = '#b32d2e';
             $badge_text    = '#fff';
             $hdr_bg        = '#fff';
         } elseif ($document_modified) {
-            $verdict_label = '⚠ ' . __('Modified', 'form-forge');
+            $verdict_icon  = 'fa-solid fa-triangle-exclamation';
+            $verdict_label = __('Modified', 'form-forge');
             $border_color  = '#d63638';
             $badge_bg      = '#d63638';
             $badge_text    = '#fff';
             $hdr_bg        = '#fff';
         } elseif ($is_compromised) {
-            $verdict_label = '⚠ ' . __('Compromised Key', 'form-forge');
+            $verdict_icon  = 'fa-solid fa-triangle-exclamation';
+            $verdict_label = __('Compromised Key', 'form-forge');
             $border_color  = '#d97706';
             $badge_bg      = '#d97706';
             $badge_text    = '#fff';
             $hdr_bg        = '#fff';
         } elseif (($seal_key_status ?? 'active') !== 'active') {
-            $verdict_label = '↺ ' . __('Rotated Key', 'form-forge');
+            $verdict_icon  = 'fa-solid fa-rotate-left';
+            $verdict_label = __('Rotated Key', 'form-forge');
             $border_color  = '#65a30d';
             $badge_bg      = '#65a30d';
             $badge_text    = '#fff';
             $hdr_bg        = '#fff';
         } else {
-            $verdict_label = '✓ ' . __('Authentic', 'form-forge');
+            $verdict_icon  = 'fa-solid fa-check';
+            $verdict_label = __('Authentic', 'form-forge');
             $border_color  = '#00a32a';
             $badge_bg      = '#00a32a';
             $badge_text    = '#fff';
@@ -3999,9 +4019,12 @@ final class Verificationpage
 
         $badge_base_style = 'font-weight:700;font-size:12px;padding:3px 10px;border-radius:3px;'
             . 'letter-spacing:.5px;white-space:nowrap;';
+        $verdict_icon_html = $verdict_icon
+            ? '<i class="' . esc_attr($verdict_icon) . '" aria-hidden="true"></i> '
+            : '';
         $verdict_badge = '<span class="forge-pdf-pdf-hdr-verdict" style="background:'
             . esc_attr($badge_bg) . ';color:' . esc_attr($badge_text) . ';' . $badge_base_style . '">'
-            . esc_html($verdict_label) . '</span>';
+            . $verdict_icon_html . esc_html($verdict_label) . '</span>';
 
         if ($is_legacy) {
             $legacy_badge = '<span class="forge-pdf-verdict-legacy" style="background:#1a56db;color:#fff;'
@@ -4031,13 +4054,11 @@ final class Verificationpage
 
 
     /**
-     * Scans raw PDF bytes for the FF seal marker without loading the full object graph.
-     *
-     * Reads each FlateDecode stream, decompresses it, and checks both byte
-     * alignments of the mPDF 2-byte Unicode encoding for "---BEGIN-SEAL---".
+     * Scans raw PDF bytes for the FF seal marker without loading the full object graph. Reads each
+     * FlateDecode stream, decompresses it, and checks both byte alignments of the mPDF 2-byte Unicode
+     * encoding for "---BEGIN-SEAL---".
      *
      * @param string $path Absolute filesystem path to the PDF file.
-     *
      * @return bool True if the seal marker is found, false otherwise.
      */
     private static function rawPdfHasSeal(string $path): bool
@@ -4115,13 +4136,11 @@ final class Verificationpage
     }
 
     /**
-     * Determines whether a decoded stream body is a PDF page content stream.
-     *
-     * Checks for control-character-free leading bytes and the presence of
-     * standard PDF content-stream operators (BT, q, Q, cm, Tf, Tj, Td).
+     * Determines whether a decoded stream body is a PDF page content stream. Checks for
+     * control-character-free leading bytes and the presence of standard PDF content-stream operators (BT, q,
+     * Q, cm, Tf, Tj, Td).
      *
      * @param string $decoded Decompressed stream bytes.
-     *
      * @return bool True if the stream looks like a page content stream.
      */
     private static function isPageContentStream(string $decoded): bool
@@ -4137,15 +4156,11 @@ final class Verificationpage
     }
 
     /**
-     * Renders the verification summary panel HTML for a single PDF.
+     * Renders the verification summary panel HTML for a single PDF. Builds a verdict banner and a check-row
+     * table from the supplied result flags, then returns the complete HTML string.
      *
-     * Builds a verdict banner and a check-row table from the supplied
-     * result flags, then returns the complete HTML string.
-     *
-     * @param array $d Associative array of verification result flags and
-     *                 metadata (seal_matches, document_modified, uid_prefix,
-     *                 file_name, etc.).
-     *
+     * @param array $d Associative array of verification result flags and metadata (seal_matches,
+     * document_modified, uid_prefix, file_name, etc.).
      * @return string HTML for the summary panel.
      */
     private static function renderSummaryPanel(array $d): string
@@ -4160,10 +4175,10 @@ final class Verificationpage
  use ($pass, $fail, $caret): string {
             $icon   = $ok ? $pass : $fail;
             $status = $ok
-                ? '<span class="forge-pdf-row-ok">OK</span>'
+                ? '<span class="forge-pdf-row-ok">' . esc_html__('OK', 'form-forge') . '</span>'
                 : '<span class="forge-pdf-row-fail">' . esc_html($detail) . '</span>';
             return "<tr class='forge-pdf-toggle forge-pdf-summary-row' data-target='"
-                . esc_attr($target_id) . "' title='Details anzeigen'>"
+                . esc_attr($target_id) . "' title='" . esc_attr__('Show details', 'form-forge') . "'>"
                 . "<td>{$icon}</td>"
                 . '<td>' . esc_html($label) . '</td>'
                 . "<td class='forge-pdf-row-detail'>{$status}</td>"
@@ -4177,8 +4192,8 @@ final class Verificationpage
         if (!empty($d['incremental_update_detected'])) {
             $rows .= $row(
                 false,
-                'PDF structure',
-                'Incremental update detected',
+                __('PDF structure', 'form-forge'),
+                __('Incremental update detected', 'form-forge'),
                 'forge-pdf-content-structure-' . $uid
             );
         }
@@ -4308,7 +4323,7 @@ final class Verificationpage
             . "<div class='forge-pdf-summary-verdict {$verdict_class}'>{$verdict_text}</div>"
             . $nonce_html
             . "<table class='forge-pdf-summary-table'>"
-            . "<thead><tr><th></th><th>Check</th><th></th><th></th></tr></thead>"
+            . "<thead><tr><th></th><th>" . esc_html__('Check', 'form-forge') . "</th><th></th><th></th></tr></thead>"
             . "<tbody>{$rows}</tbody>"
             . "</table>"
             . "</div>";
@@ -4316,13 +4331,10 @@ final class Verificationpage
 
 
     /**
-     * Reconstructs the canonical HMAC payload array from raw seal data.
-     *
-     * Produces a payload whose key order and value types exactly match
-     * those used by the generator, so the HMAC can be re-verified.
+     * Reconstructs the canonical HMAC payload array from raw seal data. Produces a payload whose key order
+     * and value types exactly match those used by the generator, so the HMAC can be re-verified.
      *
      * @param array $seal_data Decoded seal JSON as an associative array.
-     *
      * @return array Canonical payload ready for HMAC verification.
      */
     private static function rebuildPayload(array $seal_data): array
@@ -4413,14 +4425,11 @@ final class Verificationpage
     }
 
     /**
-     * Hashes every compressed (non-page-content) stream in a raw PDF.
-     *
-     * Decompresses each stream with gzuncompress/gzinflate, skips page
-     * content streams (handled separately), and returns sorted SHA-256
+     * Hashes every compressed (non-page-content) stream in a raw PDF. Decompresses each stream with
+     * gzuncompress/gzinflate, skips page content streams (handled separately), and returns sorted SHA-256
      * hashes for catch-all stream-injection detection.
      *
      * @param string $pdf_raw Raw PDF file bytes.
-     *
      * @return array Sorted array of SHA-256 hex strings.
      */
     private static function hashAllCompressedStreams(string $pdf_raw): array
@@ -4467,14 +4476,11 @@ final class Verificationpage
     }
 
     /**
-     * Extracts and hashes font program streams from FontDescriptor objects.
-     *
-     * Locates /FontFile, /FontFile2, and /FontFile3 references, decompresses
-     * each referenced stream, and returns a sorted list of SHA-256 hashes
-     * for font-program integrity verification.
+     * Extracts and hashes font program streams from FontDescriptor objects. Locates /FontFile, /FontFile2,
+     * and /FontFile3 references, decompresses each referenced stream, and returns a sorted list of SHA-256
+     * hashes for font-program integrity verification.
      *
      * @param string $pdf_raw Raw PDF file bytes.
-     *
      * @return array Sorted array of SHA-256 hex strings.
      */
     private static function hashFontProgramStreams(string $pdf_raw): array
@@ -4516,14 +4522,11 @@ final class Verificationpage
     }
 
     /**
-     * Normalizes a seal field value for comparison against PDF text.
-     *
-     * Decodes HTML entities, strips all tags, and collapses whitespace
-     * to a single space so seal values and extracted PDF text can be
-     * compared with a consistent baseline.
+     * Normalizes a seal field value for comparison against PDF text. Decodes HTML entities, strips all tags,
+     * and collapses whitespace to a single space so seal values and extracted PDF text can be compared with a
+     * consistent baseline.
      *
      * @param string $value Raw field value from the seal payload.
-     *
      * @return string Normalized plain-text value.
      */
     private static function normalizeValue(string $value): string
@@ -4541,15 +4544,13 @@ final class Verificationpage
     }
 
     /**
-     * Recursively computes the differences between two associative arrays.
-     *
-     * Returns a flat list of human-readable mismatch descriptions, including
-     * the dot-notation path of each differing key and the values from each side.
+     * Recursively computes the differences between two associative arrays. Returns a flat list of
+     * human-readable mismatch descriptions, including the dot-notation path of each differing key and the
+     * values from each side.
      *
      * @param array  $a    First array (seal payload).
      * @param array  $b    Second array (rebuilt payload).
      * @param string $path Dot-notation key path prefix for nested calls.
-     *
      * @return array List of difference description strings.
      */
     private static function diffArrays(array $a, array $b, string $path = ''): array
@@ -4590,14 +4591,12 @@ final class Verificationpage
     }
 
     /**
-     * Builds a styled notice card HTML string for pre-flight rejections.
-     *
-     * Matches the forge-vpc error card visual so all server-side rejections
-     * (MIME, %%EOF, no seal, etc.) share a single consistent card design.
+     * Builds a styled notice card HTML string for pre-flight rejections. Matches the forge-vpc error card
+     * visual so all server-side rejections (MIME, %%EOF, no seal, etc.) share a single consistent card
+     * design.
      *
      * @param string $message Notice text (may contain safe HTML).
      * @param string $type    Card type: 'error', 'warning', 'success', or 'info'.
-     *
      * @return string HTML notice card markup.
      */
     private static function noticeHtml(string $message, string $type = 'error'): string
@@ -4628,15 +4627,13 @@ final class Verificationpage
     }
 
     /**
-     * Reverses PNG predictor filtering on an indexed-color image stream.
-     *
-     * Applies None (0), Sub (1), and Up (2) PNG row filters byte-by-byte,
-     * restoring raw palette-index bytes from a FlateDecode+Predictor stream.
+     * Reverses PNG predictor filtering on an indexed-color image stream. Applies None (0), Sub (1), and Up
+     * (2) PNG row filters byte-by-byte, restoring raw palette-index bytes from a FlateDecode+Predictor
+     * stream.
      *
      * @param string $data  Raw (still-filtered) indexed image stream bytes.
      * @param int    $width Image width in pixels.
      * @param int    $bpc   Bits per component (typically 8 for indexed images).
-     *
      * @return string Decoded index-stream bytes with predictor removed.
      */
     private static function undoPngPredictorIndexed(
@@ -4685,17 +4682,12 @@ final class Verificationpage
     }
 
     /**
-     * Emits an empty placeholder div for a PDF image XObject.
-     *
-     * Registers the image file for deferred deletion via a shutdown function
-     * and outputs a data-attribute slot that JavaScript later populates with
-     * the fully rendered image card.
+     * Emits an empty placeholder div for a PDF image XObject. Registers the image file for deferred deletion
+     * via a shutdown function and outputs a data-attribute slot that JavaScript later populates with the
+     * fully rendered image card. decoded_len, allowed, file_path).
      *
      * @param string $uid  Unique slot identifier used as the element ID.
      * @param array  $meta Image metadata (colorspace, width, height, img_id,
-     *                     decoded_len, allowed, file_path).
-     *
-     * @return void
      */
     private static function emitImageSlot(string $uid, array $meta): void
     {
@@ -4729,22 +4721,16 @@ final class Verificationpage
     }
 
     /**
-     * Schedules a temporary PDF file for deletion after the request ends.
-     *
-     * Registers a shutdown function (once) that waits until the same 2100s
-     * (35 minute) window as the forge_pdf_{token} transient set alongside
-     * this file, then retries unlink up to five times per file — the file
-     * must outlive every request that can legitimately still read it via
-     * that token (forge_verify_push_lines/forge_serve_pdf), which can run
-     * up to set_time_limit(1800) seconds after the initial upload response,
-     * plus the soft per-pass parse budget on top of that. A shorter window
-     * here previously raced those follow-up requests — keep this in sync
-     * with the transient TTL above and with set_time_limit() at the top of
+     * Schedules a temporary PDF file for deletion after the request ends. Registers a shutdown function
+     * (once) that waits until the same 2100s (35 minute) window as the forge_pdf_{token} transient set
+     * alongside this file, then retries unlink up to five times per file — the file must outlive every
+     * request that can legitimately still read it via that token (forge_verify_push_lines/forge_serve_pdf),
+     * which can run up to set_time_limit(1800) seconds after the initial upload response, plus the soft
+     * per-pass parse budget on top of that. A shorter window here previously raced those follow-up requests
+     * — keep this in sync with the transient TTL above and with set_time_limit() at the top of
      * wp_ajax_forge_verify_push_lines if either is ever changed again.
      *
      * @param string $file_path Absolute path to the PDF file to delete.
-     *
-     * @return void
      */
     private static function scheduleDeletion(string $file_path): void
     {
@@ -4767,15 +4753,12 @@ final class Verificationpage
     }
 
     /**
-     * Fills a previously emitted image slot with rendered image card HTML.
-     *
-     * Wraps the HTML in a relocatable container carrying the slot UID so
-     * the client-side image-slot JS can move it into the correct placeholder.
+     * Fills a previously emitted image slot with rendered image card HTML. Wraps the HTML in a relocatable
+     * container carrying the slot UID so the client-side image-slot JS can move it into the correct
+     * placeholder.
      *
      * @param string $uid  Slot identifier matching the placeholder element ID.
      * @param string $html Rendered image card HTML to inject into the slot.
-     *
-     * @return void
      */
     private static function fillImageSlot(string $uid, string $html): void
     {

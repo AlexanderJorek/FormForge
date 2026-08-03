@@ -53,31 +53,22 @@ class CaptchaField extends BaseField
         return 'fa-solid fa-robot';
     }
 
-    /**
-     * Does NOT enqueue the reCAPTCHA script — see render(). Loading
-     * google.com/recaptcha/api.js unconditionally would connect the visitor's
-     * browser to Google on every page load containing this field, before any
-     * interaction or consent (GDPR Art. 13 third-party disclosure). Instead the
-     * widget is loaded on demand, from a click-to-activate placeholder rendered
-     * in render().
-     *
-     * @return void
-     */
+    // Does NOT enqueue the reCAPTCHA script — see render(). Loading google.com/recaptcha/api.js
+    // unconditionally would connect the visitor's browser to Google on every page load containing this field,
+    // before any interaction or consent (GDPR Art. 13 third-party disclosure). Instead the widget is loaded
+    // on demand, from a click-to-activate placeholder rendered in render().
     public function enqueueFrontScripts(): void
     {
     }
 
     /**
-     * Renders the field HTML.
-     *
-     * Renders a click-to-activate placeholder rather than the live widget: the
-     * reCAPTCHA script (and the connection to Google it triggers) is only
-     * loaded once the visitor explicitly clicks to enable it, not on page load.
+     * Renders the field HTML. Renders a click-to-activate placeholder rather than the live widget: the
+     * reCAPTCHA script (and the connection to Google it triggers) is only loaded once the visitor explicitly
+     * clicks to enable it, not on page load.
      *
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Current field value.
-     *
      * @return string Rendered HTML.
      */
     public function render(array $config, string $field_id, mixed $value = null): string
@@ -104,7 +95,6 @@ class CaptchaField extends BaseField
      * Reads the reCAPTCHA token from the fixed POST key injected by the widget.
      *
      * @param string $field_id Unused — reCAPTCHA always posts to 'g-recaptcha-response'.
-     *
      * @return string
      */
     public function extractValue(string $field_id): mixed
@@ -120,7 +110,6 @@ class CaptchaField extends BaseField
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return bool|string True on valid, error message string on invalid.
      */
     public function validate(mixed $value, array $config): bool|string
@@ -158,7 +147,6 @@ class CaptchaField extends BaseField
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return string Human-readable representation.
      */
     public function map(mixed $value, array $config): string

@@ -34,12 +34,10 @@ defined('ABSPATH') || exit;
 class MailSender
 {
     /**
-     * Strips newlines from a value before it's interpolated into a log line,
-     * preventing a crafted slug/recipient from forging adjacent log entries.
+     * Strips newlines from a value before it's interpolated into a log line, preventing a crafted
+     * slug/recipient from forging adjacent log entries.
      *
      * @param mixed $value Value to sanitize for logging.
-     *
-     * @return string
      */
     private static function logSafe(mixed $value): string
     {
@@ -47,14 +45,11 @@ class MailSender
     }
 
     /**
-     * Masks an email address (or comma-separated list of them) for debug logging,
-     * keeping only enough to distinguish log lines during troubleshooting without
-     * writing full recipient addresses — personal data — into PHP's error_log, a
-     * sink this plugin doesn't control and can't clean up on uninstall.
+     * Masks an email address (or comma-separated list of them) for debug logging, keeping only enough to
+     * distinguish log lines during troubleshooting without writing full recipient addresses — personal data
+     * — into PHP's error_log, a sink this plugin doesn't control and can't clean up on uninstall.
      *
      * @param mixed $value Email address, or comma-separated list of addresses.
-     *
-     * @return string
      */
     private static function maskEmail(mixed $value): string
     {
@@ -95,16 +90,12 @@ class MailSender
     }
 
     /**
-     * Hooked into forge_forms_submission; generates and emails the submission PDF.
-     *
-     * Generates the PDF once and sends one email per enabled notification,
-     * attaching the PDF to those with attach_pdf = true.
+     * Hooked into forge_forms_submission; generates and emails the submission PDF. Generates the PDF once and
+     * sends one email per enabled notification, attaching the PDF to those with attach_pdf = true.
      *
      * @param int       $form_id The form post ID.
      * @param array     $mapped  Normalized field data from FieldRegistry::mapSubmission().
      * @param FormModel $form    The form model object.
-     *
-     * @return void
      */
     public static function onSubmission(int $form_id, array $mapped, FormModel $form): void
     {
@@ -285,12 +276,10 @@ class MailSender
     }
 
     /**
-     * Writes non-image uploaded files to temp paths so wp_mail() can attach them.
-     * Each path preserves the original filename so mail clients display it right.
-     * Caller is responsible for unlinking after send.
+     * Writes non-image uploaded files to temp paths so wp_mail() can attach them. Each path preserves the
+     * original filename so mail clients display it right. Caller is responsible for unlinking after send.
      *
      * @param array $mapped Normalized submission data.
-     *
      * @return array Absolute paths to materialized temp files.
      */
     private static function materializeUploadAttachments(array $mapped): array
@@ -345,7 +334,6 @@ class MailSender
      * @param string    $to     Recipient address or placeholder.
      * @param array     $mapped Mapped submission data.
      * @param FormModel $form   The form model instance.
-     *
      * @return string Resolved email address, or empty string when invalid.
      */
     private static function resolveRecipient(
@@ -359,15 +347,12 @@ class MailSender
     }
 
     /**
-     * Resolves the recipient for a notification in "routing" mode.
-     *
-     * Walks routing_rules in order and returns the email of the first matching
-     * rule, falling back to routing_fallback when none match.
+     * Resolves the recipient for a notification in "routing" mode. Walks routing_rules in order and returns
+     * the email of the first matching rule, falling back to routing_fallback when none match.
      *
      * @param array     $notif  Notification config (routing_rules, routing_fallback).
      * @param array     $mapped Mapped submission data.
      * @param FormModel $form   The form model instance (for option labels).
-     *
      * @return string Resolved email, or empty string when none apply.
      */
     private static function resolveRoutedRecipient(
@@ -411,15 +396,13 @@ class MailSender
     }
 
     /**
-     * Translates a field's raw option value to its display label.
-     *
-     * Mirrors how field handlers (e.g. SelectField::map) render submitted values.
-     * Returns the input unchanged for non-choice fields or unknown options.
+     * Translates a field's raw option value to its display label. Mirrors how field handlers (e.g.
+     * SelectField::map) render submitted values. Returns the input unchanged for non-choice fields or unknown
+     * options.
      *
      * @param FormModel $form     The form model instance.
      * @param string    $field_id Field identifier to look up.
      * @param string    $raw      Raw option value from the routing rule.
-     *
      * @return string The option's label, or $raw unchanged.
      */
     private static function resolveOptionLabel(
@@ -450,7 +433,6 @@ class MailSender
      * @param string $actual   The submitted field value.
      * @param string $operator One of the supported comparison operators.
      * @param string $expected The rule's comparison value.
-     *
      * @return bool Whether the rule matches.
      */
     private static function ruleMatches(
@@ -487,7 +469,6 @@ class MailSender
      * @param string    $text   Template string with placeholders.
      * @param array     $mapped Mapped submission data.
      * @param FormModel $form   The form model instance.
-     *
      * @return string Text with placeholders replaced.
      */
     private static function replacePlaceholders(
@@ -581,17 +562,14 @@ class MailSender
     }
 
     /**
-     * Builds a complete HTML email body from a template.
-     *
-     * The notification body is always stored as HTML (whether authored via
-     * the visual editor or the HTML source editor — they share one field),
-     * so the only decision left here is structural: wrap bare markup in a
-     * minimal document if the admin didn't already author a full one.
+     * Builds a complete HTML email body from a template. The notification body is always stored as HTML
+     * (whether authored via the visual editor or the HTML source editor — they share one field), so the
+     * only decision left here is structural: wrap bare markup in a minimal document if the admin didn't
+     * already author a full one.
      *
      * @param string    $body_template Email body template string (HTML).
      * @param array     $mapped        Mapped submission data.
      * @param FormModel $form          The form model instance.
-     *
      * @return string Complete HTML email body.
      */
     private static function buildEmailBody(
@@ -613,12 +591,10 @@ class MailSender
     }
 
     /**
-     * Derives a readable plain-text version of an HTML email body for the
-     * multipart/alternative AltBody part. Never stored — generated fresh
-     * for every send.
+     * Derives a readable plain-text version of an HTML email body for the multipart/alternative AltBody part.
+     * Never stored — generated fresh for every send.
      *
      * @param string $html HTML email body.
-     *
      * @return string Plain text equivalent.
      */
     private static function htmlToPlainText(string $html): string

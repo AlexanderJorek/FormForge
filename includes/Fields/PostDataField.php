@@ -71,7 +71,6 @@ class PostDataField extends BaseField
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Current field value.
-     *
      * @return string Rendered HTML.
      */
     public function render(array $config, string $field_id, mixed $value = null): string
@@ -98,13 +97,9 @@ class PostDataField extends BaseField
     }
 
     /**
-     * Regenerates the post-data array from the current post, ignoring any
-     * client-submitted value — this is server-authoritative metadata and
-     * must never be trusted from $_POST.
+     * Regenerates the post-data array from the current post, ignoring any client-submitted value — this is server-authoritative metadata and must never be trusted from $_POST.
      *
      * @param string $field_id The field element ID.
-     *
-     * @return mixed
      */
     public function extractValue(string $field_id): mixed
     {
@@ -123,13 +118,10 @@ class PostDataField extends BaseField
     }
 
     /**
-     * Maps the post-data array to a comma-separated string for email/PDF output,
-     * limited to the fields selected in the field configuration.
+     * Maps the post-data array to a comma-separated string for email/PDF output, limited to the fields selected in the field configuration.
      *
      * @param mixed $value  Server-regenerated value (array of post field strings).
      * @param array $config Field configuration.
-     *
-     * @return string
      */
     public function map(mixed $value, array $config): string
     {

@@ -102,7 +102,6 @@ CSS;
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Current field value.
-     *
      * @return string Rendered HTML.
      */
     public function sanitizeConfigValue(string $key, string $value): string
@@ -111,11 +110,9 @@ CSS;
     }
 
     /**
-     * The wp_kses() allowlist used to sanitize html_content: wp_kses_post()'s
-     * allowlist plus form-elements and inline SVG, since this field is meant
-     * to support both. Single source of truth for self::kses() and for
-     * Generator.php's PDF pass (see trustedPdfAllowedTags()) so the two never
-     * drift out of sync.
+     * The wp_kses() allowlist used to sanitize html_content: wp_kses_post()'s allowlist plus form-elements
+     * and inline SVG, since this field is meant to support both. Single source of truth for self::kses() and
+     * for Generator.php's PDF pass (see trustedPdfAllowedTags()) so the two never drift out of sync.
      *
      * @return array wp_kses()-compatible allowed-tags array.
      */
@@ -161,15 +158,12 @@ CSS;
     }
 
     /**
-     * Public accessor for the same allowlist self::kses() enforces, used by
-     * Generator.php to widen its own defense-in-depth wp_kses() pass for
-     * cell_html built via PdfDescriptor::rawHtml($html, true) — i.e. content
-     * this field already sanitized against this exact allowlist upstream.
-     * Re-narrowing it to the generic value-only allowlist there would strip
-     * the rich markup (headings, tables, inline SVG, ...) this field
-     * deliberately supports; using an allowlist narrower than what this
-     * class itself already enforced would be pointless, and using one wider
-     * would defeat the point of tracking "trusted" at all.
+     * Public accessor for the same allowlist self::kses() enforces, used by Generator.php to widen its own
+     * defense-in-depth wp_kses() pass for cell_html built via PdfDescriptor::rawHtml($html, true) — i.e.
+     * content this field already sanitized against this exact allowlist upstream. Re-narrowing it to the
+     * generic value-only allowlist there would strip the rich markup (headings, tables, inline SVG, ...) this
+     * field deliberately supports; using an allowlist narrower than what this class itself already enforced
+     * would be pointless, and using one wider would defeat the point of tracking "trusted" at all.
      *
      * @return array wp_kses()-compatible allowed-tags array.
      */
@@ -237,7 +231,6 @@ CSS;
      * @param mixed  $value    Raw submitted value (unused).
      * @param array  $config   Field configuration.
      * @param array  $context  Submission context (unused).
-     *
      * @return array<string, array>
      */
     public function mapNormalized(
@@ -263,7 +256,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return string Human-readable representation.
      */
     public function map(mixed $value, array $config): string
@@ -272,11 +264,10 @@ CSS;
     }
 
     /**
-     * Override: the stored value is already HTML, so it must not be escaped.
-     * If the form author left the label blank, skip the label row entirely.
+     * Override: the stored value is already HTML, so it must not be escaped. If the form author left the
+     * label blank, skip the label row entirely.
      *
      * @param array $field Normalized entry from FieldRegistry::mapSubmission().
-     *
      * @return array PDF render descriptor.
      */
     public function pdfData(array $field): array
@@ -299,14 +290,12 @@ CSS;
     }
 
     /**
-     * Removes any <img src>/CSS url() reference mPDF would otherwise fetch as a
-     * remote resource, keeping only same-origin (site) URLs, relative paths,
-     * and data: URIs. Used only on the PDF-render path — the live on-page
-     * render (render()/self::kses()) is unaffected since a browser fetching a
-     * remote image is normal, safe behaviour with no server-side SSRF risk.
+     * Removes any <img src>/CSS url() reference mPDF would otherwise fetch as a remote resource, keeping only
+     * same-origin (site) URLs, relative paths, and data: URIs. Used only on the PDF-render path — the live
+     * on-page render (render()/self::kses()) is unaffected since a browser fetching a remote image is normal,
+     * safe behaviour with no server-side SSRF risk.
      *
      * @param string $html Already wp_kses()-sanitized HTML (self::kses() output).
-     *
      * @return string HTML with disallowed remote resource references stripped.
      */
     private static function stripRemoteResourcesForPdf(string $html): string
@@ -371,7 +360,7 @@ CSS;
     {
         return [
             'label'        => __('HTML Block', 'form-forge'),
-            'html_content' => '<p>Text hier</p>',
+            'html_content' => '<p>' . esc_html__('Text here', 'form-forge') . '</p>',
             'required'     => false,
             'description'  => '',
         ];

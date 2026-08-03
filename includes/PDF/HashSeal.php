@@ -33,7 +33,11 @@ class HashSeal
     // against a different PBKDF2 use elsewhere. Actual entropy comes from the admin
     // password plus the random per-key salt, not from this constant.
     private const PEPPER     = 'forge_seal_kdf_v1';
-    private const KDF_ROUNDS = 200000;
+    // OWASP Password Storage Cheat Sheet (2023 revision) recommends >=600,000
+    // iterations for PBKDF2-HMAC-SHA256; 200,000 was the pre-2023 baseline and is
+    // now under-provisioned against offline brute-force of the admin-chosen
+    // password this KDF turns into the seal-signing/encryption key.
+    private const KDF_ROUNDS = 600000;
     private const KDF_LEN    = 32;
     private const ENC_PREFIX = 'enc::';
 
@@ -94,7 +98,6 @@ class HashSeal
      * Encrypts a key value using AES-256-GCM.
      *
      * @param string $plaintext Plaintext key value.
-     *
      * @return string Encrypted value prefixed with nonce and tag.
      */
     private static function encryptKey(string $plaintext): string
@@ -119,7 +122,6 @@ class HashSeal
      * Decrypts an encrypted key value; returns plaintext if not encrypted.
      *
      * @param string $value Encrypted or plaintext key value.
-     *
      * @return string Decrypted plaintext key.
      */
     private static function decryptKey(string $value): string
@@ -147,7 +149,6 @@ class HashSeal
      * Encrypts a value only when encryption is enabled; otherwise returns it as-is.
      *
      * @param string $plaintext Plaintext value to conditionally encrypt.
-     *
      * @return string Encrypted value or original plaintext.
      */
     private static function maybeEncrypt(string $plaintext): string
@@ -155,12 +156,8 @@ class HashSeal
         return self::isEncryptionEnabled() ? self::encryptKey($plaintext) : $plaintext;
     }
 
-    /**
-     * After the admin enables encryption, re-encrypt all existing plaintext keys in-place.
-     * Safe to call multiple times — already-encrypted values are left untouched.
-     *
-     * @return void
-     */
+    // After the admin enables encryption, re-encrypt all existing plaintext keys in-place. Safe to call
+    // multiple times — already-encrypted values are left untouched.
     public static function encryptExistingKeys(): void
     {
         // Active key
@@ -199,8 +196,8 @@ class HashSeal
     /* ------------------------------------------------------------------ */
 
     /**
-     * Return the active key record as ['uuid' => string, 'key' => plaintext string].
-     * Auto-generates and flags pending download when no valid key exists.
+     * Return the active key record as ['uuid' => string, 'key' => plaintext string]. Auto-generates and flags
+     * pending download when no valid key exists.
      *
      * @return array|null Active key record, or null when none can be resolved.
      */
@@ -234,16 +231,12 @@ class HashSeal
      *
      * @param string $uuid          UUID of the key.
      * @param string $plaintext_key Plaintext key value.
-     *
      * @return void
      */
-    /**
-     * How long a rotated/new plaintext key may sit waiting for the admin to
-     * open the download page before it expires. Stored as a transient (not a
-     * plain option) specifically so it self-expires even if the admin never
-     * visits the download page — a plain wp_options row would otherwise keep
-     * the plaintext key indefinitely.
-     */
+    // How long a rotated/new plaintext key may sit waiting for the admin to open the download page before it
+    // expires. Stored as a transient (not a plain option) specifically so it self-expires even if the admin
+    // never visits the download page — a plain wp_options row would otherwise keep the plaintext key
+    // indefinitely.
     private const PENDING_DOWNLOAD_TTL = 10 * MINUTE_IN_SECONDS;
 
     private static function setPendingDownload(string $uuid, string $plaintext_key): void
@@ -285,7 +278,6 @@ class HashSeal
      * Derives a key hex string from a password using PBKDF2-SHA256.
      *
      * @param string $password The password to derive from.
-     *
      * @return string Derived key as hex string.
      */
     private static function deriveKey(string $password, string $salt): string
@@ -296,11 +288,10 @@ class HashSeal
     }
 
     /**
-     * Validates a password against the seal key's strength requirements
-     * (length, upper/lowercase, digit, special character).
+     * Validates a password against the seal key's strength requirements (length, upper/lowercase, digit,
+     * special character).
      *
      * @param string $password The password to validate.
-     *
      * @return string[] Array of validation error messages; empty when valid.
      */
     public static function validatePassword(string $password): array
@@ -332,11 +323,10 @@ class HashSeal
      *
      * @param string $password       Password used to derive the new key via PBKDF2.
      * @param bool   $compromised    True to flag the retiring key as compromised.
-     * @param bool   $nonce_verified True when the caller has already verified a CSRF
-     *                               nonce for this request (e.g. via check_ajax_referer()
-     *                               in an AJAX handler). When false, this method performs
-     *                               its own fallback nonce check.
-     *
+     * @param bool   $nonce_verified True when the caller has already verified a CSRF nonce for
+     *                                this request (e.g. via check_ajax_referer() in an AJAX
+     *                                handler). When false, this method performs its own
+     *                                fallback nonce check.
      * @return array{uuid: string, key: string, created_at: string}
      */
     public static function rotateKey(string $password, bool $compromised, bool $nonce_verified = false): array
@@ -358,7 +348,7 @@ class HashSeal
 
         $errors = self::validatePassword($password);
         if (!empty($errors)) {
-            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- this is an exception message, not an HTML-output sink; esc_html() here would double-escape when the caller later echoes the caught message through its own esc_html() at render time. $errors is also entirely composed of this class's own __() strings (see validatePassword()), never user input.
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- exception message, not an HTML-output sink; $errors is composed only of this class's own __() strings (see validatePassword()), never user input; the caller re-escapes via esc_html() at render time.
             throw new \InvalidArgumentException(implode(' ', $errors));
         }
 
@@ -398,10 +388,9 @@ class HashSeal
     }
 
     /**
-     * Claims and removes a pending key download transient.
+     * Claims and removes a pending key download transient. Key record, or null if none is pending.
      *
      * @return array{uuid: string, key: string, created_at: string}|null
-     *                Key record, or null if none is pending.
      */
     public static function claimPendingDownload(): ?array
     {
@@ -430,7 +419,6 @@ class HashSeal
      *
      * @param array  $data The payload that was originally sealed.
      * @param string $hmac The HMAC seal to verify.
-     *
      * @return array{valid: bool, key_status: string|null, compromised: bool}
      */
     public static function verify(array $data, string $hmac): array
@@ -515,19 +503,16 @@ class HashSeal
     }
 
     /**
-     * Manually imports a key into history as a legacy entry.
+     * Manually imports a key into history as a legacy entry. Used when recovering keys after a server loss.
      *
-     * Used when recovering keys after a server loss.
-     *
-     * @param string $uuid       UUID of the key to import.
-     * @param string $key_value  Raw key value (hex string).
+     * @param string $uuid           UUID of the key to import.
+     * @param string $key_value      Raw key value (hex string).
      * @param string $created_at     ISO 8601 creation timestamp, or empty for now.
      * @param string $status         One of 'rotated-legacy' or 'compromised-legacy'.
-     * @param bool   $nonce_verified True when the caller has already verified a CSRF
-     *                               nonce for this request (e.g. via check_ajax_referer()
-     *                               in an AJAX handler). When false, this method performs
-     *                               its own fallback nonce check.
-     *
+     * @param bool   $nonce_verified True when the caller has already verified a CSRF nonce for
+     *                                this request (e.g. via check_ajax_referer() in an AJAX
+     *                                handler). When false, this method performs its own
+     *                                fallback nonce check.
      * @return void
      */
     public static function addLegacyKey(
@@ -577,19 +562,14 @@ class HashSeal
     /* ------------------------------------------------------------------ */
 
     /**
-     * Generates an HMAC-SHA256 seal over the given data payload.
-     *
-     * Note: this seal is a deterministic keyed fingerprint of the full payload —
-     * the same payload sealed with the same active key always produces the same
-     * seal value. That determinism makes it an unintended cross-submission
-     * correlation primitive for as long as a given key stays active (two
-     * submissions with identical content are trivially linkable by anyone who
-     * can compare seals). Do not treat the seal as safe for public/third-party
-     * disclosure, and consider a shorter key-rotation cadence for
-     * higher-sensitivity forms.
+     * Generates an HMAC-SHA256 seal over the given data payload. Note: this seal is a deterministic keyed
+     * fingerprint of the full payload — the same payload sealed with the same active key always produces
+     * the same seal value. That determinism makes it an unintended cross-submission correlation primitive for
+     * as long as a given key stays active (two submissions with identical content are trivially linkable by
+     * anyone who can compare seals). Do not treat the seal as safe for public/third-party disclosure, and
+     * consider a shorter key-rotation cadence for higher-sensitivity forms.
      *
      * @param array $data Payload to seal.
-     *
      * @return string Hex-encoded HMAC seal.
      */
     public static function generate(array $data): string

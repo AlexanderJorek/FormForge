@@ -35,6 +35,8 @@ class GdprField extends BaseField
      */
     public function getStyles(): string
     {
+        // phpcs:disable Generic.Files.LineLength -- the checkbox-checkmark background-image is an
+        // inline SVG data URI; splitting it across lines risks corrupting the encoded markup.
         return <<<'CSS'
 .forge-gdpr-label {
     display: flex;
@@ -75,6 +77,7 @@ class GdprField extends BaseField
 .forge-gdpr-text a { color: var(--forge-accent); text-decoration: underline; }
 .forge-gdpr-text a:hover { color: var(--forge-accent-dark); }
 CSS;
+        // phpcs:enable Generic.Files.LineLength
     }
 
     /**
@@ -92,12 +95,8 @@ CSS;
         return __('GDPR Checkbox', 'form-forge');
     }
 
-    /**
-     * Returns false because GDPR acceptance is always mandatory — validate()
-     * enforces it unconditionally, so a "required" toggle would be misleading.
-     *
-     * @return bool
-     */
+    // Returns false because GDPR acceptance is always mandatory — validate() enforces it unconditionally,
+    // so a "required" toggle would be misleading.
     public function hasRequired(): bool
     {
         return false;
@@ -119,7 +118,6 @@ CSS;
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Current field value.
-     *
      * @return string Rendered HTML.
      */
     public function render(array $config, string $field_id, mixed $value = null): string
@@ -153,7 +151,8 @@ CSS;
                 . ' WP privacy policy page is set — rendering acknowledgment text without a link.'
             );
             $text = sprintf(
-                // translators: %s: privacy policy link text (rendered without a link since no URL is configured).
+                // translators: %s: privacy policy link text (rendered without a link since no URL is
+                // configured).
                 __('I have read and acknowledge the %s.', 'form-forge'),
                 $policy_text
             );
@@ -173,7 +172,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return bool|string True on valid, error message string on invalid.
      */
     public function validate(mixed $value, array $config): bool|string
@@ -187,17 +185,14 @@ CSS;
     }
 
     /**
-     * Maps the field value to a human-readable string for email and PDF output.
-     *
-     * Embeds the acknowledged policy link text/URL and a submission timestamp (not just
-     * a bare "accepted" string) so the sealed PDF record can independently demonstrate
-     * what was acknowledged and when — GDPR Art. 7(1) requires the controller to be able
-     * to demonstrate consent/notice was given; a bare boolean can't do that if the linked
-     * privacy policy is edited later.
+     * Maps the field value to a human-readable string for email and PDF output. Embeds the acknowledged
+     * policy link text/URL and a submission timestamp (not just a bare "accepted" string) so the sealed PDF
+     * record can independently demonstrate what was acknowledged and when — GDPR Art. 7(1) requires the
+     * controller to be able to demonstrate consent/notice was given; a bare boolean can't do that if the
+     * linked privacy policy is edited later.
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return string Human-readable representation.
      */
     public function map(mixed $value, array $config): string
@@ -208,7 +203,8 @@ CSS;
         $policy_text = wp_strip_all_tags((string)($config['privacy_policy_text'] ?? __('Privacy policy', 'form-forge')));
         $policy_url  = (string)($config['privacy_policy_url'] ?? get_privacy_policy_url());
         return sprintf(
-            // translators: %1$s: privacy policy link text, %2$s: privacy policy URL, %3$s: acknowledgment timestamp.
+            // translators: %1$s: privacy policy link text, %2$s: privacy policy URL, %3$s: acknowledgment
+            // timestamp.
             __('Acknowledged "%1$s" (%2$s) on %3$s', 'form-forge'),
             $policy_text,
             $policy_url,

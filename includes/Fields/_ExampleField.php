@@ -368,13 +368,13 @@ class ExampleField extends BaseField
      */
     private function exampleExtractParallelArrays(string $field_id): mixed
     {
-        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is
-        // verified once in FormProcessor::handle() before field extraction runs.
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
+        $files = $_FILES[$field_id] ?? [];
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
+        $desc  = $_POST[$field_id . '_desc'] ?? [];
         return [
-            'files' => $_FILES[$field_id]          ?? [],
-            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is
-            // verified once in FormProcessor::handle() before field extraction runs.
-            'desc'  => $_POST[$field_id . '_desc'] ?? [],
+            'files' => $files,
+            'desc'  => $desc,
         ];
     }
 
@@ -608,6 +608,11 @@ class ExampleField extends BaseField
      * Rule keys must be globally unique — prefix with the field type if unsure.
      * The function receives the outer .forge-field wrapper element, not the input.
      * Return null = valid, return string = error message shown below the field.
+     *
+     * Note the i18n lookup below — per the "Do NOT return raw German strings" rule
+     * in the MAP section above, JS-side error text must read from
+     * window.ForgeForms.i18n (registered in Assets::enqueueFront()) with an
+     * English literal as the fallback, not a bare hardcoded string.
      */
     private function exampleClientValidationZip(): array
     {
@@ -615,8 +620,9 @@ class ExampleField extends BaseField
             function (fieldEl) {
                 var inp = fieldEl.querySelector('input');
                 if (!inp || !inp.value.trim()) return null;
-                return /^\d{5}$/.test(inp.value.trim())
-                    ? null : 'Please enter a five-digit number.';
+                if (/^\d{5}$/.test(inp.value.trim())) return null;
+                var _i18n = window.ForgeForms && window.ForgeForms.i18n;
+                return (_i18n && _i18n.example_zip_invalid) || 'Please enter a five-digit number.';
             }
             JS]];
     }

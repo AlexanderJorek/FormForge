@@ -162,6 +162,14 @@ msgstr "Vielen Dank für Ihren Eintrag!"
 msgid "Performance Overlay"
 msgstr "Performance-Overlay"
 
+#: includes/Admin/FormEditor.php:123
+msgid "Show performance overlay"
+msgstr "Performance-Overlay anzeigen"
+
+#: includes/Admin/FormEditor.php:124
+msgid "Hide performance overlay"
+msgstr "Performance-Overlay ausblenden"
+
 #: includes/Admin/FormEditor.php:168
 #: includes/Admin/FormEditor.php:169
 msgid "Preview"
@@ -169,6 +177,7 @@ msgstr "Vorschau"
 
 #: includes/Admin/FormEditor.php:172
 #: includes/Admin/FormSelectList.php:225
+#: includes/Admin/FormSelectList.php:532
 #: includes/Admin/FormSettings.php:322
 #: includes/Admin/FormSettings.php:962
 #: includes/Admin/PDFLayoutEditor.php:440
@@ -216,6 +225,7 @@ msgstr "Formular gespeichert."
 
 #: includes/Admin/FormEditor.php:680
 #: includes/Form/FormRenderer.php:74
+#: includes/Utils/Assets.php:92
 msgid "Thank you!"
 msgstr "Vielen Dank!"
 
@@ -241,6 +251,7 @@ msgid "Form List"
 msgstr "Formular Liste"
 
 #: includes/Admin/FormList.php:129
+#: includes/Admin/FormSettings.php:1998
 #: includes/Plugin.php:260
 msgid "Forms"
 msgstr "Formulare"
@@ -250,10 +261,23 @@ msgstr "Formulare"
 msgid "Select all"
 msgstr "Alle auswählen"
 
+#: includes/Admin/FormList.php:118
 #: includes/Admin/FormList.php:143
 #: includes/Admin/FormSelectList.php:114
 msgid "Choose action"
 msgstr "Aktion wählen"
+
+#. translators: %d is replaced client-side with the number of selected forms.
+#: includes/Admin/FormList.php:121
+#. translators: %d is replaced client-side with the number of selected form selections.
+#: includes/Admin/FormSelectList.php:527
+#, php-format
+msgid "%d selected"
+msgstr "%d ausgewählt"
+
+#: includes/Admin/FormList.php:119
+msgid "Please choose an action."
+msgstr "Bitte eine Aktion wählen."
 
 #: includes/Admin/FormList.php:147
 #: includes/Admin/FormList.php:235
@@ -305,6 +329,11 @@ msgstr "+ Erstes Formular erstellen"
 #: includes/Admin/FormList.php:215
 #: includes/Admin/FormList.php:888
 #, php-format
+msgid "%d Field"
+msgid_plural "%d Fields"
+msgstr[0] "%d Feld"
+msgstr[1] "%d Felder"
+
 #: includes/Admin/FormList.php:223
 #: includes/Admin/FormList.php:895
 #: includes/Admin/FormSelectList.php:358
@@ -317,6 +346,7 @@ msgstr "Bearbeiten"
 msgid "More actions"
 msgstr "Weitere Aktionen"
 
+#: includes/Admin/FormList.php:125
 #: includes/Admin/FormList.php:230
 #: includes/Admin/FormList.php:902
 #: includes/Admin/FormSelectList.php:365
@@ -329,6 +359,7 @@ msgid "Export"
 msgstr "Exportieren"
 
 #: includes/Admin/FormList.php:255
+#: includes/Admin/FormSelectList.php:537
 msgid "No forms found."
 msgstr "Keine Formulare gefunden."
 
@@ -340,20 +371,36 @@ msgstr "Formular exportieren"
 msgid "Exporting…"
 msgstr "Exportiere…"
 
-#: includes/Admin/FormList.php:282
+#: includes/Admin/FormList.php:281
+msgid "Copy this string. It contains all fields, notifications and settings."
+msgstr "Kopieren Sie diesen String. Er enthält alle Felder, Benachrichtigungen und Einstellungen."
+
+#: includes/Admin/FormList.php:126
+#: includes/Admin/FormList.php:286
 msgid "Copy"
 msgstr "Kopieren"
 
-#: includes/Admin/FormList.php:284
+#: includes/Admin/FormList.php:288
 #: includes/Admin/FormSettings.php:744
 #: includes/Admin/PDFLayoutEditor.php:466
 #: includes/Admin/Verificationpage.php:864
 msgid "Close"
 msgstr "Schließen"
 
-#: includes/Admin/FormList.php:293
+#: includes/Admin/FormList.php:115
+#: includes/Admin/FormList.php:297
 msgid "Really delete form?"
 msgstr "Formular wirklich löschen?"
+
+#. translators: %d is replaced client-side with the number of selected forms.
+#: includes/Admin/FormList.php:117
+#, php-format
+msgid "Really delete %d form(s)?"
+msgstr "%d Formular(e) wirklich löschen?"
+
+#: includes/Admin/FormList.php:123
+msgid "Import error"
+msgstr "Importfehler"
 
 #: includes/Admin/FormList.php:295
 #: includes/Admin/FormSelectList.php:236
@@ -418,8 +465,25 @@ msgid "+ Create First Selection"
 msgstr "+ Erste Auswahl erstellen"
 
 #: includes/Admin/FormSelectList.php:165
+#: includes/Admin/FormSelectList.php:531
 msgid "Edit selection"
 msgstr "Auswahl bearbeiten"
+
+#: includes/Admin/FormSelectList.php:528
+msgid "Create new selection"
+msgstr "Neue Auswahl erstellen"
+
+#: includes/Admin/FormSelectList.php:529
+msgid "New selection"
+msgstr "Neue Auswahl"
+
+#: includes/Admin/FormSelectList.php:530
+msgid "Create"
+msgstr "Erstellen"
+
+#: includes/Admin/FormSelectList.php:535
+msgid "Preselect as default"
+msgstr "Als Standard vorauswählen"
 
 #: includes/Admin/FormSelectList.php:171
 msgid "General"
@@ -429,9 +493,18 @@ msgstr "Allgemein"
 msgid "Name of this selection"
 msgstr "Name dieser Auswahl"
 
+#: includes/Admin/FormSelectList.php:165
+msgid "e.g. Contact Selection"
+msgstr "z.B. Kontakt-Auswahl"
+
 #: includes/Admin/FormSelectList.php:184
 msgid "Forms in this selection"
 msgstr "Formulare in dieser Auswahl"
+
+#: includes/Admin/FormSelectList.php:173
+#: includes/Admin/FormSelectList.php:533
+msgid "Label"
+msgstr "Bezeichnung"
 
 #: includes/Admin/FormSelectList.php:201
 msgid "Add form"
@@ -446,16 +519,48 @@ msgid "Really delete form selection?"
 msgstr "Formular-Auswahl wirklich löschen?"
 
 #. translators: %d: number of forms in the selection.
-#: includes/Admin/FormSelectList.php:350
+#: includes/Admin/FormSelectList.php:333
 #, php-format
+msgid "%d Form"
+msgid_plural "%d Forms"
+msgstr[0] "%d Formular"
+msgstr[1] "%d Formulare"
+
 #: includes/Admin/FormSettings.php:78
 msgid "FormForge Settings"
 msgstr "FormForge Einstellungen"
 
 #: includes/Admin/FormSettings.php:79
 #: includes/Admin/FormSettings.php:319
+#: includes/Admin/FormSettings.php:2001
 msgid "Settings"
 msgstr "Einstellungen"
+
+#: includes/Admin/FormSettings.php:1997
+msgid "List"
+msgstr "Liste"
+
+#: includes/Admin/FormSettings.php:2000
+msgid "Verifier"
+msgstr "Verifizierer"
+
+#: includes/Admin/FormSettings.php:2064
+msgid "User"
+msgstr "Benutzer"
+
+#: includes/Admin/FormSettings.php:2065
+msgid "Role"
+msgstr "Rolle"
+
+#: includes/Admin/FormSettings.php:2134
+msgid "Click to remove"
+msgstr "Zum Entfernen klicken"
+
+#: includes/Admin/FormSettings.php:2266
+#: includes/Admin/FormSettings.php:2316
+#: includes/Admin/PDFLayoutEditor.php:1771
+msgid "Error saving."
+msgstr "Fehler beim Speichern."
 
 #: includes/Admin/FormSettings.php:125
 #: includes/Admin/FormSettings.php:2137
@@ -671,6 +776,7 @@ msgstr "Sprache:"
 msgid "Copy to clipboard"
 msgstr "In die Zwischenablage kopieren"
 
+#: includes/Admin/FormList.php:124
 #: includes/Admin/FormSettings.php:845
 msgid "Copied!"
 msgstr "Kopiert!"
@@ -945,6 +1051,7 @@ msgid "A new PDF seal key has been created. Download the key file and store it s
 msgstr "Ein neuer PDF-Siegelschlüssel wurde erstellt. Laden Sie die Schlüsseldatei herunter und bewahren Sie sie sicher auf — z. B. in einem Passwort-Manager. Sie benötigen ihn, um alte PDFs nach einem vollständigen Serververlust erneut zu prüfen."
 
 #: includes/Admin/FormSettings.php:816
+#: includes/Admin/PDFLayoutEditor.php:713
 #: pdf-templates/layout.php:235
 msgid "Created:"
 msgstr "Erstellt:"
@@ -996,6 +1103,7 @@ msgid "Import anyway"
 msgstr "Trotzdem importieren"
 
 #: includes/Admin/FormSettings.php:907
+#: includes/Admin/FormSettings.php:2204
 msgid "Add"
 msgstr "Hinzufügen"
 
@@ -1135,10 +1243,15 @@ msgstr "PDF konnte nicht gelesen werden."
 msgid "FormForge PDF Layout"
 msgstr "FormForge PDF-Layout"
 
+#: includes/Admin/FormSettings.php:1999
 #: includes/Admin/PDFLayoutEditor.php:198
 #: includes/Admin/PDFLayoutEditor.php:268
 msgid "PDF Layout"
 msgstr "PDF-Layout"
+
+#: includes/Admin/PDFLayoutEditor.php:147
+msgid "Layout Preview"
+msgstr "Layout-Vorschau"
 
 #: includes/Admin/PDFLayoutEditor.php:243
 msgid "DejaVu Sans (Default, sans-serif)"
@@ -1217,6 +1330,7 @@ msgid "Top"
 msgstr "Oben"
 
 #: includes/Admin/PDFLayoutEditor.php:365
+#: includes/Admin/PDFLayoutEditor.php:979
 msgid "Right"
 msgstr "Rechts"
 
@@ -1225,6 +1339,7 @@ msgid "Bottom"
 msgstr "Unten"
 
 #: includes/Admin/PDFLayoutEditor.php:367
+#: includes/Admin/PDFLayoutEditor.php:977
 msgid "Left"
 msgstr "Links"
 
@@ -1274,13 +1389,119 @@ msgstr "Höhe (Zeilen à 5 mm):"
 msgid "← Drag to position · Corners to resize · Del to delete"
 msgstr "← Ziehen zum Positionieren · Ecken zum Skalieren · Entf zum Löschen"
 
-#: includes/Admin/PDFLayoutEditor.php:488
+#: includes/Admin/PDFLayoutEditor.php:480
+#: includes/Admin/PDFLayoutEditor.php:985
 msgid "Select element"
 msgstr "Element auswählen"
 
-#: includes/Admin/PDFLayoutEditor.php:488
+#: includes/Admin/PDFLayoutEditor.php:480
+#: includes/Admin/PDFLayoutEditor.php:986
 msgid "to edit"
 msgstr "zum Bearbeiten"
+
+#: includes/Admin/PDFLayoutEditor.php:958
+msgid "Width"
+msgstr "Breite"
+
+#: includes/Admin/PDFLayoutEditor.php:959
+msgid "Height"
+msgstr "Höhe"
+
+#: includes/Admin/PDFLayoutEditor.php:960
+msgid "No image selected"
+msgstr "Kein Bild gewählt"
+
+#: includes/Admin/PDFLayoutEditor.php:961
+msgid "Change image"
+msgstr "Bild ändern"
+
+#: includes/Admin/PDFLayoutEditor.php:963
+msgid "Fit"
+msgstr "Einpassen"
+
+#: includes/Admin/PDFLayoutEditor.php:964
+msgid "Fill"
+msgstr "Füllen"
+
+#: includes/Admin/PDFLayoutEditor.php:965
+msgid "Stretch"
+msgstr "Strecken"
+
+#: includes/Admin/PDFLayoutEditor.php:966
+msgid "Bold"
+msgstr "Fett"
+
+#: includes/Admin/PDFLayoutEditor.php:967
+msgid "Italic"
+msgstr "Kursiv"
+
+#: includes/Admin/PDFLayoutEditor.php:968
+msgid "Underline"
+msgstr "Unterstreichen"
+
+#: includes/Admin/PDFLayoutEditor.php:969
+msgid "Underline style"
+msgstr "Unterstreichungsart"
+
+#: includes/Admin/PDFLayoutEditor.php:970
+msgid "Solid"
+msgstr "Durchgehend"
+
+#: includes/Admin/PDFLayoutEditor.php:971
+msgid "Double"
+msgstr "Doppelt"
+
+#: includes/Admin/PDFLayoutEditor.php:972
+msgid "Dotted"
+msgstr "Gepunktet"
+
+#: includes/Admin/PDFLayoutEditor.php:973
+msgid "Dashed"
+msgstr "Gestrichelt"
+
+#: includes/Admin/PDFLayoutEditor.php:974
+msgid "Strikethrough"
+msgstr "Durchgestrichen"
+
+#: includes/Admin/PDFLayoutEditor.php:975
+msgid "Superscript"
+msgstr "Hochgestellt"
+
+#: includes/Admin/PDFLayoutEditor.php:976
+msgid "Subscript"
+msgstr "Tiefgestellt"
+
+#: includes/Admin/PDFLayoutEditor.php:978
+msgid "Center"
+msgstr "Mitte"
+
+#: includes/Admin/PDFLayoutEditor.php:980
+msgid "Font size"
+msgstr "Schriftgröße"
+
+#: includes/Admin/PDFLayoutEditor.php:981
+msgid "Color"
+msgstr "Farbe"
+
+#: includes/Admin/PDFLayoutEditor.php:983
+msgid "HTML code"
+msgstr "HTML-Code"
+
+#: includes/Admin/PDFLayoutEditor.php:1071
+msgid "HTML"
+msgstr "HTML"
+
+#: includes/Admin/PDFLayoutEditor.php:984
+msgid "HTML is rendered directly. No script tag."
+msgstr "HTML wird direkt gerendert. Kein Script-Tag."
+
+#: includes/Admin/PDFLayoutEditor.php:988
+msgid "or enter a URL …"
+msgstr "oder URL eingeben …"
+
+#: includes/Admin/PDFLayoutEditor.php:987
+msgid "Delete element"
+msgstr "Element löschen"
 
 #: includes/Admin/Verificationpage.php:121
 msgid "Internal error while processing this PDF. See server log for details."
@@ -1366,6 +1587,7 @@ msgstr "Wird hochgeladen…"
 msgid "Please keep this page open — this can take a while for large files."
 msgstr "Bitte lassen Sie diese Seite geöffnet — bei großen Dateien kann dies eine Weile dauern."
 
+#: includes/Admin/FormSelectList.php:536
 #: includes/Admin/Verificationpage.php:921
 #: includes/Admin/Verificationpage.php:996
 msgid "Remove"
@@ -1414,6 +1636,11 @@ msgstr "HMAC-Prüfung…"
 #: includes/Admin/Verificationpage.php:1381
 msgid "PDF Structure"
 msgstr "PDF-Struktur"
+
+#. translators: %s: the literal PDF "%%EOF" end-of-file marker, wrapped in <code>
+#: includes/Admin/Verificationpage.php:1667
+msgid "A valid PDF has exactly <strong>one</strong> %s marker. Each extra marker signals that content was <strong>appended after the original cross-reference table</strong> was written. This is the standard technique for a <strong>PDF shadow attack / incremental update</strong>: an attacker appends new objects that override visible content while leaving the original seal intact."
+msgstr "Eine gültige PDF-Datei enthält genau <strong>einen</strong> %s-Marker. Jeder zusätzliche Marker signalisiert, dass nach der ursprünglichen Querverweistabelle <strong>Inhalte angehängt</strong> wurden. Dies ist die Standardtechnik für einen <strong>PDF-Shadow-Angriff / eine inkrementelle Aktualisierung</strong>: Ein Angreifer hängt neue Objekte an, die sichtbare Inhalte überschreiben, während das ursprüngliche Siegel intakt bleibt."
 
 #: includes/Admin/Verificationpage.php:1411
 msgid "Raw Seal & Rebuilt Data"
@@ -1468,6 +1695,44 @@ msgstr "PDF"
 msgid "Seal Blocks"
 msgstr "Siegelblöcke"
 
+#. translators: %d: number of seal blocks found in the PDF (should be exactly 1).
+#: includes/Admin/Verificationpage.php:1979
+#, php-format
+msgid "%d seal block(s) found — exactly 1 is expected."
+msgstr "%d Siegelblock/-blöcke gefunden — erwartet wird genau 1."
+
+#: includes/Admin/Verificationpage.php:1986
+msgid "Any extra seal block is proof of tampering regardless of its HMAC status."
+msgstr "Jeder zusätzliche Siegelblock ist ein Nachweis für Manipulation, unabhängig von seinem HMAC-Status."
+
+#: includes/Admin/Verificationpage.php:2104
+msgid "Chunk Check"
+msgstr "Chunk-Prüfung"
+
+#: includes/Admin/Verificationpage.php:2183
+msgid "MULTI-CHUNK"
+msgstr "MEHRTEILIG"
+
+#: includes/Admin/Verificationpage.php:2183
+msgid "OK"
+msgstr "OK"
+
+#. translators: %d: number of text chunks the field's content was split into.
+#: includes/Admin/Verificationpage.php:2185
+#, php-format
+msgid "%d chunk"
+msgid_plural "%d chunks"
+msgstr[0] "%d Chunk"
+msgstr[1] "%d Chunks"
+
+#: includes/Admin/Verificationpage.php:2199
+msgid "PDF chunk"
+msgstr "PDF-Chunk"
+
+#: includes/Admin/Verificationpage.php:2209
+msgid "Unknown marker"
+msgstr "Unbekannter Marker"
+
 #: includes/Admin/Verificationpage.php:1743
 msgid "AUTHENTIC"
 msgstr "AUTHENTISCH"
@@ -1476,6 +1741,7 @@ msgstr "AUTHENTISCH"
 msgid "FORGED / INVALID"
 msgstr "GEFÄLSCHT / UNGÜLTIG"
 
+#: includes/Admin/FormSelectList.php:172
 #: includes/Admin/Verificationpage.php:1770
 #: includes/Plugin.php:263
 msgid "Form"
@@ -1562,8 +1828,21 @@ msgid "The document could not be processed. See server log for details."
 msgstr "Das Dokument konnte nicht verarbeitet werden. Details siehe Server-Log."
 
 #: includes/Admin/Verificationpage.php:3656
+#: includes/Admin/FormList.php:122
+#: includes/Admin/FormSettings.php:1367
+#: includes/Admin/FormSettings.php:1507
+#: includes/Admin/FormSettings.php:1616
+#: includes/Admin/FormSettings.php:1636
+#: includes/Admin/FormSettings.php:1651
+#: includes/Admin/FormSettings.php:1683
+#: includes/Admin/FormSettings.php:1700
+#: includes/Admin/FormSettings.php:1772
 msgid "Error"
 msgstr "Fehler"
+
+#: includes/Admin/FormSettings.php:1367
+msgid "Success"
+msgstr "Erfolg"
 
 #: includes/Admin/Verificationpage.php:3662
 msgid "Modified"
@@ -1581,6 +1860,22 @@ msgstr "Rotierter Schlüssel"
 #: includes/Admin/Verificationpage.php:3977
 msgid "Authentic"
 msgstr "Authentisch"
+
+#: includes/Admin/Verificationpage.php:4167
+msgid "Show details"
+msgstr "Details anzeigen"
+
+#: includes/Admin/Verificationpage.php:4181
+msgid "PDF structure"
+msgstr "PDF-Struktur"
+
+#: includes/Admin/Verificationpage.php:4182
+msgid "Incremental update detected"
+msgstr "Inkrementelle Aktualisierung erkannt"
+
+#: includes/Admin/Verificationpage.php:4312
+msgid "Check"
+msgstr "Prüfung"
 
 #: includes/Admin/Verificationpage.php:3867
 msgid "Seal integrity"
@@ -1798,6 +2093,8 @@ msgstr "Feld"
 msgid "%s is a required field."
 msgstr "%s ist ein Pflichtfeld."
 
+#: includes/Admin/FormSelectList.php:174
+#: includes/Admin/FormSelectList.php:534
 #: includes/Fields/BaseField.php:401
 #: includes/Fields/CheckboxField.php:410
 #: includes/Fields/DateField.php:293
@@ -1967,19 +2264,21 @@ msgid "Please enter a valid amount."
 msgstr "Bitte geben Sie einen gültigen Betrag ein."
 
 #. translators: %s: minimum allowed value.
-#: includes/Fields/CurrencyField.php:159
-#: includes/Fields/NumberField.php:116
-#: includes/Fields/SliderField.php:356
-#: includes/Fields/SliderField.php:375
+#: includes/Fields/CurrencyField.php:152
+#: includes/Fields/NumberField.php:109
+#: includes/Fields/SliderField.php:336
+#: includes/Fields/SliderField.php:359
+#: includes/Utils/Assets.php:128
 #, php-format
 msgid "Minimum value: %s"
 msgstr "Mindestwert: %s"
 
 #. translators: %s: maximum allowed value.
-#: includes/Fields/CurrencyField.php:163
-#: includes/Fields/NumberField.php:120
-#: includes/Fields/SliderField.php:360
-#: includes/Fields/SliderField.php:379
+#: includes/Fields/CurrencyField.php:156
+#: includes/Fields/NumberField.php:113
+#: includes/Fields/SliderField.php:340
+#: includes/Fields/SliderField.php:363
+#: includes/Utils/Assets.php:130
 #, php-format
 msgid "Maximum value: %s"
 msgstr "Maximalwert: %s"
@@ -2145,6 +2444,10 @@ msgstr "Feldgruppe"
 msgid "HTML Block"
 msgstr "HTML-Block"
 
+#: includes/Fields/HtmlField.php:330
+msgid "Text here"
+msgstr "Text hier"
+
 #: includes/Fields/HtmlField.php:263
 msgid "HTML content"
 msgstr "HTML-Inhalt"
@@ -2255,16 +2558,19 @@ msgstr "Ein Feld pro Seite, in Reihenfolge. Leer lassen, um für diese Seite nur
 msgid "Phone"
 msgstr "Telefon"
 
-#: includes/Fields/PhoneField.php:137
+#: includes/Fields/PhoneField.php:136
+#: includes/Utils/Assets.php:120
 msgid "Please enter a valid phone number."
 msgstr "Bitte geben Sie eine gültige Telefonnummer ein."
 
-#: includes/Fields/PhoneField.php:143
+#: includes/Fields/PhoneField.php:142
+#: includes/Utils/Assets.php:121
 msgid "Please enter the number with international prefix (+...)."
 msgstr "Bitte geben Sie die Nummer mit internationaler Vorwahl (+...) ein."
 
-#: includes/Fields/PhoneField.php:165
-#: includes/Fields/PhoneField.php:168
+#: includes/Fields/PhoneField.php:164
+#: includes/Fields/PhoneField.php:167
+#: includes/Utils/Assets.php:122
 msgid "This phone number is not allowed for your country."
 msgstr "Diese Telefonnummer ist für Ihr Land nicht zugelassen."
 
@@ -2472,6 +2778,21 @@ msgstr "BIC"
 #: includes/Fields/SepaField.php:784
 msgid "Account holder"
 msgstr "Kontoinhaber"
+
+#. translators: %s: formatted IBAN.
+#: includes/Fields/SepaField.php:817
+msgid "IBAN: %s"
+msgstr "IBAN: %s"
+
+#. translators: %s: BIC.
+#: includes/Fields/SepaField.php:819
+msgid "BIC: %s"
+msgstr "BIC: %s"
+
+#. translators: %s: account holder name.
+#: includes/Fields/SepaField.php:821
+msgid "Account holder: %s"
+msgstr "Kontoinhaber: %s"
 
 #: includes/Fields/SepaField.php:871
 msgid "Mandate title"
@@ -2850,12 +3171,19 @@ msgstr "Dateiformat"
 msgid "Slider"
 msgstr "Schieberegler"
 
-#: includes/Fields/SliderField.php:351
-#: includes/Fields/SliderField.php:370
+#: includes/Fields/SliderField.php:331
+#: includes/Fields/SliderField.php:354
+#: includes/Utils/Assets.php:124
 msgid "Please enter a valid value."
 msgstr "Bitte geben Sie einen gültigen Wert ein."
 
-#: includes/Fields/SliderField.php:366
+#. translators: %1$s: minimum allowed value, %2$s: maximum allowed value (both substituted client-side).
+#: includes/Utils/Assets.php:126
+#, php-format
+msgid "Value outside the allowed range (%1$s–%2$s)."
+msgstr "Wert außerhalb des zulässigen Bereichs (%1$s–%2$s)."
+
+#: includes/Fields/SliderField.php:346
 msgid "The \"from\" value must not be greater than the \"to\" value."
 msgstr "Der „Von“-Wert darf nicht größer sein als der „Bis“-Wert."
 
@@ -2872,8 +3200,9 @@ msgid "Text area"
 msgstr "Textbereich"
 
 #. translators: %1$d: maximum word count allowed, %2$d: current word count.
-#: includes/Fields/TextareaField.php:122
-#: includes/Fields/TextField.php:92
+#: includes/Fields/TextareaField.php:120
+#: includes/Fields/TextField.php:95
+#: includes/Utils/Assets.php:133
 #, php-format
 msgid "Please enter at most %1$d words (currently: %2$d)."
 msgstr "Bitte maximal %1$d Wörter eingeben (aktuell: %2$d)."
@@ -2885,6 +3214,19 @@ msgstr "Bitte maximal %1$d Wörter eingeben (aktuell: %2$d)."
 #, php-format
 msgid "Please enter at most %1$d characters (currently: %2$d)."
 msgstr "Bitte höchstens %1$d Zeichen eingeben (aktuell: %2$d)."
+
+#. translators: %1$d: maximum word count allowed, %2$d: current word count.
+#: includes/Fields/BaseField.php:81
+#: includes/Utils/Assets.php:136
+#, php-format
+msgid "Please enter at most %1$d words for \"Other\" (currently: %2$d)."
+msgstr "Bitte maximal %1$d Wörter für \"Sonstiges\" eingeben (aktuell: %2$d)."
+
+#. translators: %1$d: maximum character count allowed, %2$d: current character count.
+#: includes/Fields/BaseField.php:88
+#, php-format
+msgid "Please enter at most %1$d characters for \"Other\" (currently: %2$d)."
+msgstr "Bitte höchstens %1$d Zeichen für \"Sonstiges\" eingeben (aktuell: %2$d)."
 
 #: includes/Fields/TextareaField.php:197
 msgid "Rows"
@@ -2899,6 +3241,7 @@ msgstr "Sichtbare Höhe des Feldes (Anzahl Textzeilen)"
 msgid "Limit"
 msgstr "Begrenzung"
 
+#: includes/Admin/PDFLayoutEditor.php:982
 #: includes/Fields/TextField.php:38
 msgid "Text"
 msgstr "Text"
@@ -3008,7 +3351,8 @@ msgstr "z.B. .pdf,.docx"
 msgid "Website"
 msgstr "Website"
 
-#: includes/Fields/WebsiteField.php:103
+#: includes/Fields/WebsiteField.php:99
+#: includes/Utils/Assets.php:135
 msgid "Please enter a valid URL (e.g. https://example.com)."
 msgstr "Bitte geben Sie eine gültige URL ein (z.B. https://beispiel.de)."
 
@@ -3106,9 +3450,25 @@ msgstr "Google reCAPTCHA"
 msgid "To prevent spam and fraudulent form submissions, we use Google reCAPTCHA. Among other things, the IP address, the CAPTCHA response, and other technical information are transmitted to Google and processed there to determine whether the input was made by a human. This may involve the transfer of personal data to the United States. For more information, please see Google's Privacy Policy."
 msgstr "Zur Vermeidung von Spam und missbräuchlichen Formularübermittlungen verwenden wir Google reCAPTCHA. Dabei werden unter anderem die IP-Adresse, die CAPTCHA-Antwort sowie weitere technische Informationen an Google übermittelt und dort verarbeitet, um zu beurteilen, ob die Eingabe durch einen Menschen erfolgt. Hierbei kann eine Übermittlung personenbezogener Daten in die USA stattfinden. Weitere Informationen finden Sie in der Datenschutzerklärung von Google."
 
-#: includes/Utils/Assets.php:92
+#: includes/Utils/Assets.php:87
 msgid "Server error. Please try again."
 msgstr "Serverfehler. Bitte versuchen Sie es erneut."
+
+#: includes/Utils/Assets.php:88
+msgid "This field is required."
+msgstr "Dieses Feld ist ein Pflichtfeld."
+
+#: includes/Utils/Assets.php:89
+msgid "Please fill in all required fields and correct the invalid entries."
+msgstr "Bitte füllen Sie alle Pflichtfelder aus und korrigieren Sie die ungültigen Eingaben."
+
+#: includes/Utils/Assets.php:90
+msgid "Please fill in all required fields."
+msgstr "Bitte füllen Sie alle Pflichtfelder aus."
+
+#: includes/Utils/Assets.php:91
+msgid "Please enter valid data."
+msgstr "Bitte geben Sie gültige Daten ein."
 
 #: includes/Utils/Assets.php:94
 msgid "Remove: "
@@ -3214,6 +3574,11 @@ msgstr "Fertig"
 msgid "Server error (HTTP %d)"
 msgstr "Serverfehler (HTTP %d)"
 
+#: includes/Admin/FormSettings.php:1384
+#: includes/Admin/FormSettings.php:1512
+#: includes/Admin/FormSettings.php:1785
+#: includes/Admin/FormSettings.php:2321
+#: includes/Admin/PDFLayoutEditor.php:1776
 #: includes/Utils/Assets.php:353
 msgid "Network error"
 msgstr "Netzwerkfehler"
@@ -3230,18 +3595,22 @@ msgstr "Fehler: "
 msgid "Unknown server error"
 msgstr "Unbekannter Serverfehler"
 
+#: includes/Admin/PDFLayoutEditor.php:712
 #: pdf-templates/layout.php:234
 msgid "Metadata"
 msgstr "Metadaten"
 
+#: includes/Admin/PDFLayoutEditor.php:714
 #: pdf-templates/layout.php:236
 msgid "Form:"
 msgstr "Formular:"
 
+#: includes/Admin/PDFLayoutEditor.php:721
 #: pdf-templates/layout.php:244
 msgid "Legal Notice:"
 msgstr "Rechtlicher Hinweis:"
 
+#: includes/Admin/PDFLayoutEditor.php:724
 #: pdf-templates/layout.php:245
 msgid "This document represents the original. Any change, manipulation, or modification invalidates this document. This document was issued in electronic form and must be kept exclusively in electronic form. Any printout is merely a copy and has no legal validity."
 msgstr "Dieses Dokument stellt das Original dar. Jede Änderung, Manipulation oder Modifikation macht dieses Dokument ungültig. Dieses Dokument wurde in elektronischer Form ausgestellt und ist ausschließlich in elektronischer Form aufzubewahren. Jeder Ausdruck ist lediglich eine Kopie und hat keine Rechtsgültigkeit."
@@ -3263,7 +3632,8 @@ msgstr "Einfügen"
 msgid "Add image"
 msgstr "Bild hinzufügen"
 
-#: includes/Admin/PDFLayoutEditor.php:1148
+#: includes/Admin/PDFLayoutEditor.php:962
+#: includes/Admin/PDFLayoutEditor.php:1211
 msgid "Choose from media library"
 msgstr "Aus Mediathek wählen"
 
@@ -3338,3 +3708,664 @@ msgstr "Nicht zugestimmt"
 #: includes/Fields/ConsentField.php:165
 msgid "Agreed to \"%1$s\" on %2$s"
 msgstr "\"%1$s\" zugestimmt am %2$s"
+
+#: includes/Admin/FormEditor.php:1017
+msgid "Unsaved changes"
+msgstr "Ungespeicherte Änderungen"
+
+#: includes/Admin/FormEditor.php:1018
+msgid "This form has unsaved changes. Leave anyway?"
+msgstr "Das Formular enthält ungespeicherte Änderungen. Wirklich verlassen?"
+
+#: includes/Admin/FormEditor.php:1019
+msgid "Stay"
+msgstr "Bleiben"
+
+#: includes/Admin/FormEditor.php:1020
+msgid "Leave"
+msgstr "Verlassen"
+
+#: includes/Admin/FormEditor.php:1023
+msgid "None"
+msgstr "Keine"
+
+#: includes/Admin/FormEditor.php:1024
+msgid "Integers only"
+msgstr "Nur Ganzzahlen"
+
+#: includes/Admin/FormEditor.php:1025
+msgid "Positive numbers"
+msgstr "Positive Zahlen"
+
+#: includes/Admin/FormEditor.php:1026
+msgid "Positive integers"
+msgstr "Positive Ganzzahlen"
+
+#: includes/Admin/FormEditor.php:1029
+msgid "is equal to"
+msgstr "ist gleich"
+
+#: includes/Admin/FormEditor.php:1030
+msgid "is not equal to"
+msgstr "ist ungleich"
+
+#: includes/Admin/FormEditor.php:1031
+msgid "contains"
+msgstr "enthält"
+
+#: includes/Admin/FormEditor.php:1032
+msgid "does not contain"
+msgstr "enthält nicht"
+
+#: includes/Admin/FormEditor.php:1033
+msgid "is empty"
+msgstr "ist leer"
+
+#: includes/Admin/FormEditor.php:1034
+msgid "is not empty"
+msgstr "ist nicht leer"
+
+#: includes/Admin/FormEditor.php:1035
+msgid "is greater than"
+msgstr "größer als"
+
+#: includes/Admin/FormEditor.php:1036
+msgid "is less than"
+msgstr "kleiner als"
+
+#: includes/Admin/FormEditor.php:1039
+msgid "No fields found."
+msgstr "Keine Felder gefunden."
+
+#: includes/Admin/FormEditor.php:1040
+msgid "No fields yet"
+msgstr "Noch keine Felder"
+
+#: includes/Admin/FormEditor.php:1041
+msgid "Add your first field via"
+msgstr "Fügen Sie Ihr erstes Feld über"
+
+#: includes/Admin/FormEditor.php:1042
+msgid "(no label)"
+msgstr "(kein Label)"
+
+#: includes/Admin/FormEditor.php:1046
+msgid "copied"
+msgstr "kopiert"
+
+#: includes/Admin/FormEditor.php:1048
+msgid "Add fields to group"
+msgstr "Felder zur Gruppe hinzufügen"
+
+#: includes/Admin/FormEditor.php:1050
+msgid "Conditions active"
+msgstr "Bedingungen aktiv"
+
+#: includes/Admin/FormEditor.php:1053
+msgid "Add field"
+msgstr "Feld hinzufügen"
+
+#: includes/Admin/FormEditor.php:1054
+msgid "Search field type…"
+msgstr "Feldtyp suchen…"
+
+#: includes/Admin/FormEditor.php:1057
+msgid "Field settings"
+msgstr "Feldeinstellungen"
+
+#: includes/Admin/FormEditor.php:1058
+msgid "Copy field ID"
+msgstr "Feld-ID kopieren"
+
+#: includes/Admin/FormEditor.php:1061
+msgid "Conditions"
+msgstr "Bedingungen"
+
+#: includes/Admin/FormEditor.php:1065
+msgid "Hide label"
+msgstr "Label ausblenden"
+
+#: includes/Admin/FormEditor.php:1066
+msgid "Required field"
+msgstr "Pflichtfeld"
+
+#: includes/Admin/FormEditor.php:1067
+msgid "(no other fields)"
+msgstr "(keine anderen Felder)"
+
+#: includes/Admin/FormEditor.php:1068
+msgid "Value"
+msgstr "Wert"
+
+#: includes/Admin/FormEditor.php:1069
+msgid "https://…"
+msgstr "https://…"
+
+#: includes/Admin/FormEditor.php:1070
+msgid "Media library"
+msgstr "Mediathek"
+
+#: includes/Admin/FormEditor.php:1071
+msgid "Use"
+msgstr "Übernehmen"
+
+#: includes/Admin/FormEditor.php:1073
+msgid "Enter link URL:"
+msgstr "Link-URL eingeben:"
+
+#: includes/Admin/FormEditor.php:1080
+msgid "Numbered list"
+msgstr "Nummerierte Liste"
+
+#: includes/Admin/FormEditor.php:1081
+msgid "Link"
+msgstr "Link"
+
+#: includes/Admin/FormEditor.php:1085
+msgid "Whole values"
+msgstr "Ganzzahlen"
+
+#: includes/Admin/FormEditor.php:1086
+msgid "Half values"
+msgstr "Halbe Werte"
+
+#: includes/Admin/FormEditor.php:1087
+msgid "Page "
+msgstr "Seite "
+
+#: includes/Admin/FormEditor.php:1088
+msgid "Use in emails:"
+msgstr "In E-Mails verwenden:"
+
+#: includes/Admin/FormEditor.php:1089
+msgid "Field ID"
+msgstr "Feld-ID"
+
+#: includes/Admin/FormEditor.php:1092
+msgid "Validation"
+msgstr "Validierung"
+
+#: includes/Admin/FormEditor.php:1093
+msgid "Validation rule"
+msgstr "Validierungsregel"
+
+#: includes/Admin/FormEditor.php:1094
+msgid "Browser autocomplete"
+msgstr "Browser-Autovervollständigung"
+
+#: includes/Admin/FormEditor.php:1095
+msgid "Enable browser autofill"
+msgstr "Browser-Ausfüllen aktivieren"
+
+#: includes/Admin/FormEditor.php:1096
+msgid "Autocomplete value"
+msgstr "Autocomplete-Wert"
+
+#: includes/Admin/FormEditor.php:1097
+msgid "E.g. \"name\", \"email\", \"tel\". Empty = browser default."
+msgstr "Z.B. \"name\", \"email\", \"tel\". Leer = Browser-Standard."
+
+#: includes/Admin/FormEditor.php:1098
+msgid "Appearance"
+msgstr "Darstellung"
+
+#: includes/Admin/FormEditor.php:1099
+msgid "CSS class(es)"
+msgstr "CSS-Klasse(n)"
+
+#: includes/Admin/FormEditor.php:1100
+msgid "Separate multiple classes with spaces."
+msgstr "Mehrere Klassen mit Leerzeichen trennen."
+
+#: includes/Admin/FormEditor.php:1103
+msgid "Country filter"
+msgstr "Länderfilter"
+
+#: includes/Admin/FormEditor.php:1104
+msgid "Country list"
+msgstr "Länderliste"
+
+#: includes/Admin/FormEditor.php:1107
+msgid "Disallowed"
+msgstr "Verboten"
+
+#: includes/Admin/FormEditor.php:1108
+msgid "Format validation"
+msgstr "Format-Validierung"
+
+#: includes/Admin/FormEditor.php:1109
+msgid "Any valid format: min. 7 digits, optionally with + and country code."
+msgstr "Beliebiges gültiges Format: mind. 7 Ziffern, optional mit + und Ländervorwahl."
+
+#: includes/Admin/FormEditor.php:1110
+msgid "Any"
+msgstr "Beliebig"
+
+#: includes/Admin/FormEditor.php:1111
+msgid "Countries"
+msgstr "Länder"
+
+#: includes/Admin/FormEditor.php:1112
+msgid "Dial codes"
+msgstr "Vorwahlen"
+
+#: includes/Admin/FormEditor.php:1115
+msgid "Show"
+msgstr "Anzeigen"
+
+#: includes/Admin/FormEditor.php:1116
+msgid "Hide"
+msgstr "Ausblenden"
+
+#: includes/Admin/FormEditor.php:1117
+msgid "this field when"
+msgstr "dieses Feld, wenn"
+
+#: includes/Admin/FormEditor.php:1118
+msgid "all"
+msgstr "alle"
+
+#: includes/Admin/FormEditor.php:1119
+msgid "any"
+msgstr "eine"
+
+#: includes/Admin/FormEditor.php:1120
+msgid "of the following conditions match:"
+msgstr "der folgenden Bedingungen zutrifft:"
+
+#: includes/Admin/FormEditor.php:1121
+msgid "Add condition"
+msgstr "Bedingung hinzufügen"
+
+#: includes/Admin/FormEditor.php:1122
+msgid "Remove condition"
+msgstr "Bedingung entfernen"
+
+#: includes/Admin/FormEditor.php:1123
+msgid "Remove rule"
+msgstr "Regel entfernen"
+
+#: includes/Admin/FormEditor.php:1124
+msgid "Add rule"
+msgstr "Regel hinzufügen"
+
+#: includes/Admin/FormEditor.php:1125
+msgid "Choose option"
+msgstr "Option wählen"
+
+#: includes/Admin/FormEditor.php:1126
+msgid "Option"
+msgstr "Option"
+
+#: includes/Admin/FormEditor.php:1128
+msgid "(no fields)"
+msgstr "(keine Felder)"
+
+#: includes/Admin/FormEditor.php:1131
+msgid "Search and add country…"
+msgstr "Land suchen und hinzufügen…"
+
+#: includes/Admin/FormEditor.php:1132
+msgid "Search dial code (+49)…"
+msgstr "Vorwahl suchen (+49)…"
+
+#: includes/Admin/FormEditor.php:1135
+msgid "Preselected"
+msgstr "Vorausgewählt"
+
+#: includes/Admin/FormEditor.php:1137
+msgid "value"
+msgstr "wert"
+
+#: includes/Admin/FormEditor.php:1138
+msgid "Add option"
+msgstr "Option hinzufügen"
+
+#: includes/Admin/FormEditor.php:1141
+msgid "Characters"
+msgstr "Zeichen"
+
+#: includes/Admin/FormEditor.php:1142
+msgid "Words"
+msgstr "Wörter"
+
+#: includes/Admin/FormEditor.php:1145
+msgid "Code"
+msgstr "Code"
+
+#: includes/Admin/FormEditor.php:1147
+msgid "Visual"
+msgstr "Visuell"
+
+#: includes/Admin/FormEditor.php:1150
+msgid "Format"
+msgstr "Format"
+
+#: includes/Admin/FormEditor.php:1151
+msgid "24h"
+msgstr "24h"
+
+#: includes/Admin/FormEditor.php:1152
+msgid "12h (AM/PM)"
+msgstr "12h (AM/PM)"
+
+#: includes/Admin/FormEditor.php:1153
+msgid "Prefill now"
+msgstr "Jetzt vorausfüllen"
+
+#: includes/Admin/FormEditor.php:1156
+msgid "Subfields"
+msgstr "Teilfelder"
+
+#: includes/Admin/FormEditor.php:1157
+msgid "Enable subfield"
+msgstr "Teilfeld aktivieren"
+
+#: includes/Admin/FormEditor.php:1161
+msgid "No notifications yet. Click"
+msgstr "Noch keine Benachrichtigungen. Klicke"
+
+#: includes/Admin/FormEditor.php:1162
+msgid "Add notification"
+msgstr "Benachrichtigung hinzufügen"
+
+#: includes/Admin/FormEditor.php:1163
+msgid "Notification "
+msgstr "Benachrichtigung "
+
+#: includes/Admin/FormEditor.php:1164
+msgid "Routing active"
+msgstr "Routing aktiv"
+
+#: includes/Admin/FormEditor.php:1165
+msgid "(no name)"
+msgstr "(kein Name)"
+
+#: includes/Admin/FormEditor.php:1166
+msgid "Notification"
+msgstr "Benachrichtigung"
+
+#: includes/Admin/FormEditor.php:1167
+msgid "Recipient"
+msgstr "Empfänger"
+
+#: includes/Admin/FormEditor.php:1168
+msgid "Content"
+msgstr "Inhalt"
+
+#: includes/Admin/FormEditor.php:1169
+msgid "Sender"
+msgstr "Absender"
+
+#: includes/Admin/FormEditor.php:1170
+msgid "Recipient mode"
+msgstr "Empfänger-Modus"
+
+#: includes/Admin/FormEditor.php:1171
+msgid "Direct"
+msgstr "Direkt"
+
+#: includes/Admin/FormEditor.php:1172
+msgid "Routing"
+msgstr "Routing"
+
+#: includes/Admin/FormEditor.php:1173
+msgid "Active"
+msgstr "Aktiv"
+
+#: includes/Admin/FormEditor.php:1174
+msgid "All entries are sent to a fixed address."
+msgstr "Alle Einträge werden an eine feste Adresse gesendet."
+
+#: includes/Admin/FormEditor.php:1175
+msgid "The email address is chosen based on field conditions."
+msgstr "E-Mail-Adresse wird anhand von Feldbedingungen gewählt."
+
+#: includes/Admin/FormEditor.php:1176
+msgid "To (email)"
+msgstr "An (E-Mail)"
+
+#: includes/Admin/FormEditor.php:1177
+msgid "→ To:"
+msgstr "→ An:"
+
+#: includes/Admin/FormEditor.php:1179
+msgid "Fallback email"
+msgstr "Fallback-E-Mail"
+
+#: includes/Admin/FormEditor.php:1180
+msgid "Used when no rule matches"
+msgstr "Wird verwendet wenn keine Regel zutrifft"
+
+#: includes/Admin/FormEditor.php:1181
+msgid "Subject"
+msgstr "Betreff"
+
+#: includes/Admin/FormEditor.php:1182
+msgid "Message"
+msgstr "Nachricht"
+
+#: includes/Admin/FormEditor.php:1183
+msgid "Attachments"
+msgstr "Anhänge"
+
+#: includes/Admin/FormEditor.php:1184
+msgid "Attach generated PDF"
+msgstr "Generiertes PDF anhängen"
+
+#: includes/Admin/FormEditor.php:1185
+msgid "The completed form is attached as a PDF document."
+msgstr "Das ausgefüllte Formular wird als PDF-Dokument beigefügt."
+
+#: includes/Admin/FormEditor.php:1186
+msgid "Attach uploaded files"
+msgstr "Hochgeladene Dateien anhängen"
+
+#: includes/Admin/FormEditor.php:1187
+msgid "All file uploads from the form are forwarded as attachments."
+msgstr "Alle Datei-Uploads aus dem Formular werden als Anhänge weitergeleitet."
+
+#: includes/Admin/FormEditor.php:1189
+msgid "{site_name} for default value"
+msgstr "{site_name} für Standardwert"
+
+#: includes/Admin/FormEditor.php:1190
+msgid "Sender email address"
+msgstr "E-Mail-Adresse des Absenders"
+
+#: includes/Admin/FormEditor.php:1191
+msgid "{admin_email} for default value"
+msgstr "{admin_email} für Standardwert"
+
+#: includes/Admin/FormEditor.php:1192
+msgid "Reply-to email"
+msgstr "Antwort-E-Mail"
+
+#: includes/Admin/FormEditor.php:1193
+msgid "Empty = sender email"
+msgstr "Leer = Absender-E-Mail"
+
+#: includes/Admin/FormEditor.php:1194
+msgid "CC emails"
+msgstr "CC-E-Mails"
+
+#: includes/Admin/FormEditor.php:1195
+msgid "BCC emails"
+msgstr "BCC-E-Mails"
+
+#: includes/Admin/FormEditor.php:1196
+msgid "Separate multiple with semicolons"
+msgstr "Mehrere mit Semikolon trennen"
+
+#: includes/Admin/FormEditor.php:1199
+msgid "Submit button"
+msgstr "Absende-Schaltfläche"
+
+#: includes/Admin/FormEditor.php:1200
+msgid "Labeling"
+msgstr "Beschriftung"
+
+#: includes/Admin/FormEditor.php:1202
+msgid "Visible text of the button"
+msgstr "Sichtbarer Text der Schaltfläche"
+
+#: includes/Admin/FormEditor.php:1203
+msgid "Label while sending"
+msgstr "Beschriftung beim Senden"
+
+#: includes/Admin/FormEditor.php:1204
+msgid "Shown while the submission is in progress"
+msgstr "Wird während der Übermittlung angezeigt"
+
+#: includes/Admin/FormEditor.php:1205
+msgid "Success message"
+msgstr "Erfolgsmeldung"
+
+#: includes/Admin/FormEditor.php:1206
+msgid "Message shown after a successful submission"
+msgstr "Nachricht nach erfolgreichem Eintrag"
+
+#: includes/Admin/FormEditor.php:1207
+msgid "Show button when"
+msgstr "Schaltfläche anzeigen, wenn"
+
+#: includes/Admin/FormEditor.php:1208
+msgid "of the conditions match:"
+msgstr "der Bedingungen zutrifft:"
+
+#: includes/Admin/FormEditor.php:1209
+msgid "Configure button"
+msgstr "Schaltfläche konfigurieren"
+
+#: includes/Admin/FormEditor.php:1210
+msgid "Visibility: conditions active"
+msgstr "Sichtbarkeit: Bedingungen aktiv"
+
+#: includes/Admin/FormEditor.php:1211
+msgid "conditional"
+msgstr "bedingt"
+
+#: includes/Admin/FormEditor.php:1215
+msgid "Saved"
+msgstr "Gespeichert"
+
+#: includes/Admin/FormEditor.php:1217
+msgid "Unknown error"
+msgstr "Unbekannter Fehler"
+
+#: includes/Admin/FormEditor.php:1218
+msgid "Server error"
+msgstr "Serverfehler"
+
+#: includes/Admin/FormEditor.php:1220
+msgid "Preview failed."
+msgstr "Vorschau fehlgeschlagen."
+
+#: includes/Admin/FormEditor.php:1221
+msgid "Network error."
+msgstr "Netzwerkfehler."
+
+#: includes/Admin/FormEditor.php:1294
+msgid "Seychelles"
+msgstr "Seychellen"
+
+#: includes/Admin/FormEditor.php:1312
+msgid "USA / Canada"
+msgstr "USA / Kanada"
+
+#: includes/Admin/FormEditor.php:1313
+msgid "Russia"
+msgstr "Russland"
+
+#: includes/Admin/FormEditor.php:1315
+msgid "South Africa"
+msgstr "Südafrika"
+
+#: includes/Admin/FormEditor.php:1332
+msgid "Peru"
+msgstr "Peru"
+
+#: includes/Admin/FormEditor.php:1333
+msgid "Mexico"
+msgstr "Mexiko"
+
+#: includes/Admin/FormEditor.php:1334
+msgid "Argentina"
+msgstr "Argentinien"
+
+#: includes/Admin/FormEditor.php:1336
+msgid "Chile"
+msgstr "Chile"
+
+#: includes/Admin/FormEditor.php:1337
+msgid "Colombia"
+msgstr "Kolumbien"
+
+#: includes/Admin/FormEditor.php:1338
+msgid "Australia"
+msgstr "Australien"
+
+#: includes/Admin/FormEditor.php:1339
+msgid "Indonesia"
+msgstr "Indonesien"
+
+#: includes/Admin/FormEditor.php:1340
+msgid "Philippines"
+msgstr "Philippinen"
+
+#: includes/Admin/FormEditor.php:1341
+msgid "New Zealand"
+msgstr "Neuseeland"
+
+#: includes/Admin/FormEditor.php:1342
+msgid "Singapore"
+msgstr "Singapur"
+
+#: includes/Admin/FormEditor.php:1343
+msgid "Thailand"
+msgstr "Thailand"
+
+#: includes/Admin/FormEditor.php:1344
+msgid "Japan"
+msgstr "Japan"
+
+#: includes/Admin/FormEditor.php:1345
+msgid "South Korea"
+msgstr "Südkorea"
+
+#: includes/Admin/FormEditor.php:1346
+msgid "Vietnam"
+msgstr "Vietnam"
+
+#: includes/Admin/FormEditor.php:1347
+msgid "China"
+msgstr "China"
+
+#: includes/Admin/FormEditor.php:1349
+msgid "India"
+msgstr "Indien"
+
+#: includes/Admin/FormEditor.php:1351
+msgid "Sri Lanka"
+msgstr "Sri Lanka"
+
+#: includes/Admin/FormEditor.php:1352
+msgid "Iran"
+msgstr "Iran"
+
+#: includes/Admin/FormEditor.php:1354
+msgid "Algeria"
+msgstr "Algerien"
+
+#: includes/Admin/FormEditor.php:1356
+msgid "Gambia"
+msgstr "Gambia"
+
+#: includes/Admin/FormEditor.php:1357
+msgid "Nigeria"
+msgstr "Nigeria"
+
+#: includes/Admin/FormEditor.php:1358
+msgid "Kenya"
+msgstr "Kenia"
+

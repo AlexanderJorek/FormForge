@@ -27,8 +27,6 @@ defined('ABSPATH') || exit;
  * Logs a debug message when WP_DEBUG is enabled.
  *
  * @param string $message The message to log.
- *
- * @return void
  */
 function forge_log(string $message): void
 {
@@ -258,11 +256,10 @@ class Plugin
     }
 
     /**
-     * Locales suggested privacy-policy text is available in: 'en' (the
-     * gettext source language, always available) plus every locale for which a
-     * languages/form-forge-{locale}.mo file exists. A future translation
-     * contribution (a new .po/.mo dropped into languages/) shows up here
-     * automatically — no code change needed.
+     * Locales suggested privacy-policy text is available in: 'en' (the gettext source language, always
+     * available) plus every locale for which a languages/form-forge-{locale}.mo file exists. A future
+     * translation contribution (a new .po/.mo dropped into languages/) shows up here automatically — no
+     * code change needed.
      *
      * @return array<string,string> Locale code => human-readable language name.
      */
@@ -278,13 +275,10 @@ class Plugin
     }
 
     /**
-     * Human-readable name for a locale code, using WP core's own (offline,
-     * no-API-call) lookup table so newly-added locales get a sensible label
-     * without this plugin maintaining its own name list.
+     * Human-readable name for a locale code, using WP core's own (offline, no-API-call) lookup table so
+     * newly-added locales get a sensible label without this plugin maintaining its own name list.
      *
      * @param string $locale Locale code, e.g. 'de_DE'.
-     *
-     * @return string
      */
     private static function localeDisplayName(string $locale): string
     {
@@ -296,11 +290,9 @@ class Plugin
     }
 
     /**
-     * Raw (untranslated-container) paragraphs of the suggested privacy-policy
-     * text disclosing FormForge's two third-party data flows: openiban.com
-     * (SEPA IBAN lookups) and Google reCAPTCHA (the CAPTCHA field). Shared by
-     * privacyPolicyPlainText() below — one source of truth for the wording,
-     * two output formats.
+     * Raw (untranslated-container) paragraphs of the suggested privacy-policy text disclosing FormForge's two
+     * third-party data flows: openiban.com (SEPA IBAN lookups) and Google reCAPTCHA (the CAPTCHA field).
+     * Shared by privacyPolicyPlainText() below — one source of truth for the wording, two output formats.
      *
      * @return string[] Two paragraphs: [0] openiban.com, [1] Google reCAPTCHA.
      */
@@ -331,22 +323,15 @@ class Plugin
     }
 
     /**
-     * Suggested privacy-policy text (openiban.com + Google reCAPTCHA
-     * disclosures) as plain text, ready to copy-paste directly into a privacy
-     * policy page — via the normal gettext pipeline (EN source strings, German
-     * translation shipped in languages/form-forge-de_DE.po/.mo, same as every
-     * other user-facing string in this plugin).
-     *
-     * Rendered in the language the caller (currently
-     * FormSettings::render()'s "Privacy Policy Text" card) asks for, not
-     * necessarily the site's current admin-UI locale — privacy-policy wording
-     * is content the admin is choosing for their published policy, independent
-     * of what language they run wp-admin in. withPluginLocale() handles the
-     * temporary locale switch.
+     * Suggested privacy-policy text (openiban.com + Google reCAPTCHA disclosures) as plain text, ready to
+     * copy-paste directly into a privacy policy page — via the normal gettext pipeline (EN source strings,
+     * German translation shipped in languages/form-forge-de_DE.po/.mo, same as every other user-facing string
+     * in this plugin). Rendered in the language the caller (currently FormSettings::render()'s "Privacy
+     * Policy Text" card) asks for, not necessarily the site's current admin-UI locale — privacy-policy
+     * wording is content the admin is choosing for their published policy, independent of what language they
+     * run wp-admin in. withPluginLocale() handles the temporary locale switch.
      *
      * @param string $lang Locale code from availablePrivacyLanguages().
-     *
-     * @return string
      */
     public static function privacyPolicyPlainText(string $lang): string
     {
@@ -357,35 +342,26 @@ class Plugin
     }
 
     /**
-     * Runs $callback with this plugin's textdomain swapped to $locale instead
-     * of the site's current locale, then restores it — the standard pattern for
-     * rendering plugin strings in a language the caller picked explicitly
-     * (mirrors how core/WooCommerce render per-recipient-locale emails).
+     * Runs $callback with this plugin's textdomain swapped to $locale instead of the site's current
+     * locale, then restores it — the standard pattern for rendering plugin strings in a language the
+     * caller picked explicitly (mirrors how core/WooCommerce render per-recipient-locale emails).
+     * Deliberately does NOT use switch_to_locale()/restore_previous_locale(): those mutate WP's global
+     * current-locale stack (affecting date formatting, every other loaded textdomain, etc.) for the
+     * whole rest of the request, and restoring via a second load_plugin_textdomain() call proved
+     * unreliable mid-request — callers ended up with 'form-forge' strings still stuck in the requested
+     * $locale afterward. Instead this saves and restores only the global $l10n['form-forge'] translation
+     * entry that __()/_e() actually read, which can't leave any state behind beyond that one array key.
+     * For $locale === 'en' this installs a NOOP_Translations object rather than just unsetting the array
+     * key. Simply unsetting it re-opens the door to WordPress's own "just in time" textdomain
+     * auto-loading (since WP 6.7): the next __()/_e() call for a domain with no $l10n entry gets
+     * silently reloaded from disk using the SITE's current locale (German, in the bug this was written
+     * to fix) — which is exactly what "requesting English" was trying to avoid. A NOOP_Translations
+     * instance keeps the array key present (so that auto-reload never triggers) while passing every
+     * string through untranslated, which is what "English" is supposed to mean here.
      *
-     * Deliberately does NOT use switch_to_locale()/restore_previous_locale():
-     * those mutate WP's global current-locale stack (affecting date formatting,
-     * every other loaded textdomain, etc.) for the whole rest of the request,
-     * and restoring via a second load_plugin_textdomain() call proved unreliable
-     * mid-request — callers ended up with 'form-forge' strings still stuck in
-     * the requested $locale afterward. Instead this saves and restores only the
-     * global $l10n['form-forge'] translation entry that __()/_e() actually read,
-     * which can't leave any state behind beyond that one array key.
-     *
-     * For $locale === 'en' this installs a NOOP_Translations object rather than
-     * just unsetting the array key. Simply unsetting it re-opens the door to
-     * WordPress's own "just in time" textdomain auto-loading (since WP 6.7):
-     * the next __()/_e() call for a domain with no $l10n entry gets silently
-     * reloaded from disk using the SITE's current locale (German, in the bug
-     * this was written to fix) — which is exactly what "requesting English"
-     * was trying to avoid. A NOOP_Translations instance keeps the array key
-     * present (so that auto-reload never triggers) while passing every string
-     * through untranslated, which is what "English" is supposed to mean here.
-     *
-     * @param string   $locale   Locale code, e.g. 'de_DE', or 'en' for the
-     *                           gettext source language (no .mo to load).
+     * @param string   $locale   Locale code, e.g. 'de_DE', or 'en' for the gettext source language (no
+     *                           .mo to load).
      * @param callable $callback Produces the string once the locale is active.
-     *
-     * @return string
      */
     private static function withPluginLocale(string $locale, callable $callback): string
     {
@@ -452,12 +428,11 @@ class Plugin
     }
 
     /**
-     * Grants the create_forge_forms capability to users with the plugin's own
-     * edit_forms permission (Plugin::userCan() already lets admins through).
+     * Grants the create_forge_forms capability to users with the plugin's own edit_forms permission
+     * (Plugin::userCan() already lets admins through).
      *
      * @param string[] $caps    Required primitive capabilities.
      * @param string   $cap     Requested meta capability.
-     *
      * @return string[]
      */
     public static function mapCreateFormCap(array $caps, string $cap): array
@@ -472,7 +447,6 @@ class Plugin
      * Adds an inline JS confirmation to the plugin list delete link.
      *
      * @param string[] $links Plugin action links array.
-     *
      * @return string[]
      */
     public static function addDeleteWarningLink(array $links): array
@@ -490,15 +464,12 @@ class Plugin
     }
 
     /**
-     * Checks if the given user has a specific FormForge capability.
-     *
-     * Valid caps: view_forms, edit_forms, edit_pdf_layout, use_verifier, settings.
-     * Administrators always pass; user-specific override wins over role setting.
+     * Checks if the given user has a specific FormForge capability. Valid caps: view_forms, edit_forms,
+     * edit_pdf_layout, use_verifier, settings. Administrators always pass; user-specific override wins over
+     * role setting.
      *
      * @param string $cap     The capability slug to check.
      * @param int    $user_id User ID, or 0 for the current user.
-     *
-     * @return bool
      */
     public static function userCan(string $cap, int $user_id = 0): bool
     {

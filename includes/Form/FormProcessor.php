@@ -287,14 +287,12 @@ class FormProcessor
     }
 
     /**
-     * Checks and increments a per-IP, per-form submission counter using a
-     * short-lived transient, to slow down scripted replay/abuse of the
-     * public submission endpoint.
+     * Checks and increments a per-IP, per-form submission counter using a short-lived transient, to
+     * slow down scripted replay/abuse of the public submission endpoint.
      *
      * @param int $form_id The form being submitted.
-     *
-     * @return int|null Seconds until the caller's window resets, or null when
-     *                   the caller is within the allowed rate (not limited).
+     * @return int|null Seconds until the caller's window resets, or null when the caller is within the
+     *                  allowed rate (not limited).
      */
     private static function rateLimitRetryAfter(int $form_id): ?int
     {
@@ -326,13 +324,11 @@ class FormProcessor
     }
 
     /**
-     * Returns all field IDs (top-level and group children) that should be hidden
-     * based on the submitted values and the form's condition rules.
+     * Returns all field IDs (top-level and group children) that should be hidden based on the submitted values and the form's condition rules.
      *
      * @param array $fields Form field configs.
      * @param array $flat   Flat map of field_id → submitted value.
      * @param array $raw    Raw per-field submitted values (used for group copy counts).
-     *
      * @return array<string>
      */
     private static function collectHiddenIds(array $fields, array $flat, array $raw): array
@@ -395,13 +391,10 @@ class FormProcessor
     }
 
     /**
-     * Evaluates a single field's condition config against the flat value map.
-     * Returns true when the field should be hidden.
+     * Evaluates a single field's condition config against the flat value map. Returns true when the field should be hidden.
      *
      * @param array $field_cfg Field or child config with optional 'conditions' key.
      * @param array $flat      Flat field_id → value map.
-     *
-     * @return bool
      */
     private static function isHiddenByConditions(array $field_cfg, array $flat): bool
     {
@@ -432,8 +425,6 @@ class FormProcessor
      *
      * @param array $rule Rule: field_id, operator, value.
      * @param array $flat Flat field_id → value map.
-     *
-     * @return bool
      */
     private static function evalConditionRule(array $rule, array $flat): bool
     {

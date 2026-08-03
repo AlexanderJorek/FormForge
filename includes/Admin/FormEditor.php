@@ -48,7 +48,6 @@ class FormEditor
      * Appends a CSS class on the editor page.
      *
      * @param string $classes Existing admin body classes.
-     *
      * @return string Modified body class string.
      */
     public static function bodyClass(string $classes): string
@@ -124,6 +123,14 @@ class FormEditor
         $data_palette = \wp_json_encode($palette, JSON_HEX_APOS | JSON_HEX_QUOT);
         $ajax_url     = \esc_attr(\admin_url('admin-ajax.php'));
 
+        /* assets/js/admin-builder.js (the drag-and-drop builder) is enqueued by
+           Assets::enqueueAdmin() under the 'forge-forms-builder' handle — that
+           enqueue always runs before this render() callback (admin_enqueue_scripts
+           fires before the admin_menu page-render callback), so localizing the
+           already-registered handle here is safe; wp_localize_script() only
+           stores the data, the inline <script> is printed later at footer time. */
+        \wp_localize_script('forge-forms-builder', 'ForgeBuilderI18n', self::builderI18n());
+
         if ($perf_mode) {
             $php_ms = round((microtime(true) - $perf_start) * 1000, 2);
             \wp_enqueue_script(
@@ -137,6 +144,10 @@ class FormEditor
                 'phpRenderMs' => $php_ms,
                 'formId'      => $form_id,
                 'fieldCount'  => count($form_data['fields']),
+                'i18n'        => [
+                    'toggleShow' => __('Show performance overlay', 'form-forge'),
+                    'toggleHide' => __('Hide performance overlay', 'form-forge'),
+                ],
             ]);
         }
         ?>
@@ -444,9 +455,9 @@ window.fetch = function (url, opts) {
 
 }());';
 
-        $page = '<!DOCTYPE html><html lang="de"><head>'
+        $page = '<!DOCTYPE html><html lang="' . esc_attr(str_replace('_', '-', get_locale())) . '"><head>'
             . '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-            . '<title>Vorschau</title>'
+            . '<title>' . esc_html__('Preview', 'form-forge') . '</title>'
             . '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/'
             . \ForgeForms\Utils\Assets::FONT_AWESOME_VERSION . '/css/all.min.css"'
             . ' integrity="' . \ForgeForms\Utils\Assets::FONT_AWESOME_SRI . '"'
@@ -537,7 +548,6 @@ window.fetch = function (url, opts) {
      * Sanitizes the fields array from the builder.
      *
      * @param array $fields Raw fields array from the builder.
-     *
      * @return array Sanitized fields array.
      */
     public static function sanitizeFields(array $fields): array
@@ -562,7 +572,7 @@ window.fetch = function (url, opts) {
                 } elseif (is_bool($v) || is_int($v) || is_float($v)) {
                     $f[$sk] = $v;
                 } elseif (is_array($v)) {
-                    $f[$sk] = $v;
+                    $f[$sk] = self::sanitizeArrayValue($v);
                 }
             }
             if (isset($f['options']) && is_array($f['options'])) {
@@ -586,10 +596,43 @@ window.fetch = function (url, opts) {
     }
 
     /**
+     * Recursively sanitizes a nested array-valued field config entry. sanitizeFields() used to copy any
+     * array-typed field value through verbatim (only the well-known 'options' key got dedicated handling
+     * afterward). Since sanitizeFields() is the sanitization boundary for untrusted pasted import strings
+     * (see FormList.php::ajaxImport()), any OTHER array-valued key let an attacker-crafted import smuggle raw
+     * HTML/script strings straight into stored field config, bypassing the whole
+     * sanitizeConfigValue()/wp_kses_post() pipeline (CWE-79). No current field type stores config under a
+     * second array key, but this generic loop must not silently trust one if a field type adds one later —
+     * so every array is now walked and its string leaves are sanitized the same way an unrecognized scalar
+     * config value is above. Depth is capped to bound recursion against a deeply nested payload (CWE-674).
+     *
+     * @param array $value Raw nested array value.
+     * @param int   $depth Current recursion depth (internal use).
+     * @return array Recursively sanitized array.
+     */
+    private static function sanitizeArrayValue(array $value, int $depth = 0): array
+    {
+        if ($depth > 10) {
+            return [];
+        }
+        $clean = [];
+        foreach ($value as $k => $v) {
+            $sk = is_string($k) ? \sanitize_key($k) : $k;
+            if (is_string($v)) {
+                $clean[$sk] = \wp_kses_post($v);
+            } elseif (is_bool($v) || is_int($v) || is_float($v)) {
+                $clean[$sk] = $v;
+            } elseif (is_array($v)) {
+                $clean[$sk] = self::sanitizeArrayValue($v, $depth + 1);
+            }
+        }
+        return $clean;
+    }
+
+    /**
      * Sanitizes the notifications array.
      *
      * @param array $notifications Raw notifications array.
-     *
      * @return array Sanitized notifications array.
      */
     public static function sanitizeNotifications(array $notifications): array
@@ -643,7 +686,6 @@ window.fetch = function (url, opts) {
      * Sanitizes the form settings array.
      *
      * @param array $settings Raw settings array.
-     *
      * @return array Sanitized settings array.
      */
     public static function sanitizeSettings(array $settings): array
@@ -675,16 +717,13 @@ window.fetch = function (url, opts) {
     }
 
     /**
-     * Sanitizes an HTML email body for admin-authored notification templates.
-     *
-     * Uses targeted regex instead of wp_kses because wp_kses passes all style
-     * attributes through safecss_filter_attr, which drops valid email CSS
-     * properties (overflow, border-radius, display:inline-block, etc.).
-     * Only genuinely dangerous constructs are removed: script elements,
-     * inline event-handler attributes, and javascript:/vbscript: URIs.
+     * Sanitizes an HTML email body for admin-authored notification templates. Uses targeted regex instead of
+     * wp_kses because wp_kses passes all style attributes through safecss_filter_attr, which drops valid
+     * email CSS properties (overflow, border-radius, display:inline-block, etc.). Only genuinely dangerous
+     * constructs are removed: script elements, inline event-handler attributes, and javascript:/vbscript:
+     * URIs.
      *
      * @param string $html Raw HTML body from the notification editor.
-     *
      * @return string Sanitized HTML.
      */
     private static function sanitizeEmailBody(string $html): string
@@ -973,6 +1012,390 @@ window.fetch = function (url, opts) {
             'bcc'              => '',
             'attach_pdf'       => true,
             'enabled'          => true,
+        ];
+    }
+
+    /**
+     * Builds the localized string catalog consumed by assets/js/admin-builder.js
+     * (the drag-and-drop builder UI). Mirrors the pattern used for
+     * ForgeForms.i18n (Assets::enqueueFront()) and hbi18n
+     * (PDFLayoutEditor.php) — a single object of English-source strings that
+     * the JS falls back to its own English literal for if this ever fails to
+     * load (see the `_i18n.key || 'English fallback'` pattern in the JS).
+     *
+     * @return array{i18n: array<string, string>, countryNames: array<string, string>, phoneCodes: array<string, string>}
+     */
+    private static function builderI18n(): array
+    {
+        return [
+            'i18n' => [
+                /* Defaults seeded into a brand-new form (state.formName / state.settings) */
+                'defaultFormName'  => __('New Form', 'form-forge'),
+                'submitLabel'      => __('Submit', 'form-forge'),
+                'submitWorking'    => __('Sending…', 'form-forge'),
+                'successMessage'   => __('Thank you for your submission!', 'form-forge'),
+
+                /* Unsaved-changes guard modal */
+                'unsavedTitle' => __('Unsaved changes', 'form-forge'),
+                'unsavedBody'  => __('This form has unsaved changes. Leave anyway?', 'form-forge'),
+                'stay'         => __('Stay', 'form-forge'),
+                'leave'        => __('Leave', 'form-forge'),
+
+                /* Number-field validation rule dropdown */
+                'validationNone'             => __('None', 'form-forge'),
+                'validationIntegersOnly'     => __('Integers only', 'form-forge'),
+                'validationPositiveNumbers'  => __('Positive numbers', 'form-forge'),
+                'validationPositiveIntegers' => __('Positive integers', 'form-forge'),
+
+                /* Condition-rule operator dropdown (field/submit-button conditions) */
+                'opEquals'      => __('is equal to', 'form-forge'),
+                'opNotEquals'   => __('is not equal to', 'form-forge'),
+                'opContains'    => __('contains', 'form-forge'),
+                'opNotContains' => __('does not contain', 'form-forge'),
+                'opEmpty'       => __('is empty', 'form-forge'),
+                'opNotEmpty'    => __('is not empty', 'form-forge'),
+                'opGreater'     => __('is greater than', 'form-forge'),
+                'opLess'        => __('is less than', 'form-forge'),
+
+                /* Field list / rows */
+                'noFieldsFound'       => __('No fields found.', 'form-forge'),
+                'noFieldsYetTitle'    => __('No fields yet', 'form-forge'),
+                'addFirstFieldHtml'   => __('Add your first field via', 'form-forge'),
+                'noLabel'             => __('(no label)', 'form-forge'),
+                'edit'                => __('Edit', 'form-forge'),
+                'duplicate'           => __('Duplicate', 'form-forge'),
+                'remove'              => __('Remove', 'form-forge'),
+                'copied'              => __('copied', 'form-forge'),
+                'fieldGroupType'      => __('Field group', 'form-forge'),
+                'addFieldsToGroup'    => __('Add fields to group', 'form-forge'),
+                'settingsLabel'       => __('Settings', 'form-forge'),
+                'conditionsActive'    => __('Conditions active', 'form-forge'),
+
+                /* Field picker modal */
+                'addFieldTitle'    => __('Add field', 'form-forge'),
+                'searchFieldType'  => __('Search field type…', 'form-forge'),
+
+                /* Field settings modal */
+                'fieldSettingsTitle' => __('Field settings', 'form-forge'),
+                'copyFieldId'        => __('Copy field ID', 'form-forge'),
+                'tabGeneral'         => __('General', 'form-forge'),
+                'tabAdvanced'        => __('Advanced', 'form-forge'),
+                'tabConditions'      => __('Conditions', 'form-forge'),
+                'done'               => __('Done', 'form-forge'),
+                'editFieldSuffix'    => __('Edit', 'form-forge'),
+                'labelField'         => __('Label', 'form-forge'),
+                'hideLabel'          => __('Hide label', 'form-forge'),
+                'requiredField'      => __('Required field', 'form-forge'),
+                'noOtherFields'      => __('(no other fields)', 'form-forge'),
+                'valueWord'          => __('Value', 'form-forge'),
+                'urlPlaceholder'     => __('https://…', 'form-forge'),
+                'mediaLibrary'       => __('Media library', 'form-forge'),
+                'useButtonLabel'     => __('Use', 'form-forge'),
+                'imageUrlPrompt'     => __('Image URL:', 'form-forge'),
+                'linkUrlPrompt'      => __('Enter link URL:', 'form-forge'),
+
+                /* Rich-text toolbar (spRichTextEditor) command tooltips */
+                'rtBold'          => __('Bold', 'form-forge'),
+                'rtItalic'        => __('Italic', 'form-forge'),
+                'rtUnderline'     => __('Underline', 'form-forge'),
+                'rtBulletList'    => __('List', 'form-forge'),
+                'rtNumberedList'  => __('Numbered list', 'form-forge'),
+                'rtLink'          => __('Link', 'form-forge'),
+
+                /* Country/calling-code tag remove buttons, rating icon pill */
+                'removeAriaLabel' => __('Remove', 'form-forge'),
+                'wholeValues'     => __('Whole values', 'form-forge'),
+                'halfValues'      => __('Half values', 'form-forge'),
+                'pagePrefix'         => __('Page ', 'form-forge'),
+                'useEmailsHint'      => __('Use in emails:', 'form-forge'),
+                'fieldIdLabel'       => __('Field ID', 'form-forge'),
+
+                /* Advanced tab */
+                'validationSection'      => __('Validation', 'form-forge'),
+                'validationRule'         => __('Validation rule', 'form-forge'),
+                'autocompleteSection'    => __('Browser autocomplete', 'form-forge'),
+                'enableBrowserFill'      => __('Enable browser autofill', 'form-forge'),
+                'autocompleteValue'      => __('Autocomplete value', 'form-forge'),
+                'autocompleteValueHint'  => __('E.g. "name", "email", "tel". Empty = browser default.', 'form-forge'),
+                'appearanceSection'      => __('Appearance', 'form-forge'),
+                'cssClasses'             => __('CSS class(es)', 'form-forge'),
+                'separateClassesHint'    => __('Separate multiple classes with spaces.', 'form-forge'),
+
+                /* SEPA / phone advanced blocks */
+                'countryFilter'      => __('Country filter', 'form-forge'),
+                'countryList'        => __('Country list', 'form-forge'),
+                'off'                => __('Off', 'form-forge'),
+                'allowed'            => __('Allowed', 'form-forge'),
+                'disallowed'         => __('Disallowed', 'form-forge'),
+                'formatValidation'   => __('Format validation', 'form-forge'),
+                'phoneAnyFormatHint' => __('Any valid format: min. 7 digits, optionally with + and country code.', 'form-forge'),
+                'any'                => __('Any', 'form-forge'),
+                'countriesMode'      => __('Countries', 'form-forge'),
+                'dialCodes'          => __('Dial codes', 'form-forge'),
+
+                /* Conditions tab (per-field and submit-button) */
+                'condShow'          => __('Show', 'form-forge'),
+                'condHide'          => __('Hide', 'form-forge'),
+                'condSentenceField' => __('this field when', 'form-forge'),
+                'condAll'           => __('all', 'form-forge'),
+                'condAny'           => __('any', 'form-forge'),
+                'condSentenceTail'  => __('of the following conditions match:', 'form-forge'),
+                'addCondition'      => __('Add condition', 'form-forge'),
+                'removeCondition'   => __('Remove condition', 'form-forge'),
+                'removeRule'        => __('Remove rule', 'form-forge'),
+                'addRule'           => __('Add rule', 'form-forge'),
+                'chooseOption'      => __('Choose option', 'form-forge'),
+                'modeOption'        => __('Option', 'form-forge'),
+                'modeValue'         => __('Value', 'form-forge'),
+                'noFields'          => __('(no fields)', 'form-forge'),
+
+                /* Country / calling-code tag pickers */
+                'searchCountry'  => __('Search and add country…', 'form-forge'),
+                'searchDialCode' => __('Search dial code (+49)…', 'form-forge'),
+
+                /* Select/radio/checkbox option editor */
+                'preselected'            => __('Preselected', 'form-forge'),
+                'optionLabelPlaceholder' => __('Label', 'form-forge'),
+                'optionValuePlaceholder' => __('value', 'form-forge'),
+                'addOption'              => __('Add option', 'form-forge'),
+
+                /* Textarea/text character-limit unit toggle */
+                'unitChars' => __('Characters', 'form-forge'),
+                'unitWords' => __('Words', 'form-forge'),
+
+                /* Rich text / HTML editors */
+                'modeCode'    => __('Code', 'form-forge'),
+                'modePreview' => __('Preview', 'form-forge'),
+                'modeVisual'  => __('Visual', 'form-forge'),
+
+                /* Time field */
+                'formatLabel' => __('Format', 'form-forge'),
+                'format24h'   => __('24h', 'form-forge'),
+                'format12h'   => __('12h (AM/PM)', 'form-forge'),
+                'prefillNow'  => __('Prefill now', 'form-forge'),
+
+                /* Sub-fields accordion (Name, Address, SEPA, …) */
+                'subfieldsSection' => __('Subfields', 'form-forge'),
+                'enableSubfield'   => __('Enable subfield', 'form-forge'),
+                'placeholderLabel' => __('Placeholder', 'form-forge'),
+
+                /* Notifications list + modal */
+                'noNotificationsHtml' => __('No notifications yet. Click', 'form-forge'),
+                'addNotification'     => __('Add notification', 'form-forge'),
+                'notificationPrefix'  => __('Notification ', 'form-forge'),
+                'routingActive'       => __('Routing active', 'form-forge'),
+                'noName'              => __('(no name)', 'form-forge'),
+                'notificationPlaceholder' => __('Notification', 'form-forge'),
+                'tabRecipient'        => __('Recipient', 'form-forge'),
+                'tabContent'          => __('Content', 'form-forge'),
+                'tabSender'           => __('Sender', 'form-forge'),
+                'recipientMode'       => __('Recipient mode', 'form-forge'),
+                'modeDirect'          => __('Direct', 'form-forge'),
+                'modeRouting'         => __('Routing', 'form-forge'),
+                'activeLabel'         => __('Active', 'form-forge'),
+                'singleModeHint'      => __('All entries are sent to a fixed address.', 'form-forge'),
+                'routingModeHint'     => __('The email address is chosen based on field conditions.', 'form-forge'),
+                'toEmail'             => __('To (email)', 'form-forge'),
+                'arrowTo'             => __('→ To:', 'form-forge'),
+                'emailPlaceholder'    => __('Email', 'form-forge'),
+                'fallbackEmail'       => __('Fallback email', 'form-forge'),
+                'fallbackEmailHint'   => __('Used when no rule matches', 'form-forge'),
+                'subject'             => __('Subject', 'form-forge'),
+                'message'             => __('Message', 'form-forge'),
+                'attachments'         => __('Attachments', 'form-forge'),
+                'attachPdf'           => __('Attach generated PDF', 'form-forge'),
+                'attachPdfHint'       => __('The completed form is attached as a PDF document.', 'form-forge'),
+                'attachUploads'       => __('Attach uploaded files', 'form-forge'),
+                'attachUploadsHint'   => __('All file uploads from the form are forwarded as attachments.', 'form-forge'),
+                'fromName'            => __('Sender name', 'form-forge'),
+                'defaultSiteNameHint' => __('{site_name} for default value', 'form-forge'),
+                'fromEmail'           => __('Sender email address', 'form-forge'),
+                'defaultAdminEmailHint' => __('{admin_email} for default value', 'form-forge'),
+                'replyTo'             => __('Reply-to email', 'form-forge'),
+                'emptyMeansSenderEmail' => __('Empty = sender email', 'form-forge'),
+                'ccEmails'            => __('CC emails', 'form-forge'),
+                'bccEmails'           => __('BCC emails', 'form-forge'),
+                'separateWithSemicolon' => __('Separate multiple with semicolons', 'form-forge'),
+
+                /* Submit button preview + settings modal */
+                'submitButtonTitle'       => __('Submit button', 'form-forge'),
+                'tabLabels'               => __('Labeling', 'form-forge'),
+                'buttonLabel'             => __('Label', 'form-forge'),
+                'buttonLabelHint'         => __('Visible text of the button', 'form-forge'),
+                'workingLabel'            => __('Label while sending', 'form-forge'),
+                'workingLabelHint'        => __('Shown while the submission is in progress', 'form-forge'),
+                'successMessageLabel'     => __('Success message', 'form-forge'),
+                'successMessageHint'      => __('Message shown after a successful submission', 'form-forge'),
+                'showButtonWhen'          => __('Show button when', 'form-forge'),
+                'conditionsMatchSuffix'   => __('of the conditions match:', 'form-forge'),
+                'configureButton'         => __('Configure button', 'form-forge'),
+                'visibilityConditionsActive' => __('Visibility: conditions active', 'form-forge'),
+                'conditionalBadge'        => __('conditional', 'form-forge'),
+
+                /* Save / preview status messages */
+                'saving'         => __('Saving…', 'form-forge'),
+                'saved'          => __('Saved', 'form-forge'),
+                'errorGeneric'   => __('Error', 'form-forge'),
+                'unknownError'   => __('Unknown error', 'form-forge'),
+                'serverError'    => __('Server error', 'form-forge'),
+                'previewLabel'   => __('Preview', 'form-forge'),
+                'previewFailed'  => __('Preview failed.', 'form-forge'),
+                'networkError'   => __('Network error.', 'form-forge'),
+            ],
+
+            /* SEPA "Länderfilter" country-tag picker (IBAN-capable countries). Reuses the
+               exact same __() msgids as SepaField::ibanCountryOptions() — same list, same
+               English source text — except 'SC' (Seychelles), which that list doesn't
+               contain and is new here. Reusing msgids means these already have German
+               translations in languages/form-forge-de_DE.po. */
+            'countryNames' => [
+                'AD' => __('Andorra', 'form-forge'),
+                'AE' => __('United Arab Emirates', 'form-forge'),
+                'AL' => __('Albania', 'form-forge'),
+                'AT' => __('Austria', 'form-forge'),
+                'AZ' => __('Azerbaijan', 'form-forge'),
+                'BA' => __('Bosnia and Herzegovina', 'form-forge'),
+                'BE' => __('Belgium', 'form-forge'),
+                'BG' => __('Bulgaria', 'form-forge'),
+                'BH' => __('Bahrain', 'form-forge'),
+                'BR' => __('Brazil', 'form-forge'),
+                'CH' => __('Switzerland', 'form-forge'),
+                'CR' => __('Costa Rica', 'form-forge'),
+                'CY' => __('Cyprus', 'form-forge'),
+                'CZ' => __('Czechia', 'form-forge'),
+                'DE' => __('Germany', 'form-forge'),
+                'DJ' => __('Djibouti', 'form-forge'),
+                'DK' => __('Denmark', 'form-forge'),
+                'DO' => __('Dominican Republic', 'form-forge'),
+                'EE' => __('Estonia', 'form-forge'),
+                'EG' => __('Egypt', 'form-forge'),
+                'ES' => __('Spain', 'form-forge'),
+                'FI' => __('Finland', 'form-forge'),
+                'FR' => __('France', 'form-forge'),
+                'GB' => __('United Kingdom', 'form-forge'),
+                'GE' => __('Georgia', 'form-forge'),
+                'GI' => __('Gibraltar', 'form-forge'),
+                'GL' => __('Greenland', 'form-forge'),
+                'GR' => __('Greece', 'form-forge'),
+                'GT' => __('Guatemala', 'form-forge'),
+                'HR' => __('Croatia', 'form-forge'),
+                'HU' => __('Hungary', 'form-forge'),
+                'IE' => __('Ireland', 'form-forge'),
+                'IL' => __('Israel', 'form-forge'),
+                'IQ' => __('Iraq', 'form-forge'),
+                'IS' => __('Iceland', 'form-forge'),
+                'IT' => __('Italy', 'form-forge'),
+                'JO' => __('Jordan', 'form-forge'),
+                'KW' => __('Kuwait', 'form-forge'),
+                'KZ' => __('Kazakhstan', 'form-forge'),
+                'LB' => __('Lebanon', 'form-forge'),
+                'LC' => __('St. Lucia', 'form-forge'),
+                'LI' => __('Liechtenstein', 'form-forge'),
+                'LT' => __('Lithuania', 'form-forge'),
+                'LU' => __('Luxembourg', 'form-forge'),
+                'LV' => __('Latvia', 'form-forge'),
+                'LY' => __('Libya', 'form-forge'),
+                'MA' => __('Morocco', 'form-forge'),
+                'MC' => __('Monaco', 'form-forge'),
+                'MD' => __('Moldova', 'form-forge'),
+                'ME' => __('Montenegro', 'form-forge'),
+                'MK' => __('North Macedonia', 'form-forge'),
+                'MR' => __('Mauritania', 'form-forge'),
+                'MT' => __('Malta', 'form-forge'),
+                'MU' => __('Mauritius', 'form-forge'),
+                'NI' => __('Nicaragua', 'form-forge'),
+                'NL' => __('Netherlands', 'form-forge'),
+                'NO' => __('Norway', 'form-forge'),
+                'PK' => __('Pakistan', 'form-forge'),
+                'PL' => __('Poland', 'form-forge'),
+                'PT' => __('Portugal', 'form-forge'),
+                'QA' => __('Qatar', 'form-forge'),
+                'RO' => __('Romania', 'form-forge'),
+                'RS' => __('Serbia', 'form-forge'),
+                'SA' => __('Saudi Arabia', 'form-forge'),
+                'SC' => __('Seychelles', 'form-forge'),
+                'SE' => __('Sweden', 'form-forge'),
+                'SI' => __('Slovenia', 'form-forge'),
+                'SK' => __('Slovakia', 'form-forge'),
+                'SM' => __('San Marino', 'form-forge'),
+                'SV' => __('El Salvador', 'form-forge'),
+                'TN' => __('Tunisia', 'form-forge'),
+                'TR' => __('Turkey', 'form-forge'),
+                'UA' => __('Ukraine', 'form-forge'),
+                'VA' => __('Vatican City', 'form-forge'),
+                'VG' => __('British Virgin Islands', 'form-forge'),
+                'XK' => __('Kosovo', 'form-forge'),
+            ],
+
+            /* Phone-field "Vorwahlen" (calling code) tag picker. These are dial-code
+               region labels, not ISO country names, so they're a distinct set of new
+               msgids from countryNames above (some cover multiple countries, e.g. +1). */
+            'phoneCodes' => [
+                '+1'   => __('USA / Canada', 'form-forge'),
+                '+7'   => __('Russia', 'form-forge'),
+                '+20'  => __('Egypt', 'form-forge'),
+                '+27'  => __('South Africa', 'form-forge'),
+                '+30'  => __('Greece', 'form-forge'),
+                '+31'  => __('Netherlands', 'form-forge'),
+                '+32'  => __('Belgium', 'form-forge'),
+                '+33'  => __('France', 'form-forge'),
+                '+34'  => __('Spain', 'form-forge'),
+                '+36'  => __('Hungary', 'form-forge'),
+                '+39'  => __('Italy', 'form-forge'),
+                '+40'  => __('Romania', 'form-forge'),
+                '+41'  => __('Switzerland', 'form-forge'),
+                '+43'  => __('Austria', 'form-forge'),
+                '+44'  => __('United Kingdom', 'form-forge'),
+                '+45'  => __('Denmark', 'form-forge'),
+                '+46'  => __('Sweden', 'form-forge'),
+                '+47'  => __('Norway', 'form-forge'),
+                '+48'  => __('Poland', 'form-forge'),
+                '+49'  => __('Germany', 'form-forge'),
+                '+51'  => __('Peru', 'form-forge'),
+                '+52'  => __('Mexico', 'form-forge'),
+                '+54'  => __('Argentina', 'form-forge'),
+                '+55'  => __('Brazil', 'form-forge'),
+                '+56'  => __('Chile', 'form-forge'),
+                '+57'  => __('Colombia', 'form-forge'),
+                '+61'  => __('Australia', 'form-forge'),
+                '+62'  => __('Indonesia', 'form-forge'),
+                '+63'  => __('Philippines', 'form-forge'),
+                '+64'  => __('New Zealand', 'form-forge'),
+                '+65'  => __('Singapore', 'form-forge'),
+                '+66'  => __('Thailand', 'form-forge'),
+                '+81'  => __('Japan', 'form-forge'),
+                '+82'  => __('South Korea', 'form-forge'),
+                '+84'  => __('Vietnam', 'form-forge'),
+                '+86'  => __('China', 'form-forge'),
+                '+90'  => __('Turkey', 'form-forge'),
+                '+91'  => __('India', 'form-forge'),
+                '+92'  => __('Pakistan', 'form-forge'),
+                '+94'  => __('Sri Lanka', 'form-forge'),
+                '+98'  => __('Iran', 'form-forge'),
+                '+212' => __('Morocco', 'form-forge'),
+                '+213' => __('Algeria', 'form-forge'),
+                '+216' => __('Tunisia', 'form-forge'),
+                '+220' => __('Gambia', 'form-forge'),
+                '+234' => __('Nigeria', 'form-forge'),
+                '+254' => __('Kenya', 'form-forge'),
+                '+351' => __('Portugal', 'form-forge'),
+                '+352' => __('Luxembourg', 'form-forge'),
+                '+353' => __('Ireland', 'form-forge'),
+                '+354' => __('Iceland', 'form-forge'),
+                '+356' => __('Malta', 'form-forge'),
+                '+357' => __('Cyprus', 'form-forge'),
+                '+358' => __('Finland', 'form-forge'),
+                '+359' => __('Bulgaria', 'form-forge'),
+                '+370' => __('Lithuania', 'form-forge'),
+                '+371' => __('Latvia', 'form-forge'),
+                '+372' => __('Estonia', 'form-forge'),
+                '+380' => __('Ukraine', 'form-forge'),
+                '+385' => __('Croatia', 'form-forge'),
+                '+386' => __('Slovenia', 'form-forge'),
+                '+420' => __('Czechia', 'form-forge'),
+                '+421' => __('Slovakia', 'form-forge'),
+                '+423' => __('Liechtenstein', 'form-forge'),
+            ],
         ];
     }
 }

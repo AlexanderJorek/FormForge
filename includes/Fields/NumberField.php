@@ -76,7 +76,6 @@ CSS;
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Current field value.
-     *
      * @return string Rendered HTML.
      */
     public function render(array $config, string $field_id, mixed $value = null): string
@@ -100,7 +99,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return bool|string True on valid, error message string on invalid.
      */
     public function validate(mixed $value, array $config): bool|string
@@ -143,13 +141,14 @@ CSS;
                 var inp = fieldEl.querySelector('input[type="number"]');
                 if (!inp || inp.value.trim() === '') return null;
                 var val = parseFloat(inp.value);
-                if (isNaN(val)) return 'Please enter a valid number.';
+                var _i18n = window.ForgeForms && window.ForgeForms.i18n;
+                if (isNaN(val)) return (_i18n && _i18n.number_invalid) || 'Please enter a valid number.';
                 var min = inp.getAttribute('min');
                 var max = inp.getAttribute('max');
                 if (min !== null && min !== '' && val < parseFloat(min))
-                    return 'Minimum value: ' + min;
+                    return ((_i18n && _i18n.number_min) || 'Minimum value: %s').replace('%s', min);
                 if (max !== null && max !== '' && val > parseFloat(max))
-                    return 'Maximum value: ' + max;
+                    return ((_i18n && _i18n.number_max) || 'Maximum value: %s').replace('%s', max);
                 return null;
             }
             JS]];

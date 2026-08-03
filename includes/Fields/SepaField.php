@@ -437,7 +437,6 @@ CSS;
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Current field value.
-     *
      * @return string Rendered HTML.
      */
     public function render(array $config, string $field_id, mixed $value = null): string
@@ -607,14 +606,9 @@ CSS;
     }
 
     /**
-     * Returns the composite SEPA array: IBAN, BIC, Kontoinhaber, and signature.
-     *
-     * The signature canvas posts to a separate key ($field_id . '-sig') because
-     * the main composite array is name-indexed as $field_id[iban], $field_id[bic], etc.
+     * Returns the composite SEPA array: IBAN, BIC, Kontoinhaber, and signature. The signature canvas posts to a separate key ($field_id . '-sig') because the main composite array is name-indexed as $field_id[iban], $field_id[bic], etc.
      *
      * @param string $field_id The field element ID.
-     *
-     * @return mixed
      */
     public function extractValue(string $field_id): mixed
     {
@@ -637,8 +631,7 @@ CSS;
     }
 
     /**
-     * Country code => canonical IBAN length. Mirrors the IBAN_LEN table in
-     * this field's client-side JS (used there for input masking/placeholder).
+     * Country code => canonical IBAN length. Mirrors the IBAN_LEN table in this field's client-side JS (used there for input masking/placeholder).
      *
      * @var array<string, int>
      */
@@ -659,12 +652,9 @@ CSS;
     ];
 
     /**
-     * Verifies the ISO 7064 mod-97 checksum of a cleaned (no-space, uppercase) IBAN.
-     * Moves the country+check-digits to the end, converts letters to numbers
-     * (A=10..Z=35), then requires the result mod 97 == 1.
+     * Verifies the ISO 7064 mod-97 checksum of a cleaned (no-space, uppercase) IBAN. Moves the country+check-digits to the end, converts letters to numbers (A=10..Z=35), then requires the result mod 97 == 1.
      *
      * @param string $iban Cleaned IBAN string.
-     *
      * @return bool True when the check digits are valid.
      */
     private static function ibanChecksumValid(string $iban): bool
@@ -689,7 +679,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return bool|string True on valid, error message string on invalid.
      */
     public function validate(mixed $value, array $config): bool|string
@@ -776,7 +765,6 @@ CSS;
      * @param mixed  $value    Raw submitted value.
      * @param array  $config   Field configuration.
      * @param array  $context  Submission context.
-     *
      * @return array<string, array>
      */
     public function mapNormalized(
@@ -839,7 +827,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return string Human-readable representation.
      */
     public function map(mixed $value, array $config): string
@@ -853,12 +840,15 @@ CSS;
 
         $parts = array_filter(
             [
-            $iban   !== '' ? 'IBAN: ' . wordwrap($iban, 4, ' ', true) : '',
-            $bic    !== '' ? 'BIC: ' . $bic : '',
-            $holder !== '' ? 'Account holder: ' . $holder : '',
+            // translators: %s: formatted IBAN.
+            $iban   !== '' ? sprintf(__('IBAN: %s', 'form-forge'), wordwrap($iban, 4, ' ', true)) : '',
+            // translators: %s: BIC.
+            $bic    !== '' ? sprintf(__('BIC: %s', 'form-forge'), $bic) : '',
+            // translators: %s: account holder name.
+            $holder !== '' ? sprintf(__('Account holder: %s', 'form-forge'), $holder) : '',
             ]
         );
-        return $parts ? trim(implode(' | ', $parts)) : '[No entry]';
+        return $parts ? trim(implode(' | ', $parts)) : __('[No entry]', 'form-forge');
     }
 
     /**

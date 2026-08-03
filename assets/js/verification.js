@@ -1,19 +1,13 @@
 /*!
- * FormForge
+ * FormForge — PDF Verification Page
  * @copyright 2026 Alexander Jorek
  * @license   GPL-3.0-or-later
  */
-/**
- * FormForge — PDF Verification Page
- */
 
 /* Strips <script>, on*="" handlers and javascript:/vbscript: URIs from a
-   server-rendered HTML fragment before it's assigned to innerHTML. The
-   fragment is already expected to be escaped/kses'd server-side in
-   Verificationpage.php — this is defense-in-depth so this file doesn't
-   depend entirely on that other file/language never missing a spot for a
-   future field type, mirroring the same mitigation used for admin-authored
-   HTML previews elsewhere in this codebase. */
+   server-rendered HTML fragment before it's assigned to innerHTML. Defense
+   in depth — the fragment is already escaped/kses'd server-side in
+   Verificationpage.php. */
 function _forgeSanitizeFragment(html) {
     html = String(html || '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
     html = html.replace(/[\s\/]+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
@@ -169,23 +163,15 @@ function _forgeUpdateCard(card, step, pct) {
 window.FORGE_VERIFICATION_QUEUE = window.FORGE_VERIFICATION_QUEUE || [];
 
 /* Server-side rate-limits forge_verify_push_lines to 1 call per 5 seconds per
-   user (see Admin/Verificationpage.php) — a deliberate anti-self-DoS guard on
-   a handler that raises memory/time limits per request. Batch-scanning
-   multiple PDFs at once (drag-and-drop several files, or "scan more") kicks
-   off processPdf() for every file back-to-back, and each one's own PDF.js
-   text-extraction pass finishes on its own schedule — nothing upstream of
-   this staggers the resulting forge_verify_push_lines calls, so most of a
-   multi-file batch used to get silently 429-rejected. This module-level gate
-   only throttles the actual server call (client-side PDF.js extraction for
-   several files still runs concurrently — that's local work, not a server
-   hit) so batch scans go through file-by-file instead of failing past the
-   first one or two.
-   Slots are reserved by *start* time, computed synchronously the moment a
-   caller asks for one — NOT chained after the previous call's response
-   arrives. The server's 5s window is measured from when each request lands,
-   which can take a long time to fully process (large PDF, heavy parsing);
-   waiting for that response before starting the next 5s countdown would
-   compound into "request duration + 5s" per file instead of a flat 5s. */
+   user (see Admin/Verificationpage.php). Batch-scanning several PDFs kicks
+   off processPdf() for each one back-to-back, with no natural stagger
+   between their resulting server calls, so without this gate most of a
+   batch used to get silently 429-rejected. Only the server call is
+   throttled — concurrent client-side PDF.js extraction is unaffected.
+   Slots are reserved by *start* time, computed synchronously when requested
+   — not chained after the previous response arrives, which (given slow
+   requests) would compound into "request duration + 5s" per file instead
+   of a flat 5s. */
 var _forgeNextPushSlotAt = 0; // epoch ms
 var _forgePushSlotGapMs  = 5200; // grows on an actual 429 — see forceNextSlotLater() below
 
@@ -221,12 +207,9 @@ function _forgeThrottledPushLines(ajaxUrl, formData, onWaitTick, onRequestStart)
 }
 
 /* Called when the server rejects a call as rate-limited despite the gate above
-   — client/server clock drift, network jitter, or the server-side PHP worker
-   itself being queued (shared hosting under load from several heavy PDF-parse
-   requests) can all delay a request's actual arrival past its intended slot.
-   Widening the gap after a real 429 is more robust than guessing a bigger
-   fixed margin up front: it only grows when there's evidence the current one
-   wasn't enough, and pushes every file still waiting further out too. */
+   (clock drift, network jitter, or a queued PHP worker under load can all
+   delay arrival past the intended slot). Only grows when there's evidence
+   the current gap wasn't enough, and pushes every waiting file out too. */
 function _forgeWidenPushSlotGap() {
     _forgePushSlotGapMs = Math.min(15000, _forgePushSlotGapMs + 2000);
     _forgeNextPushSlotAt = Math.max(_forgeNextPushSlotAt, Date.now() + _forgePushSlotGapMs);
@@ -262,13 +245,9 @@ window.FORGE_VERIFICATION_PROCESS_PDF = async function processPdf(pdfInfo) {
          2-40  page-by-page text extraction (client-side, PDF.js)
          40    queued / rate-limited-retry (before the request has gone out)
          42    request sent, awaiting server ("text extracted — analyzing")
-         42-95 server's own verification-step progress (see remapServerPct
-               below — the server reports its own independent 0-100 scale via
-               forge_verify_progress polling, which must NOT be shown as-is:
-               its raw values (Verificationpage.php's setProgress() calls run
-               5..94) would otherwise replay from near-zero right as this
-               card is already sitting at 42+, looking like it jumped
-               backward)
+         42-95 server's own verification-step progress, remapped via
+               remapServerPct — its raw 5..94 scale would otherwise replay
+               from near-zero and look like the bar jumped backward
          98    processing the final response
          100   done / error (terminal) */
     function remapServerPct(rawPct) {
@@ -321,15 +300,10 @@ window.FORGE_VERIFICATION_PROCESS_PDF = async function processPdf(pdfInfo) {
         formData.append('visualLines', JSON.stringify(allLines));
         formData.append('nonce',       (window.ForgeVerifier && window.ForgeVerifier.nonce) || '');
 
-        /* Poll server-side progress while the main request is in flight — only
-           started once the request actually goes out (see onRequestStart below),
-           not while it's still waiting for a throttle slot: there's no server-side
-           progress to report yet, and polling during the wait would just spam
-           no-op requests. lastServerPct is reset on every (re)start — carrying a
-           high-water mark over from an abandoned attempt (a 429 retry starts a
-           brand-new server-side run from scratch) would otherwise suppress that
-           new attempt's real progress until it happened to climb back past the
-           old mark, making the bar look stuck rather than just retried. */
+        /* Poll server-side progress only once the request actually goes out
+           (see onRequestStart) — polling during the throttle wait would just
+           spam no-op requests. lastServerPct resets on every (re)start since
+           a 429 retry begins a brand-new server-side run from scratch. */
         var lastServerPct = 0;
         function startProgressPoll() {
             if (!pdfToken) { return; }

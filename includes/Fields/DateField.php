@@ -138,15 +138,16 @@ CSS;
                 var inp = fieldEl.querySelector('.forge-date-text');
                 if (!inp || !inp.value.trim()) return null;
                 var v = inp.value.trim();
+                var _i18n = window.ForgeForms && window.ForgeForms.i18n;
                 if (!/^\d{2}\.\d{2}\.\d{4}$/.test(v))
-                    return 'Please enter a date in DD.MM.YYYY format.';
+                    return (_i18n && _i18n.date_invalid_format) || 'Please enter a date in DD.MM.YYYY format.';
                 var p  = v.split('.');
                 var d  = parseInt(p[0], 10);
                 var m  = parseInt(p[1], 10);
                 var y  = parseInt(p[2], 10);
                 var dt = new Date(y, m - 1, d);
                 if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d)
-                    return 'Please enter a valid date.';
+                    return (_i18n && _i18n.date_invalid_date) || 'Please enter a valid date.';
                 return null;
             }
             JS]];
@@ -158,7 +159,6 @@ CSS;
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Current field value.
-     *
      * @return string Rendered HTML.
      */
     public function render(array $config, string $field_id, mixed $value = null): string
@@ -207,7 +207,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return bool|string True on valid, error message string on invalid.
      */
     public function validate(mixed $value, array $config): bool|string
@@ -259,7 +258,6 @@ CSS;
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return string Normalized field entry.
      */
     public function map(mixed $value, array $config): string

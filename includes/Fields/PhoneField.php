@@ -66,22 +66,24 @@ class PhoneField extends BaseField
                 if (!inp || !inp.value.trim()) return null;
                 var mode = inp.dataset.phoneMode || '';
                 if (!mode) return null;
+                var _i18n = window.ForgeForms && window.ForgeForms.i18n;
                 var v = inp.value.replace(/[\s\-\(\)\/]/g, '');
                 if (mode === 'any') {
                     return /^\+?[0-9]{7,15}$/.test(v)
-                        ? null : 'Please enter a valid phone number.';
+                        ? null : ((_i18n && _i18n.phone_invalid) || 'Please enter a valid phone number.');
                 }
                 if (mode === 'countries') {
                     if (v.charAt(0) !== '+')
-                        return 'Please enter the number with international prefix (+...).';
+                        return (_i18n && _i18n.phone_intl_required) || 'Please enter the number with international prefix (+...).';
                     var digits = v.slice(1);
                     var cmode  = inp.dataset.phoneCountryMode || 'allow';
                     var list   = JSON.parse(inp.dataset.phoneCountryList || '[]')
                                     .map(function (c) { return c.replace('+', ''); });
                     list.sort(function (a, b) { return b.length - a.length; });
                     var inList = list.some(function (code) { return digits.indexOf(code) === 0; });
-                    if (cmode === 'allow'    && !inList) return 'This phone number is not allowed for your country.';
-                    if (cmode === 'disallow' &&  inList) return 'This phone number is not allowed for your country.';
+                    var blocked = (_i18n && _i18n.phone_country_blocked) || 'This phone number is not allowed for your country.';
+                    if (cmode === 'allow'    && !inList) return blocked;
+                    if (cmode === 'disallow' &&  inList) return blocked;
                 }
                 return null;
             }
@@ -94,7 +96,6 @@ class PhoneField extends BaseField
      * @param array  $config   Field configuration.
      * @param string $field_id Unique field identifier.
      * @param mixed  $value    Current field value.
-     *
      * @return string Rendered HTML.
      */
     public function render(array $config, string $field_id, mixed $value = null): string
@@ -120,7 +121,6 @@ class PhoneField extends BaseField
      *
      * @param mixed $value  Submitted value.
      * @param array $config Field configuration.
-     *
      * @return bool|string True on valid, error message string on invalid.
      */
     public function validate(mixed $value, array $config): bool|string

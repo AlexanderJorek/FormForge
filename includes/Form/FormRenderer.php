@@ -34,7 +34,6 @@ class FormRenderer
      * Handles the [forge_form] shortcode and returns the rendered form HTML.
      *
      * @param array $atts Shortcode attributes (expects 'id' key).
-     *
      * @return string Rendered form HTML or empty string.
      */
     public static function shortcode(array $atts): string
@@ -49,9 +48,10 @@ class FormRenderer
     /**
      * Renders a form as an HTML string.
      *
-     * @param int   $form_id           Post ID of the form to render.
-     * @param array $settings_override Optional settings to override form defaults.
-     *
+     * @param int        $form_id           Post ID of the form to render.
+     * @param array      $settings_override Optional settings to override form defaults.
+     * @param array|null $fields_override   Optional fields to use instead of the stored form's fields
+     *                                      (used for unsaved-form preview).
      * @return string Rendered HTML string.
      */
     public static function render(int $form_id, array $settings_override = [], ?array $fields_override = null): string
@@ -137,13 +137,9 @@ class FormRenderer
     }
 
     /**
-     * Renders a flat list of fields (used for group children).
-     *
-     * No page-break handling; fields use their own plain IDs.
+     * Renders a flat list of fields (used for group children). No page-break handling; fields use their own plain IDs.
      *
      * @param array $fields Array of field config arrays.
-     *
-     * @return string
      */
     private static function renderChildFields(array $fields): string
     {
@@ -155,7 +151,6 @@ class FormRenderer
      *
      * @param array $fields      Array of field configuration arrays.
      * @param bool  $insideGroup Whether the fields are inside a group field.
-     *
      * @return string HTML string of rendered fields.
      */
     private static function renderFields(array $fields, bool $insideGroup = false): string
@@ -228,7 +223,13 @@ class FormRenderer
 
                 $next_handler = ($next && $next_cols === 6 && $next_id)
                     ? FieldRegistry::get($next['type'] ?? '') : null;
-                if ($next_handler && $next_handler->isPageBreak()) {
+                // Page-break and group-container fields have their own dedicated rendering
+                // path (renderBreak() / openTag()+children+closeTag()) and must never be
+                // treated as a 2-column pairing partner: calling render() on a group field
+                // directly hits its documented no-op fallback (openTag()+closeTag() with no
+                // children), silently dropping every field inside the group from the output
+                // even though FormProcessor still enforces their `required` rules server-side.
+                if ($next_handler && ($next_handler->isPageBreak() || $next_handler->isGroupContainer())) {
                     $next_handler = null;
                 }
 
@@ -268,14 +269,10 @@ class FormRenderer
     }
 
     /**
-     * Returns true if any handler in the given array satisfies $check.
-     *
-     * Accepts null entries (from unresolved field types) and skips them.
+     * Returns true if any handler in the given array satisfies $check. Accepts null entries (from unresolved field types) and skips them.
      *
      * @param array    $handlers Array of BaseField|null values.
      * @param callable $check    fn(BaseField): bool
-     *
-     * @return bool
      */
     private static function anyFieldHandler(array $handlers, callable $check): bool
     {

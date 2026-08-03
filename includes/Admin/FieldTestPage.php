@@ -44,8 +44,6 @@ class FieldTestPage
      * Appends forge-list-page body class on the test page.
      *
      * @param string $classes Current body classes.
-     *
-     * @return string
      */
     public static function bodyClass(string $classes): string
     {
@@ -99,14 +97,14 @@ class FieldTestPage
             $out = esc_html(self::$lastOut);
             if ($result === true) {
                 self::$pass++;
-                self::$log[] = '<tr class="ff-pass"><td>✓</td><td>' . esc_html($name) . '</td>'
+                self::$log[] = '<tr class="ff-pass"><td><i class="fa-solid fa-check" aria-hidden="true"></i></td><td>' . esc_html($name) . '</td>'
                     . '<td class="ff-io">' . $in . '</td>'
                     . '<td class="ff-io ff-out">' . $out . '</td>'
                     . '<td></td></tr>';
             } else {
                 self::$fail++;
                 $msg = is_string($result) ? $result : var_export($result, true);
-                self::$log[] = '<tr class="ff-fail"><td>✗</td><td>' . esc_html($name) . '</td>'
+                self::$log[] = '<tr class="ff-fail"><td><i class="fa-solid fa-xmark" aria-hidden="true"></i></td><td>' . esc_html($name) . '</td>'
                     . '<td class="ff-io">' . $in . '</td>'
                     . '<td class="ff-io ff-out">' . $out . '</td>'
                     . '<td>' . esc_html($msg) . '</td></tr>';
@@ -118,7 +116,7 @@ class FieldTestPage
             self::$fail++;
             $in  = esc_html(self::$lastIn);
             $out = esc_html(self::$lastOut);
-            self::$log[] = '<tr class="ff-fail"><td>✗</td><td>' . esc_html($name) . '</td>'
+            self::$log[] = '<tr class="ff-fail"><td><i class="fa-solid fa-xmark" aria-hidden="true"></i></td><td>' . esc_html($name) . '</td>'
                 . '<td class="ff-io">' . $in . '</td>'
                 . '<td class="ff-io ff-out">' . $out . '</td>'
                 . '<td>Exception: ' . esc_html($e->getMessage()) . '</td></tr>';
@@ -140,7 +138,7 @@ class FieldTestPage
     {
         $found = str_contains($html, $needle);
         self::$lastIn  = $needle;
-        self::$lastOut = $found ? '✓ found' : '✗ not found';
+        self::$lastOut = $found ? 'found' : 'not found';
         return $found ? true : (($what ?: $needle) . ' not found in output');
     }
 
@@ -156,7 +154,7 @@ class FieldTestPage
     {
         $r = $h->validate($value, $config);
         self::$lastIn  = is_array($value) ? json_encode($value, JSON_UNESCAPED_UNICODE) : (string)$value;
-        self::$lastOut = $r === true ? '✓ valid' : var_export($r, true);
+        self::$lastOut = $r === true ? 'valid' : var_export($r, true);
         return $r === true ? true : 'expected true, got ' . var_export($r, true);
     }
 
@@ -201,7 +199,7 @@ class FieldTestPage
         }
         $missing = array_diff(array_unique($schemaKeys), array_keys($h->getDefaultConfig()));
         self::$lastIn  = count($schemaKeys) . ' schema keys';
-        self::$lastOut = empty($missing) ? '✓ all in getDefaultConfig' : 'missing: ' . implode(', ', $missing);
+        self::$lastOut = empty($missing) ? 'all in getDefaultConfig' : 'missing: ' . implode(', ', $missing);
         return empty($missing) ? true : 'schema keys missing from getDefaultConfig(): ' . implode(', ', $missing);
     }
 
@@ -1512,19 +1510,19 @@ class FieldTestPage
             r = fn();
         } catch (e) {
             fail++;
-            rows.push('<tr class="ff-fail"><td>✗</td><td>' + esc(name) + '</td>'
+            rows.push('<tr class="ff-fail"><td><i class="fa-solid fa-xmark" aria-hidden="true"></i></td><td>' + esc(name) + '</td>'
                 + '<td></td><td></td><td>Exception: ' + esc(e.message) + '</td></tr>');
             return;
         }
         if (r.ok) {
             pass++;
-            rows.push('<tr class="ff-pass"><td>✓</td><td>' + esc(name) + '</td>'
+            rows.push('<tr class="ff-pass"><td><i class="fa-solid fa-check" aria-hidden="true"></i></td><td>' + esc(name) + '</td>'
                 + '<td class="ff-io">' + esc(r.i) + '</td>'
                 + '<td class="ff-io ff-out">' + esc(r.o) + '</td>'
                 + '<td></td></tr>');
         } else {
             fail++;
-            rows.push('<tr class="ff-fail"><td>✗</td><td>' + esc(name) + '</td>'
+            rows.push('<tr class="ff-fail"><td><i class="fa-solid fa-xmark" aria-hidden="true"></i></td><td>' + esc(name) + '</td>'
                 + '<td class="ff-io">' + esc(r.i) + '</td>'
                 + '<td class="ff-io ff-out">' + esc(r.o) + '</td>'
                 + '<td>' + esc(r.msg || 'FAIL') + '</td></tr>');
@@ -2423,7 +2421,9 @@ class FieldTestPage
     var badge = document.getElementById('forge-js-tab-badge');
     if (badge) {
         badge.className = 'forge-tab-badge ' + (fail === 0 ? 'forge-tab-badge--pass' : 'forge-tab-badge--fail');
-        badge.textContent = fail === 0 ? '✓ ' + total : '✗ ' + fail + '/' + total;
+        badge.innerHTML = fail === 0
+            ? '<i class="fa-solid fa-check" aria-hidden="true"></i> ' + total
+            : '<i class="fa-solid fa-xmark" aria-hidden="true"></i> ' + fail + '/' + total;
     }
     container.innerHTML = '<table class="forge-test-table">'
         + '<colgroup><col style="width:24px"><col style="width:26%"><col style="width:20%"><col style="width:28%"><col></colgroup>'
@@ -2485,11 +2485,11 @@ window.forgeCollapseSections = function (table) {
 
         function doCollapse() {
             bodyRows.forEach(function (r) { r.style.display = 'none'; });
-            arrow.textContent = '▶';
+            arrow.innerHTML = '<i class="fa-solid fa-chevron-right" aria-hidden="true"></i>';
         }
         function doExpand() {
             bodyRows.forEach(function (r) { r.style.display = ''; });
-            arrow.textContent = '▼';
+            arrow.innerHTML = '<i class="fa-solid fa-chevron-down" aria-hidden="true"></i>';
         }
 
         sec.addEventListener('click', function () {
@@ -2636,7 +2636,9 @@ JS;
         echo '<hr class="wp-header-end" style="display:none">';
 
         $phpBadge = '<span class="forge-tab-badge ' . ($allOk ? 'forge-tab-badge--pass' : 'forge-tab-badge--fail') . '">'
-            . ($allOk ? '✓ ' . $total : '✗ ' . self::$fail . '/' . $total) . '</span>';
+            . ($allOk
+                ? '<i class="fa-solid fa-check" aria-hidden="true"></i> ' . $total
+                : '<i class="fa-solid fa-xmark" aria-hidden="true"></i> ' . self::$fail . '/' . $total) . '</span>';
 
         echo '<div class="forge-test-topbar">';
         echo '<h1 class="forge-test-title">Field Tests</h1>';
@@ -2653,7 +2655,10 @@ JS;
             $copyText = esc_js(implode("\n", self::$failLines));
             echo '<div style="margin-bottom:10px;">';
             // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $copyText is already esc_js()'d above; this is a JS string literal context, not HTML.
-            echo '<button onclick="navigator.clipboard.writeText(\'' . $copyText . '\').then(function(){this.textContent=\'Copied!\';}.bind(this))" style="cursor:pointer;padding:6px 14px;font-size:13px;">📋 Copy failures</button>';
+            echo '<button onclick="navigator.clipboard.writeText(\'' . $copyText . '\')'
+                . '.then(function(){this.textContent=\'Copied!\';}.bind(this))"'
+                . ' style="cursor:pointer;padding:6px 14px;font-size:13px;">'
+                . '<i class="fa-regular fa-clipboard" aria-hidden="true"></i> Copy failures</button>';
             echo '</div>';
         }
         echo '<table id="forge-php-tests" class="forge-test-table">';
