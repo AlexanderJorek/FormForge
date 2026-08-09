@@ -35,13 +35,16 @@
     gap: 3px;
     min-width: 0;
 }
-.fsel-trigger-label {
+/* Shared with .fsel-opt-label / .fsel-opt-desc below */
+.fsel-trigger-label,
+.fsel-opt-label {
     font-size: 15px;
     font-weight: 700;
     color: #1d2327;
     line-height: 1.2;
 }
-.fsel-trigger-desc {
+.fsel-trigger-desc,
+.fsel-opt-desc {
     font-size: 13px;
     color: #50575e;
     line-height: 1.4;
@@ -90,18 +93,6 @@
 .fsel-option--active {
     background: #f0f6fc;
 }
-.fsel-opt-label {
-    font-size: 15px;
-    font-weight: 700;
-    color: #1d2327;
-    line-height: 1.2;
-}
-.fsel-opt-desc {
-    font-size: 13px;
-    color: #50575e;
-    line-height: 1.4;
-}
-
 /* Forms container */
 .fsel-forms {
     margin-top: 20px;
