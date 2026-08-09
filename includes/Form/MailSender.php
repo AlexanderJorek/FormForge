@@ -257,16 +257,25 @@ class MailSender
         /* ---- Clean up PDF and upload temp dir after all emails sent ---- */
         register_shutdown_function(
             static function () use ($pdf_path, $uploads): void {
-                if ($pdf_path && file_exists($pdf_path) && !@unlink($pdf_path)) {
-                    \ForgeForms\forge_log("ForgeForms MailSender: failed to remove temp PDF {$pdf_path}");
+                if ($pdf_path && file_exists($pdf_path)) {
+                    wp_delete_file($pdf_path);
+                    if (file_exists($pdf_path)) {
+                        \ForgeForms\forge_log("ForgeForms MailSender: failed to remove temp PDF {$pdf_path}");
+                    }
                 }
                 $tmp_dir = $uploads['tmp_dir'] ?? '';
                 if ($tmp_dir !== '' && is_dir($tmp_dir)) {
                     foreach (glob($tmp_dir . '*') ?: [] as $f) {
-                        if (!@unlink($f)) {
+                        wp_delete_file($f);
+                        if (file_exists($f)) {
                             \ForgeForms\forge_log("ForgeForms MailSender: failed to remove temp file {$f}");
                         }
                     }
+                    // This shutdown-function cleanup runs after a front-end form submission (no WP admin
+                    // context and no request left to display a credentials prompt), so WP_Filesystem()
+                    // direct-mode initialization cannot be relied on here; $tmp_dir is a plugin-owned temp
+                    // directory, not user-facing WP_Filesystem-managed content.
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- see comment above
                     if (!@rmdir($tmp_dir)) {
                         \ForgeForms\forge_log("ForgeForms MailSender: failed to remove temp dir {$tmp_dir}");
                     }

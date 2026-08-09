@@ -28,15 +28,13 @@ defined('ABSPATH') || exit;
  */
 class Assets
 {
-    // Subresource Integrity hash for the Font Awesome CDN stylesheet below, pinned to
-    // its exact version so a compromised/MITM'd CDN response is rejected by the browser
-    // instead of silently executing. Recompute if FONT_AWESOME_VERSION is ever bumped:
-    // curl -s <url> | openssl dgst -sha512 -binary | openssl base64 -A
+    // Font Awesome is vendored locally under assets/vendor/fontawesome/ (Free 6.5.2,
+    // see assets/vendor/fontawesome/LICENSE.txt) rather than loaded from a CDN, so no
+    // Subresource Integrity pinning is needed — the file ships with the plugin itself.
     // Public so other admin pages that also load Font Awesome directly (e.g.
-    // FormEditor::ajaxPreview()) can reference the same version/hash instead
-    // of keeping their own copy that could silently drift out of sync.
+    // FormEditor::ajaxPreview()) can reference the same version instead of keeping
+    // their own copy that could silently drift out of sync.
     public const FONT_AWESOME_VERSION = '6.5.2';
-    public const FONT_AWESOME_SRI     = 'sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==';
 
     /**
      * Enqueues front-end CSS and JS for pages containing a forge form.
@@ -256,9 +254,8 @@ class Assets
     }
 
     /**
-     * Enqueues the Font Awesome stylesheet from the CDN with a Subresource Integrity
-     * hash, so a compromised/tampered CDN response is rejected by the browser instead
-     * of silently loading.
+     * Enqueues the Font Awesome stylesheet vendored locally under
+     * assets/vendor/fontawesome/ (see the FONT_AWESOME_VERSION docblock above).
      *
      * @return void
      */
@@ -266,25 +263,9 @@ class Assets
     {
         \wp_enqueue_style(
             'font-awesome',
-            'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/'
-                . self::FONT_AWESOME_VERSION . '/css/all.min.css',
+            FORGE_FORMS_URL . 'assets/vendor/fontawesome/css/all.min.css',
             [],
             self::FONT_AWESOME_VERSION
-        );
-        \add_filter(
-            'style_loader_tag',
-            static function (string $tag, string $handle): string {
-                if ($handle !== 'font-awesome' || str_contains($tag, 'integrity=')) {
-                    return $tag;
-                }
-                return str_replace(
-                    ' rel=',
-                    ' integrity="' . self::FONT_AWESOME_SRI . '" crossorigin="anonymous" rel=',
-                    $tag
-                );
-            },
-            10,
-            2
         );
     }
 

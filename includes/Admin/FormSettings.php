@@ -417,9 +417,7 @@ class FormSettings
                         <p class="forge-settings-hint">
                             <?php
                             echo esc_html__(
-                                'If you use SEPA IBAN lookups (openiban.com) or the CAPTCHA '
-                                    . 'field (Google reCAPTCHA), your privacy policy needs to '
-                                    . 'disclose that.',
+                                'If you use SEPA IBAN lookups (openiban.com) or the CAPTCHA field (Google reCAPTCHA), your privacy policy needs to disclose that.',
                                 'form-forge'
                             );
                             ?>
@@ -773,25 +771,19 @@ class FormSettings
                 <?php
                 $privacy_disclaimer_sentences = [
                     __(
-                        'Here is an example disclaimer you should add to your privacy '
-                            . 'policy if you use SEPA IBAN lookups (openiban.com) or the '
-                            . 'CAPTCHA field (Google reCAPTCHA).',
+                        'Here is an example disclaimer you should add to your privacy policy if you use SEPA IBAN lookups (openiban.com) or the CAPTCHA field (Google reCAPTCHA).',
                         'form-forge'
                     ),
                     __(
-                        'This example is provided for convenience only — it is not '
-                            . 'legal advice, may be incomplete or out of date, and is '
-                            . 'not a substitute for your own review.',
+                        'This example is provided for convenience only — it is not legal advice, may be incomplete or out of date, and is not a substitute for your own review.',
                         'form-forge'
                     ),
                     __(
-                        'You are solely responsible for the accuracy and completeness '
-                            . 'of your privacy policy.',
+                        'You are solely responsible for the accuracy and completeness of your privacy policy.',
                         'form-forge'
                     ),
                     __(
-                        'Copy it in yourself wherever it belongs — nothing here is '
-                            . 'added automatically.',
+                        'Copy it in yourself wherever it belongs — nothing here is added automatically.',
                         'form-forge'
                     ),
                 ];
@@ -1248,6 +1240,7 @@ $('.forge-iris-input').wpColorPicker({
 
             function startCountdown() {
                 var sec = 10;
+                <?php // translators: %d is the countdown, in seconds, before the reset confirmation button becomes clickable. ?>
                 var confirmLabel = '<?php echo esc_js(__('Are you sure? (%d)', 'form-forge')); ?>';
                 confirmBtn.disabled = true;
                 confirmBtn.innerHTML = confirmLabel.replace('%d', sec);
@@ -2504,7 +2497,9 @@ $('.forge-iris-input').wpColorPicker({
         }
         check_ajax_referer('forge_rotate_key', 'nonce');
 
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- password material: only unslashed, never output/queried, used solely for hash_equals()-style comparison and hashing below; generic sanitize_text_field() would silently alter the user's intended password.
         $password = (string) wp_unslash($_POST['key_password']         ?? '');
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- password material: only unslashed, never output/queried, used solely for comparison against $password above.
         $confirm  = (string) wp_unslash($_POST['key_password_confirm'] ?? '');
         $compromised = !empty($_POST['key_compromised']) && $_POST['key_compromised'] === '1';
 

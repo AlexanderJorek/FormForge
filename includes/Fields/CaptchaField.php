@@ -180,9 +180,7 @@ class CaptchaField extends BaseField
                 'type'  => 'notice',
                 'level' => 'info',
                 'text'  => __(
-                    'This field sends the visitor\'s CAPTCHA response and IP address to Google '
-                    . '(reCAPTCHA) for verification on every submission. Reflect this third-party '
-                    . 'data transfer in your site\'s privacy policy.',
+                    "This field sends the visitor's CAPTCHA response and IP address to Google (reCAPTCHA) for verification on every submission. Reflect this third-party data transfer in your site's privacy policy.",
                     'form-forge'
                 ),
             ],

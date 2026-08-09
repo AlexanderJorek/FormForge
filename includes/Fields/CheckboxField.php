@@ -228,13 +228,13 @@ CSS;
         // itself has no limit; slicing only after it ran would be too late).
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
         $vals = isset($_POST[$field_id])
-            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- nonce is verified once in FormProcessor::handle() before field extraction runs; value is unslashed and sanitize_text_field()'d via map_deep()/capRawArray() below, WPCS doesn't recognize sanitization via the string-callback form.
             ? map_deep(self::capRawArray(wp_unslash($_POST[$field_id]), 200), 'sanitize_text_field')
             : [];
         $out  = is_array($vals) ? array_values($vals) : [];
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
         if (in_array('__other__', $out, true) && isset($_POST[$field_id . '_other'])) {
-            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- nonce is verified once in FormProcessor::handle() before field extraction runs; capOtherText() unslashes and sanitize_text_field()s the value, WPCS doesn't recognize sanitization/unslashing via the helper method.
             $out['__other_text__'] = self::capOtherText($_POST[$field_id . '_other']);
         }
         return $out;

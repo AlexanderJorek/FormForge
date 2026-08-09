@@ -355,6 +355,7 @@ class FormEditor
             }
         }
 
+        // phpcs:ignore PHPCS_SecurityAudit.BadFunctions.FilesystemFunctions.WarnFilesystem -- hardcoded plugin-relative path, not attacker- or request-influenced.
         $front_js = (string)file_get_contents(FORGE_FORMS_PATH . 'assets/js/front.js');
         $css_url  = \FORGE_FORMS_URL . 'assets/css/front.css';
 
@@ -458,10 +459,11 @@ window.fetch = function (url, opts) {
         $page = '<!DOCTYPE html><html lang="' . esc_attr(str_replace('_', '-', get_locale())) . '"><head>'
             . '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             . '<title>' . esc_html__('Preview', 'form-forge') . '</title>'
-            . '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/'
-            . \ForgeForms\Utils\Assets::FONT_AWESOME_VERSION . '/css/all.min.css"'
-            . ' integrity="' . \ForgeForms\Utils\Assets::FONT_AWESOME_SRI . '"'
-            . ' crossorigin="anonymous" referrerpolicy="no-referrer">'
+            // phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedStylesheet -- standalone preview HTML document returned via wp_send_json_success(), not rendered through the WP page pipeline (no wp_head/wp_footer to enqueue into); Font Awesome is this plugin's own vendored local asset (FORGE_FORMS_URL . 'assets/vendor/fontawesome/css/all.min.css'), not an external/offloaded resource.
+            . '<link rel="stylesheet" href="'
+            . \esc_url(FORGE_FORMS_URL . 'assets/vendor/fontawesome/css/all.min.css')
+            . '">'
+            // phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedStylesheet -- standalone preview HTML document returned via wp_send_json_success(), not rendered through the WP page pipeline (no wp_head/wp_footer to enqueue into); $css_url is this plugin's own local asset (FORGE_FORMS_URL . 'assets/css/front.css'), not an external/offloaded resource.
             . '<link rel="stylesheet" href="' . \esc_url($css_url) . '">'
             . '<style>' . implode("\n", $field_css) . '</style>'
             . '<style>'
@@ -776,6 +778,7 @@ window.fetch = function (url, opts) {
         $replacements['js-uris'] = '$1=$2#$2';
 
         foreach ($passes as $label => $pattern) {
+            // phpcs:ignore PHPCS_SecurityAudit.BadFunctions.PregReplace.PregReplaceDyn -- $pattern/$replacements are drawn from the hardcoded $passes/$replacements arrays above, not attacker input; no /e modifier is used anywhere in this codebase.
             $after = preg_replace($pattern, $replacements[$label], $html);
             if ($after !== $html) {
                 // Count-only, no stripped content — safe to log unconditionally
@@ -797,6 +800,7 @@ window.fetch = function (url, opts) {
         // which CSS strips before the URL is evaluated). Decode + strip
         // comments in a working copy of each href/src/action/style value and
         // drop the whole value if the decoded form is still dangerous.
+        // phpcs:ignore PHPCS_SecurityAudit.BadFunctions.CallbackFunctions.WarnCallbackFunctions -- callback is a static closure defined inline, not attacker-controlled/dynamic dispatch.
         $html = preg_replace_callback(
             '/\b(href|src|action|style)\s*=\s*(?:(["\'])((?:(?!\2).)*)\2|([^\s>]+))/is',
             static function (array $m): string {
@@ -805,6 +809,7 @@ window.fetch = function (url, opts) {
                 $q       = $quoted ? $m[2] : '';
                 $val     = $quoted ? $m[3] : ($m[4] ?? '');
                 $decoded = html_entity_decode($val, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                // phpcs:ignore PHPCS_SecurityAudit.BadFunctions.PregReplace.PregReplaceWeird -- hardcoded literal pattern/replacement stripping CSS comments from the decoded attribute value, not attacker-influenced pattern selection; no /e modifier.
                 $decoded = preg_replace('#/\*.*?\*/#s', '', $decoded);
                 // Browsers strip ASCII tab/CR/LF from a URL before parsing its
                 // scheme, so "jav\tascript:" still executes as javascript: even
@@ -953,6 +958,7 @@ window.fetch = function (url, opts) {
         // this admin page's URL — both avoidable via `rel`. The email body is
         // authored by trusted edit_forms-capability admins, not attacker
         // input, so this is defense-in-depth rather than an XSS fix.
+        // phpcs:ignore PHPCS_SecurityAudit.BadFunctions.CallbackFunctions.WarnCallbackFunctions -- callback is a static closure defined inline, not attacker-controlled/dynamic dispatch.
         $html = preg_replace_callback(
             '/<a\b([^>]*\btarget=["\']_blank["\'][^>]*)>/i',
             static function (array $m): string {

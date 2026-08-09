@@ -24,6 +24,8 @@ namespace ForgeForms\Admin;
 
 defined('ABSPATH') || exit;
 
+// phpcs:disable WordPress.PHP.DevelopmentFunctions.error_log_var_export -- this entire file only loads when WP_DEBUG is true (see Plugin::load()); var_export() is the intended human-readable diff output for this dev-only test harness, never shipped active in production.
+
 /**
  * Runs PHP and JS field tests on a WP_DEBUG-only admin submenu page.
  */
@@ -208,7 +210,7 @@ class FieldTestPage
         $html = $h->render($cfg, $fid);
         self::$lastIn  = 'field_id=' . $fid;
         self::$lastOut = is_string($html)
-            ? '[' . strlen($html) . 'B] ' . substr(strip_tags($html), 0, 55)
+            ? '[' . strlen($html) . 'B] ' . substr(wp_strip_all_tags($html), 0, 55)
             : '(not string)';
         if (!is_string($html) || $html === '') {
             return 'render() returned empty string';
@@ -2448,10 +2450,13 @@ JS;
         $frontUrl = esc_url(FORGE_FORMS_URL . 'assets/js/front.js');
 
         echo '<div id="forge-js-tests" style="color:#555;font-style:italic;">Running JS tests…</div>';
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $globals is generated JS built from internal field-handler code, not user input; HTML-escaping would corrupt it.
-        echo '<script>' . $globals . '</script>';
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $frontUrl is already esc_url()'d above.
-        echo '<script src="' . $frontUrl . '"></script>';
+        /* $globals is dynamically-generated per-request test data (not a static file), so it is
+           attached via wp_add_inline_script() to a blank-src registered handle — the WP-approved
+           pattern for inline script content that must still go through the enqueue system. */
+        wp_register_script('forge-field-test-globals', false, [], FORGE_FORMS_VERSION, true);
+        wp_add_inline_script('forge-field-test-globals', $globals);
+        wp_enqueue_script('forge-field-test-globals');
+        wp_enqueue_script('forge-field-test-front', $frontUrl, [], FORGE_FORMS_VERSION, true);
         /* Collapse helper must be defined BEFORE the harness script that calls it */
         echo <<<'JS'
 <script>
@@ -2705,3 +2710,4 @@ JS;
         echo '</div>';
     }
 }
+// phpcs:enable WordPress.PHP.DevelopmentFunctions.error_log_var_export

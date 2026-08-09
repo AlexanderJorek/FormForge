@@ -36,7 +36,7 @@ wp_clear_scheduled_hook('forge_verifier_sweep_tmp_dirs');
 wp_clear_scheduled_hook('forge_generator_sweep_tmp_dirs');
 
 /* Remove all stored forms (CPT posts + meta) */
-$forms = get_posts(
+$forge_forms = get_posts(
     [
     'post_type'      => 'forge_form',
     'posts_per_page' => -1,
@@ -44,12 +44,12 @@ $forms = get_posts(
     'fields'         => 'ids',
     ]
 );
-foreach ($forms as $id) {
-    wp_delete_post($id, true);
+foreach ($forge_forms as $forge_form_id) {
+    wp_delete_post($forge_form_id, true);
 }
 
 /* Remove all plugin options — including seal keys and encryption state */
-$options = [
+$forge_options = [
     'forge_forms_from_email',
     'forge_forms_from_name',
     'forge_forms_recaptcha_site_key',
@@ -71,16 +71,20 @@ $options = [
     'forge_forms_seal_setup_done',
     'forge_forms_access',
 ];
-foreach ($options as $option) {
-    delete_option($option);
+foreach ($forge_options as $forge_option) {
+    delete_option($forge_option);
 }
 
-/* Remove rate-limiter bucket rows. These are not in the fixed $options list above
+/* Remove rate-limiter bucket rows. These are not in the fixed $forge_options list above
    because their names are dynamic (forge_rl_<hash>) — one row per rate-limited
    key/IP combination. The hourly sweep (Utils/RateLimiter.php) normally expires
    these, but if it never ran (e.g. site deleted immediately after install, or
    WP-Cron disabled) rows could otherwise survive plugin deletion indefinitely. */
 global $wpdb;
+// Bulk cleanup of this plugin's own dynamically-named forge_rl_* rows during uninstall; the
+// plugin is being removed, so there is no caching concern, and this pattern-based bulk delete
+// cannot be expressed via delete_option() (which only takes a single known option name).
+// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- see comment above
 $wpdb->query(
     $wpdb->prepare(
         "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
@@ -90,19 +94,54 @@ $wpdb->query(
 wp_cache_delete('alloptions', 'options');
 
 /* Remove upload directory */
-$upload_dir = wp_upload_dir();
-$plugin_dir = $upload_dir['basedir'] . '/forge-secure-pdf';
-if (is_dir($plugin_dir)) {
-    $it    = new RecursiveDirectoryIterator($plugin_dir, FilesystemIterator::SKIP_DOTS);
-    $files = new RecursiveIteratorIterator($it, RecursiveIteratorIterator::CHILD_FIRST);
-    foreach ($files as $file) {
-        $path = $file->getRealPath();
-        $ok   = $file->isDir() ? @rmdir($path) : @unlink($path);
-        if (!$ok) {
-            error_log('FormForge uninstall: failed to remove ' . $path);
-        }
+$forge_upload_dir = wp_upload_dir();
+$forge_plugin_dir = $forge_upload_dir['basedir'] . '/forge-secure-pdf';
+if (is_dir($forge_plugin_dir)) {
+    // uninstall.php only ever runs from a WP-admin-triggered plugin deletion (or WP-CLI running as the
+    // same privileged user), so WP core's own filesystem credentials are available here — unlike
+    // Generator.php/MailSender.php's front-end/shutdown-function cleanup paths, WP_Filesystem() can be
+    // relied on safely in this context.
+    global $wp_filesystem;
+    if (!function_exists('WP_Filesystem')) {
+        require_once ABSPATH . 'wp-admin/includes/file.php';
     }
-    if (!@rmdir($plugin_dir)) {
-        error_log('FormForge uninstall: failed to remove directory ' . $plugin_dir);
+    $forge_fs_ready = WP_Filesystem() && $wp_filesystem instanceof \WP_Filesystem_Base;
+
+    if (!$forge_fs_ready) {
+        // WP_Filesystem() can still return false / leave $wp_filesystem unset on a server
+        // that requires FTP/SSH credentials WordPress has none stored for (unusual, but not
+        // impossible, for an admin-triggered uninstall or a WP-CLI run without FS_METHOD
+        // forced to 'direct'). Calling ->rmdir() on a null/non-object here would fatal
+        // instead of leaving the (already-emptied-of-DB-data) directory behind — log and
+        // bail out of just this cleanup step rather than crashing the whole uninstall.
+        // uninstall.php runs standalone, outside the plugin's normal bootstrap/logging
+        // (forge_log()), so wp-content debug logging is the only reasonable way to surface
+        // a real cleanup failure here; this is uninstall diagnostics for a plugin that
+        // handles PII, not leftover debug code.
+        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- see comment above
+        error_log('FormForge uninstall: WP_Filesystem unavailable, skipping removal of ' . $forge_plugin_dir);
+    } else {
+        $forge_it    = new RecursiveDirectoryIterator($forge_plugin_dir, FilesystemIterator::SKIP_DOTS);
+        $forge_files = new RecursiveIteratorIterator($forge_it, RecursiveIteratorIterator::CHILD_FIRST);
+        foreach ($forge_files as $forge_file) {
+            $forge_path = $forge_file->getRealPath();
+            if ($forge_file->isDir()) {
+                $forge_ok = $wp_filesystem->rmdir($forge_path);
+            } else {
+                wp_delete_file($forge_path);
+                $forge_ok = !file_exists($forge_path);
+            }
+            if (!$forge_ok) {
+                // Same rationale as above: uninstall.php runs standalone, outside the plugin's
+                // normal bootstrap/logging, so wp-content debug logging is the only reasonable
+                // way to surface a real cleanup failure here.
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- see comment above
+                error_log('FormForge uninstall: failed to remove ' . $forge_path);
+            }
+        }
+        if (!$wp_filesystem->rmdir($forge_plugin_dir)) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- see justification above.
+            error_log('FormForge uninstall: failed to remove directory ' . $forge_plugin_dir);
+        }
     }
 }

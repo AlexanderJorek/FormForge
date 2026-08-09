@@ -133,7 +133,9 @@ class PDFLayoutEditor
                     'margin_left'     => min(50, max(0, (int) ($raw['margin_left']   ?? 15))),
                     'margin_right'    => min(50, max(0, (int) ($raw['margin_right']  ?? 15))),
                     'section_hidden'  => array_values(
+                        // phpcs:ignore PHPCS_SecurityAudit.BadFunctions.CallbackFunctions.WarnCallbackFunctions -- callback is an inline closure, not attacker-controlled dispatch.
                         array_filter(
+                            // phpcs:ignore PHPCS_SecurityAudit.BadFunctions.CallbackFunctions.WarnCallbackFunctions -- callback is the hardcoded 'sanitize_key' string, not attacker-controlled dispatch.
                             array_map('sanitize_key', (array) ($raw['section_hidden'] ?? [])),
                             fn($s) => isset(self::sectionLabels()[$s])
                         )
@@ -156,13 +158,15 @@ class PDFLayoutEditor
         // not a real submission — it must not be persisted or count toward seal history
         $path = \ForgeForms\PDF\Generator::generate($dummy, 0, __('Layout Preview', 'form-forge'));
 
+        // phpcs:ignore PHPCS_SecurityAudit.BadFunctions.FilesystemFunctions.WarnFilesystem -- $path is the return value of PDF\Generator::generate(), an internally-computed temp-file path, not attacker input.
         if (!$path || !file_exists($path)) {
             wp_send_json_error(['message' => __('PDF generation failed.', 'form-forge')], 500);
         }
 
+        // phpcs:ignore PHPCS_SecurityAudit.BadFunctions.FilesystemFunctions.WarnFilesystem -- $path is the return value of PDF\Generator::generate(), an internally-computed temp-file path, not attacker input.
         $data = file_get_contents($path);
         // Delete immediately after reading — no submission data is ever kept on disk (see CLAUDE.md)
-        @unlink($path);
+        wp_delete_file($path);
 
         if ($data === false) {
             wp_send_json_error(['message' => __('PDF could not be read.', 'form-forge')], 500);
@@ -265,6 +269,7 @@ class PDFLayoutEditor
            previews show identical text and images. */
         $dummy_fields    = self::dummyFields();
         $dummy_text      = array_values(
+            // phpcs:ignore PHPCS_SecurityAudit.BadFunctions.CallbackFunctions.WarnCallbackFunctions -- callback is an inline closure over hardcoded dummy data, not attacker-controlled dispatch.
             array_filter(
                 $dummy_fields,
                 fn($f) => (bool)(FieldRegistry::get($f['type'] ?? '')?->hasTextPreview())
@@ -527,6 +532,7 @@ class PDFLayoutEditor
     /* Same msgid as includes/PDF/Generator.php's footerHtml() so the "Page X
        of Y" text in this live preview matches the real generated PDF instead
        of a hardcoded-German duplicate. %1$s/%2$s are substituted per-page below. */
+        <?php // translators: %1$s is the current page number, %2$s is the total page count. ?>
     var pageOfTpl = <?php echo wp_json_encode(sprintf(__('Page %1$s of %2$s', 'form-forge'), '%1$s', '%2$s')); ?>;
 
     /* Auto-dismiss save notice: wait 5 s, then fade out over 2 s */
@@ -744,11 +750,7 @@ class PDFLayoutEditor
                 out+='<strong><?php echo esc_js(__('Legal Notice:', 'form-forge')); ?></strong> '
                     +<?php
                     echo wp_json_encode(__(
-                        'This document represents the original. Any change, '
-                            . 'manipulation, or modification invalidates this document. '
-                            . 'This document was issued in electronic form and must be '
-                            . 'kept exclusively in electronic form. Any printout is '
-                            . 'merely a copy and has no legal validity.',
+                        'This document represents the original. Any change, manipulation, or modification invalidates this document. This document was issued in electronic form and must be kept exclusively in electronic form. Any printout is merely a copy and has no legal validity.', // phpcs:ignore Generic.Files.LineLength
                         'form-forge'
                     ));
                         ?>;
@@ -939,6 +941,7 @@ class PDFLayoutEditor
                                reporting it as a generic network error. */
                             console.error('PDF preview: non-JSON response (HTTP ' + r.status + ')', text);
                             throw new Error(
+                                <?php // translators: %d is the HTTP status code returned by the server. ?>
                                 '<?php echo esc_js(__('Unexpected server response (HTTP %d). See browser console for details.', 'form-forge')); ?>'
                                     .replace('%d', r.status)
                             );
@@ -1851,8 +1854,9 @@ class PDFLayoutEditor
         $labels = self::sectionLabels();
 
         $hidden = array_values(
+            // phpcs:ignore PHPCS_SecurityAudit.BadFunctions.CallbackFunctions.WarnCallbackFunctions -- callback is an inline closure, not attacker-controlled dispatch.
             array_filter(
-                // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- each value is passed through sanitize_key() via array_map(); WPCS doesn't recognize the string-callback form.
+                // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, PHPCS_SecurityAudit.BadFunctions.CallbackFunctions.WarnCallbackFunctions -- each value is passed through sanitize_key() via array_map() (WPCS doesn't recognize the string-callback form); callback is the hardcoded 'sanitize_key' string, not attacker-controlled dispatch.
                 array_map('sanitize_key', explode(',', (string) wp_unslash($_POST['section_hidden'] ?? ''))),
                 fn($s) => isset($labels[$s])
             )
@@ -2095,6 +2099,7 @@ class PDFLayoutEditor
             imageline($img, $pts[$i], $pts[$i + 1], $pts[$i + 2], $pts[$i + 3], $ink);
         }
         ob_start();
+        // phpcs:ignore PHPCS_SecurityAudit.BadFunctions.FilesystemFunctions.WarnFilesystem -- $img is a GD image resource, not a filesystem path; imagepng() here writes to the output buffer (2-arg form), no file is touched.
         imagepng($img);
         $raw = ob_get_clean();
         unset($img);
@@ -2131,6 +2136,7 @@ class PDFLayoutEditor
         /* Label */
         imagestring($img, 2, 170, 32, 'Attachment', $dark);
         ob_start();
+        // phpcs:ignore PHPCS_SecurityAudit.BadFunctions.FilesystemFunctions.WarnFilesystem -- $img is a GD image resource, not a filesystem path; imagepng() here writes to the output buffer (2-arg form), no file is touched.
         imagepng($img);
         $raw = ob_get_clean();
         unset($img);

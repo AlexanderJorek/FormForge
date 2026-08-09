@@ -22,8 +22,8 @@ define('FORGE_FORMS_URL', plugin_dir_url(__FILE__));
 define('FORGE_FORMS_VERSION', '1.0.0');
 define('FORGE_FORMS_BASENAME', plugin_basename(__FILE__));
 
-$composer_autoload = FORGE_FORMS_PATH . 'vendor/autoload.php';
-if (!file_exists($composer_autoload)) {
+$forge_composer_autoload = FORGE_FORMS_PATH . 'vendor/autoload.php';
+if (!file_exists($forge_composer_autoload)) {
     add_action(
         'admin_notices',
         static function (): void {
@@ -38,7 +38,7 @@ if (!file_exists($composer_autoload)) {
     // the autoloader would produce an uncaught fatal instead of staying inert.
     return;
 }
-include_once $composer_autoload;
+include_once $forge_composer_autoload;
 
 // Plugin.php is loaded explicitly (not via the Composer PSR-4 autoloader, which only
 // covers vendor/ dependencies) since it's the class that wires up autoloading for the
@@ -71,8 +71,15 @@ add_filter(
 add_action(
     'plugins_loaded',
     static function (): void {
-        // Loads languages/form-forge-{locale}.mo, if one exists for the site's
-        // configured language, for our own bundled translations.
+        // Loads languages/form-forge-{locale}.mo, if one exists for the site's configured
+        // language, for our own bundled translations. WordPress.org's auto-loading of
+        // translations only applies to translations submitted through translate.wordpress.org
+        // for a plugin hosted there; this plugin bundles its own .mo files directly (see
+        // languages/ and the load_textdomain_mofile filter above, which forces our bundled
+        // de_DE.mo to win over any community translation). The manual load_plugin_textdomain()
+        // call is still required for those bundled files to be found at all — removing it
+        // would break German translations that ship with the plugin.
+        // phpcs:ignore PluginCheck.CodeAnalysis.DiscouragedFunctions.load_plugin_textdomainFound -- see comment above
         load_plugin_textdomain('form-forge', false, dirname(FORGE_FORMS_BASENAME) . '/languages');
         \ForgeForms\Plugin::init();
     }

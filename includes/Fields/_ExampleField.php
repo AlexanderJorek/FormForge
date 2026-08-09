@@ -13,6 +13,17 @@
  * @version   1.0.0
  * @link      https://github.com/AlexanderJorek/FormForge
  *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ */
+
+namespace ForgeForms\Fields;
+
+defined('ABSPATH') || exit;
+
+/**
  * ════════════════════════════════════════════════════════════
  *  HOW TO ADD A NEW FIELD
  * ════════════════════════════════════════════════════════════
@@ -158,13 +169,7 @@
  *
  * Every sprintf()/__() pairing that has a %s/%d placeholder needs a `// translators:`
  * comment on the line directly above explaining what each placeholder is.
- */
-
-namespace ForgeForms\Fields;
-
-defined('ABSPATH') || exit;
-
-/**
+ *
  * Template/example field demonstrating the full field implementation pattern.
  */
 class ExampleField extends BaseField
@@ -368,10 +373,18 @@ class ExampleField extends BaseField
      */
     private function exampleExtractParallelArrays(string $field_id): mixed
     {
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- nonce is verified once in FormProcessor::handle() before field extraction runs; 'name' is sanitized below, other keys (tmp_name/size/error) are PHP-generated, not attacker text.
+        $files = isset($_FILES[$field_id]) ? wp_unslash($_FILES[$field_id]) : [];
+        if (is_array($files) && isset($files['name'])) {
+            $files['name'] = is_array($files['name'])
+                ? map_deep($files['name'], 'sanitize_file_name')
+                : sanitize_file_name($files['name']);
+        }
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
-        $files = $_FILES[$field_id] ?? [];
-        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
-        $desc  = $_POST[$field_id . '_desc'] ?? [];
+        $desc = isset($_POST[$field_id . '_desc'])
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
+            ? map_deep(wp_unslash($_POST[$field_id . '_desc']), 'sanitize_text_field')
+            : [];
         return [
             'files' => $files,
             'desc'  => $desc,
@@ -778,7 +791,7 @@ class ExampleField extends BaseField
     /** EXAMPLE (unused) — would replace the inherited BaseField::enqueueFrontScripts(). */
     private function exampleEnqueueFrontScripts(): void
     {
-        wp_enqueue_script('my-lib', 'https://example.com/lib.js', [], null, true);
+        wp_enqueue_script('my-lib', 'https://example.com/lib.js', [], FORGE_FORMS_VERSION, true);
     }
 
 

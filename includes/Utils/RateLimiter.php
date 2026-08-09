@@ -55,6 +55,7 @@ class RateLimiter
         // SELECT LAST_INSERT_ID(), which an earlier version used — that relies on
         // both statements landing on the same MySQL session, which isn't guaranteed
         // behind a connection pooler and caused sporadically wrong counts.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- atomic upsert cannot be expressed via the Options/Transients API without losing the single-statement atomicity this rate limiter depends on (see class docblock); this option is never autoloaded/cached via get_option().
         $wpdb->query(
             $wpdb->prepare(
                 "INSERT INTO {$wpdb->options} (option_name, option_value, autoload)
@@ -79,9 +80,9 @@ class RateLimiter
         // stale copy or every subsequent get_option() on this key would return it.
         wp_cache_delete($opt, 'options');
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- same direct-query rationale as the
-        // upsert above: this option is never autoloaded/cached via get_option(), it's a private counter row
-        // this class owns exclusively.
+        // Same direct-query rationale as the upsert above: this option is never
+        // autoloaded/cached via get_option(), it's a private counter row this class owns exclusively.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- see comment above
         $raw = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $opt));
         if ($raw === null || !str_contains((string) $raw, '|')) {
             // Shouldn't happen immediately after the upsert above commits, but fail
@@ -105,9 +106,9 @@ class RateLimiter
         global $wpdb;
 
         $opt = 'forge_rl_' . $key;
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- same direct-query rationale as
-        // increment() above: this option is never autoloaded/cached via get_option(), it's a private counter
-        // row this class owns exclusively.
+        // Same direct-query rationale as increment() above: this option is never
+        // autoloaded/cached via get_option(), it's a private counter row this class owns exclusively.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- see comment above
         $raw = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $opt));
         if ($raw === null || !str_contains((string) $raw, '|')) {
             return 0;
@@ -126,6 +127,7 @@ class RateLimiter
         global $wpdb;
 
         $now = time();
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk sweep of this class's own private forge_rl_* option rows (never read via get_option()/cached); WP-Cron cleanup, not request-path caching concern.
         $wpdb->query(
             $wpdb->prepare(
                 "DELETE FROM {$wpdb->options}

@@ -31,6 +31,9 @@ defined('ABSPATH') || exit;
 function forge_log(string $message): void
 {
     if (defined('WP_DEBUG') && WP_DEBUG) {
+        // This is the plugin's shared WP_DEBUG-gated logging helper, called from many files;
+        // it never runs unless WP_DEBUG is on, so it's not leftover production debug code.
+        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- see comment above
         error_log($message);
     }
 }
@@ -300,23 +303,13 @@ class Plugin
     {
         return [
             __('SEPA Direct Debit (OpenIBAN)', 'form-forge') . "\n" . __(
-                'If you enter an IBAN in a form, it will be transmitted to the OpenIBAN '
-                    . 'service (openiban.com) for validation and to determine the '
-                    . 'corresponding BIC. Only the IBAN you entered and the connection '
-                    . 'data required for technical transmission will be processed. This '
-                    . 'processing is carried out for the purpose of verifying the bank '
-                    . 'account information. For more information on data processing, '
-                    . 'please refer to OpenIBAN\'s Privacy Policy.',
+                // phpcs:ignore Generic.Files.LineLength -- must be a single string literal for WordPress i18n tooling to extract it correctly, see WordPress.WP.I18n.NonSingularStringLiteralText
+                "If you enter an IBAN in a form, it will be transmitted to the OpenIBAN service (openiban.com) for validation and to determine the corresponding BIC. Only the IBAN you entered and the connection data required for technical transmission will be processed. This processing is carried out for the purpose of verifying the bank account information. For more information on data processing, please refer to OpenIBAN's Privacy Policy.",
                 'form-forge'
             ),
             __('Google reCAPTCHA', 'form-forge') . "\n" . __(
-                'To prevent spam and fraudulent form submissions, we use Google '
-                    . 'reCAPTCHA. Among other things, the IP address, the CAPTCHA '
-                    . 'response, and other technical information are transmitted to '
-                    . 'Google and processed there to determine whether the input was made '
-                    . 'by a human. This may involve the transfer of personal data to the '
-                    . 'United States. For more information, please see Google\'s Privacy '
-                    . 'Policy.',
+                // phpcs:ignore Generic.Files.LineLength -- must be a single string literal for WordPress i18n tooling to extract it correctly, see WordPress.WP.I18n.NonSingularStringLiteralText
+                "To prevent spam and fraudulent form submissions, we use Google reCAPTCHA. Among other things, the IP address, the CAPTCHA response, and other technical information are transmitted to Google and processed there to determine whether the input was made by a human. This may involve the transfer of personal data to the United States. For more information, please see Google's Privacy Policy.",
                 'form-forge'
             ),
         ];

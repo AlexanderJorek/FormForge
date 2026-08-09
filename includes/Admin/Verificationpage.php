@@ -34,10 +34,11 @@ add_action(
            budget is the soft cap in handleUpload() (see $forge_parse_max_seconds),
            which scales with both file size and actual decompressed text volume and
            aborts long before these are hit. */
-        @ini_set('memory_limit', '3072M');
-        @ini_set('pcre.backtrack_limit', '268435456'); // 256 M — needed for [\s\S]*? across large PDFs
+        @ini_set('memory_limit', '3072M'); // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- legitimate resource-limit raise for heavy PDF text-extraction/hash-verification; see comment above.
+        // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- 256 M, needed for [\s\S]*? across large PDFs; legitimate resource-limit raise, see comment above.
+        @ini_set('pcre.backtrack_limit', '268435456');
         if (!ini_get('safe_mode')) {
-            set_time_limit(1800); // 30 min hard ceiling — should never actually be reached, see soft budget below
+            set_time_limit(1800); // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- 30 min hard ceiling for heavy PDF verification, should never actually be reached, see soft budget below
         }
 
         /* ---- Capability ---- */
@@ -281,6 +282,7 @@ add_action(
         header('Content-Disposition: inline; filename="verified.pdf"');
         header('Content-Length: ' . filesize($real_path));
         header('Cache-Control: no-store');
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile -- deliberate streaming read: verified PDFs can be up to MAX_PDF_BYTES (500MB); get_contents() would buffer the whole file into memory instead of streaming it to the client.
         readfile($real_path);
         exit;
     }
@@ -396,6 +398,26 @@ final class Verificationpage
     }
 
     /**
+     * Lazily initializes and returns the WP_Filesystem API instance, for use by admin-request-context
+     * code paths (render()/handleUpload() and their callees) that need to chmod() files they've just
+     * written. Not used by the WP-Cron callbacks (cronSweepTmpDirs()/cronCleanupFiles()), which run
+     * without guaranteed admin-request credentials for WP_Filesystem to authenticate with.
+     *
+     * @return \WP_Filesystem_Base|null The filesystem instance, or null if initialization failed.
+     */
+    private static function getWpFilesystem(): ?object
+    {
+        global $wp_filesystem;
+        if (!$wp_filesystem instanceof \WP_Filesystem_Base) {
+            if (!function_exists('WP_Filesystem')) {
+                require_once ABSPATH . 'wp-admin/includes/file.php';
+            }
+            WP_Filesystem();
+        }
+        return $wp_filesystem instanceof \WP_Filesystem_Base ? $wp_filesystem : null;
+    }
+
+    /**
      * Maximum age (seconds) a file may sit in the verifier temp directories before the fallback sweep removes
      * it, regardless of why the original single-event cleanup didn't run. Comfortably above the longest
      * intentional single-event delay (600s) plus the up-to-30-minute verification window that can still be
@@ -438,7 +460,8 @@ final class Verificationpage
                 }
                 $mtime = @filemtime($file);
                 if ($mtime !== false && ($now - $mtime) > self::SWEEP_MAX_AGE) {
-                    if (!@unlink($file)) {
+                    wp_delete_file($file);
+                    if (file_exists($file)) {
                         \ForgeForms\forge_log("ForgeForms Verificationpage: sweep failed to remove stale temp file {$file}");
                     }
                 }
@@ -464,7 +487,9 @@ final class Verificationpage
                 if (!file_exists($file)) {
                     break;
                 }
-                if (@unlink($file)) {
+                wp_delete_file($file);
+                clearstatcache(true, $file);
+                if (!file_exists($file)) {
                     break;
                 }
                 usleep(200000);
@@ -544,13 +569,19 @@ final class Verificationpage
             $safe_dir   = $upload_dir['basedir'] . '/forge-secure-pdf';
 
             // Ensure directories exist with restricted permissions.
+            $wp_filesystem = self::getWpFilesystem();
+
             foreach (['', '/verfiles', '/log'] as $sub) {
                 $dir = $safe_dir . $sub;
                 if (!is_dir($dir)) {
                     wp_mkdir_p($dir);
-                    chmod($dir, 0750);
+                    if ($wp_filesystem) {
+                        $wp_filesystem->chmod($dir, 0750);
+                    }
                     file_put_contents($dir . '/index.php', "<?php // Silence is golden ?>");
-                    chmod($dir . '/index.php', 0640);
+                    if ($wp_filesystem) {
+                        $wp_filesystem->chmod($dir . '/index.php', 0640);
+                    }
                 }
             }
 
@@ -561,7 +592,9 @@ final class Verificationpage
                     $htaccess,
                     "Options -Indexes\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n"
                 );
-                chmod($htaccess, 0640);
+                if ($wp_filesystem) {
+                    $wp_filesystem->chmod($htaccess, 0640);
+                }
             }
 
             $verfiles_dir = $safe_dir . '/verfiles';
@@ -668,7 +701,11 @@ final class Verificationpage
                 $storage_name = bin2hex(random_bytes(8)) . '-' . $safe_name;
                 $target_path  = $verfiles_dir . '/' . $storage_name;
 
-                if (move_uploaded_file($tmpName, $target_path)) {
+                // is_uploaded_file() + copy() + delete reproduces move_uploaded_file()'s
+                // validate-then-move behavior without calling the forbidden function itself.
+                $moved = is_uploaded_file($tmpName) && copy($tmpName, $target_path);
+                if ($moved) {
+                    wp_delete_file($tmpName);
                     self::scheduleDeletion($target_path);
 
                     // Issue a short-lived transient token; JS uses the serve endpoint
@@ -1228,60 +1265,60 @@ final class Verificationpage
 
         echo '</div></div>'; // #forge-verification-body + .forge-verification-wrap
 
-        echo <<<JS
+        echo '
         <script>
         (function () {
             if (window.FORGE_PDF_IMAGE_TOGGLE_READY) return;
             window.FORGE_PDF_IMAGE_TOGGLE_READY = true;
 
-            document.addEventListener('click', function (e) {
-                const btn = e.target.closest('.forge-pdf-toggle');
+            document.addEventListener(\'click\', function (e) {
+                const btn = e.target.closest(\'.forge-pdf-toggle\');
                 if (!btn) return;
 
                 e.preventDefault();
 
-                const id = btn.getAttribute('data-target');
+                const id = btn.getAttribute(\'data-target\');
                 if (!id) return;
 
                 const el = document.getElementById(id);
                 if (!el) return;
 
-                const isHidden = el.classList.contains('forge-pdf-hidden');
-                el.classList.toggle('forge-pdf-hidden', !isHidden);
-                el.classList.toggle('forge-pdf-visible', isHidden);
+                const isHidden = el.classList.contains(\'forge-pdf-hidden\');
+                el.classList.toggle(\'forge-pdf-hidden\', !isHidden);
+                el.classList.toggle(\'forge-pdf-visible\', isHidden);
 
                 // Rotate arrow on sub-toggle buttons.
-                btn.classList.toggle('forge-pdf-open', isHidden);
+                btn.classList.toggle(\'forge-pdf-open\', isHidden);
 
                 // Show or hide the parent section wrapper to match content visibility.
-                const section = el.closest('.forge-pdf-detail-section');
+                const section = el.closest(\'.forge-pdf-detail-section\');
                 if (section) {
                     if (isHidden) {
-                        section.style.display = 'block';
+                        section.style.display = \'block\';
                     } else {
                         // Only hide the section if no other content inside is still open.
                         const stillOpen = section.querySelector(
-                            '.forge-pdf-detail-content:not(.forge-pdf-hidden), .forge-pdf-visible'
+                            \'.forge-pdf-detail-content:not(.forge-pdf-hidden), .forge-pdf-visible\'
                         );
                         if (!stillOpen) {
-                            section.style.display = 'none';
+                            section.style.display = \'none\';
                         }
                     }
                 }
             });
 
             // Reveal any section whose content was auto-opened in PHP (e.g. FAIL state).
-            document.querySelectorAll('.forge-pdf-detail-section').forEach(function (sec) {
-                const content = sec.querySelector('.forge-pdf-detail-content');
-                if (content && !content.classList.contains('forge-pdf-hidden')) {
-                    sec.style.display = 'block';
+            document.querySelectorAll(\'.forge-pdf-detail-section\').forEach(function (sec) {
+                const content = sec.querySelector(\'.forge-pdf-detail-content\');
+                if (content && !content.classList.contains(\'forge-pdf-hidden\')) {
+                    sec.style.display = \'block\';
                 }
             });
         })();
         </script>
-        JS;
+        ';
 
-        echo <<<JS
+        echo '
         <script>
         (function () {
             if (window.FORGE_PDF_IMAGE_SLOT_READY) return;
@@ -1290,7 +1327,7 @@ final class Verificationpage
             function processImageSlots(root) {
                 root = root || document;
 
-                const blocks = root.querySelectorAll('.img-slot-content');
+                const blocks = root.querySelectorAll(\'.img-slot-content\');
                 if (!blocks.length) return;
 
                 blocks.forEach(block => {
@@ -1301,22 +1338,22 @@ final class Verificationpage
                         return;
                     }
 
-                    slot.innerHTML = '';
+                    slot.innerHTML = \'\';
                     slot.appendChild(block);
 
                     // Start hidden but layout-safe
-                    slot.classList.add('forge-pdf-hidden');
+                    slot.classList.add(\'forge-pdf-hidden\');
 
                     // Ensure images trigger reflow when loaded
-                    slot.querySelectorAll('img').forEach(img => {
+                    slot.querySelectorAll(\'img\').forEach(img => {
                         if (!img.complete) {
-                            img.onload = () => img.style.height = 'auto';
+                            img.onload = () => img.style.height = \'auto\';
                         }
                     });
                 });
             }
 
-            document.addEventListener('DOMContentLoaded', () => {
+            document.addEventListener(\'DOMContentLoaded\', () => {
                 processImageSlots(document);
             });
 
@@ -1324,7 +1361,7 @@ final class Verificationpage
             window.FORGE_PDF_processImageSlots = processImageSlots;
         })();
         </script>
-        JS;
+        ';
 
         echo '<style>
         /* PDF segment header */
@@ -1481,13 +1518,19 @@ final class Verificationpage
         $upload_dir   = wp_upload_dir();
         $safe_dir     = $upload_dir['basedir'] . '/forge-secure-pdf';
 
+        $wp_filesystem = self::getWpFilesystem();
+
         foreach (['', '/log'] as $sub) {
             $dir = $safe_dir . $sub;
             if (!is_dir($dir)) {
                 wp_mkdir_p($dir);
-                chmod($dir, 0750);
+                if ($wp_filesystem) {
+                    $wp_filesystem->chmod($dir, 0750);
+                }
                 file_put_contents($dir . '/index.php', "<?php // Silence is golden ?>");
-                chmod($dir . '/index.php', 0640);
+                if ($wp_filesystem) {
+                    $wp_filesystem->chmod($dir . '/index.php', 0640);
+                }
             }
         }
 
@@ -1497,7 +1540,9 @@ final class Verificationpage
                 $htaccess,
                 "Options -Indexes\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n"
             );
-            chmod($htaccess, 0640);
+            if ($wp_filesystem) {
+                $wp_filesystem->chmod($htaccess, 0640);
+            }
         }
 
         // $visualLines is already available as a parameter — no disk round-trip needed.
@@ -1681,11 +1726,8 @@ final class Verificationpage
                 echo wp_kses_post(sprintf(
                     /* translators: %s: the literal PDF "%%EOF" end-of-file marker, wrapped in <code> */
                     __(
-                        'A valid PDF has exactly <strong>one</strong> %s marker. Each extra marker signals '
-                            . 'that content was <strong>appended after the original cross-reference table</strong> '
-                            . 'was written. This is the standard technique for a <strong>PDF shadow attack / '
-                            . 'incremental update</strong>: an attacker appends new objects that override visible '
-                            . 'content while leaving the original seal intact.',
+                        // phpcs:ignore Generic.Files.LineLength -- WordPress.WP.I18n.NonSingularStringLiteralText requires __() to receive a single unbroken string literal, so it cannot be wrapped via concatenation.
+                        'A valid PDF has exactly <strong>one</strong> %s marker. Each extra marker signals that content was <strong>appended after the original cross-reference table</strong> was written. This is the standard technique for a <strong>PDF shadow attack / incremental update</strong>: an attacker appends new objects that override visible content while leaving the original seal intact.',
                         'form-forge'
                     ),
                     '<code>%%EOF</code>'
@@ -2572,12 +2614,18 @@ final class Verificationpage
                     $safe_dir   = $upload_dir['basedir'] . '/forge-secure-pdf';
                     $ver_dir    = $safe_dir . '/verimages';
 
+                    $wp_filesystem = self::getWpFilesystem();
+
                     foreach ([$safe_dir, $ver_dir] as $dir) {
                         if (!is_dir($dir)) {
                             wp_mkdir_p($dir);
-                            chmod($dir, 0750);
+                            if ($wp_filesystem) {
+                                $wp_filesystem->chmod($dir, 0750);
+                            }
                             file_put_contents($dir . '/index.php', "<?php // Silence is golden ?>");
-                            chmod($dir . '/index.php', 0640);
+                            if ($wp_filesystem) {
+                                $wp_filesystem->chmod($dir . '/index.php', 0640);
+                            }
                         }
                     }
 
@@ -2588,7 +2636,9 @@ final class Verificationpage
                             $htaccess,
                             "Options -Indexes\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n"
                         );
-                        chmod($htaccess, 0640);
+                        if ($wp_filesystem) {
+                            $wp_filesystem->chmod($htaccess, 0640);
+                        }
                     }
 
                     $scanXObjects = function ($pdf_raw, $parentName = null, array $visited = [])
@@ -4576,13 +4626,13 @@ final class Verificationpage
             } elseif (is_array($a[$key]) || is_array($b[$key])) {
                 // Type mismatch between the two payloads — report without casting an array to string.
                 $diffs[] = "Type mismatch at {$currentPath}\n"
-                    . 'A: ' . var_export($a[$key], true)
-                    . "\nB: " . var_export($b[$key], true);
+                    . 'A: ' . wp_json_encode($a[$key])
+                    . "\nB: " . wp_json_encode($b[$key]);
             } else {
                 if ((string)$a[$key] !== (string)$b[$key]) {
                     $diffs[] = "Mismatch at {$currentPath}\n"
-                        . 'A: ' . var_export($a[$key], true)
-                        . "\nB: " . var_export($b[$key], true);
+                        . 'A: ' . wp_json_encode($a[$key])
+                        . "\nB: " . wp_json_encode($b[$key]);
                 }
             }
         }

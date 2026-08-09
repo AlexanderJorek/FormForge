@@ -614,7 +614,7 @@ CSS;
     {
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
         $raw = isset($_POST[$field_id])
-            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- nonce is verified once in FormProcessor::handle() before field extraction runs; value is unslashed and sanitize_text_field()'d via map_deep()/capRawArray(), WPCS doesn't recognize sanitization via the string-callback form.
             ? map_deep(self::capRawArray(wp_unslash($_POST[$field_id])), 'sanitize_text_field')
             : [];
         if (!is_array($raw)) {
@@ -895,10 +895,7 @@ CSS;
                 'label'      => __('Auto-fill BIC via live IBAN lookup', 'form-forge'),
                 'default'    => false,
                 'disclaimer' => __(
-                    'When enabled, the visitor\'s IBAN is sent to the third-party service openiban.com '
-                    . 'as soon as it\'s fully typed — before the form is submitted — to look up the matching BIC. '
-                    . 'Disable this to have visitors enter the BIC manually instead, keeping IBAN data on your own site '
-                    . 'until submission.',
+                    "When enabled, the visitor's IBAN is sent to the third-party service openiban.com as soon as it's fully typed — before the form is submitted — to look up the matching BIC. Disable this to have visitors enter the BIC manually instead, keeping IBAN data on your own site until submission.", // phpcs:ignore Generic.Files.LineLength
                     'form-forge'
                 ),
             ],

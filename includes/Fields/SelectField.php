@@ -384,7 +384,7 @@ CSS;
         if ($selected === '__other__' && isset($_POST[$field_id . '_other'])) {
             return [
                 'value'           => $selected,
-                // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified once in FormProcessor::handle() before field extraction runs.
+                // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- nonce is verified once in FormProcessor::handle() before field extraction runs; capOtherText() unslashes and sanitize_text_field()s the value, WPCS doesn't recognize sanitization/unslashing via the helper method.
                 '__other_text__'  => self::capOtherText($_POST[$field_id . '_other']),
             ];
         }

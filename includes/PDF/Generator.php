@@ -115,7 +115,7 @@ class Generator
 
             $allowed_tags = ($pdf['trusted_rich_html'] ?? false)
                 ? HtmlField::trustedPdfAllowedTags()
-                : PDF_ALLOWED_VALUE_TAGS;
+                : FORGE_PDF_ALLOWED_VALUE_TAGS;
             $cell_html = wp_kses((string)($pdf['cell_html'] ?? ''), $allowed_tags);
             foreach (array_keys($pdf_image_vars) as $var) {
                 $cell_html .= $layout['image']($var);
@@ -159,6 +159,9 @@ class Generator
         /* ---- mPDF setup ---- */
         try {
             $prev_backtrack = (int)ini_get('pcre.backtrack_limit');
+            // Legitimate resource-limit raise required for mPDF's regex-heavy HTML parsing
+            // on large forms; restored in the finally block below.
+            // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- see comment above
             ini_set('pcre.backtrack_limit', (string)max($prev_backtrack, 16 * 1024 * 1024));
 
             $upload_dir = wp_upload_dir();
@@ -176,8 +179,10 @@ class Generator
                         $dir = $safe_dir . $sub;
                         if (!is_dir($dir)) {
                             wp_mkdir_p($dir);
+                            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- this directory setup can run on a front-end form-submission AJAX request (no WP admin context), where WP_Filesystem() may fall back to prompting for FTP/SSH credentials it cannot obtain; the umask(0027) set above already tightens the effective permissions from creation, this chmod is defense-in-depth on plugin-owned secure-storage dirs, not user-facing content.
                             chmod($dir, 0750);
                             file_put_contents($dir . '/index.php', '<?php // Silence is golden ?>');
+                            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- same front-end/no-credentials-prompt rationale as above; plugin-owned index.php silence file.
                             chmod($dir . '/index.php', 0640);
                         }
                     }
@@ -187,6 +192,7 @@ class Generator
                             $htaccess,
                             "Options -Indexes\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n"
                         );
+                        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- same front-end/no-credentials-prompt rationale as above; plugin-owned .htaccess lockdown file.
                         chmod($htaccess, 0640);
                     }
                 } finally {
@@ -270,7 +276,8 @@ class Generator
             $fonts             = array_keys($fonts);
             $font_prog_hashes  = $font_prog_hashes  ?? [];
             $all_stream_hashes = $all_stream_hashes ?? [];
-            if (!@unlink($sl_path)) {
+            wp_delete_file($sl_path);
+            if (file_exists($sl_path)) {
                 \ForgeForms\forge_log('ForgeForms Generator: failed to delete temp PDF: ' . $sl_path);
             }
 
@@ -351,6 +358,8 @@ class Generator
             // process-wide ini setting, or it stays elevated for the rest of
             // the PHP-FPM worker's lifetime.
             if (isset($prev_backtrack)) {
+                // Restoring the process-wide ini setting raised above; must run regardless of exit path.
+                // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- see comment above
                 ini_set('pcre.backtrack_limit', (string)$prev_backtrack);
             }
         }
@@ -388,7 +397,8 @@ class Generator
                 }
                 $mtime = @filemtime($file);
                 if ($mtime !== false && ($now - $mtime) > self::SWEEP_MAX_AGE) {
-                    if (!@unlink($file)) {
+                    wp_delete_file($file);
+                    if (file_exists($file)) {
                         \ForgeForms\forge_log("ForgeForms Generator: sweep failed to remove stale temp PDF {$file}");
                     }
                 }
@@ -432,8 +442,7 @@ class Generator
     {
         $pageno = '<span style="font-size:0.1px;line-height:0.1px;color:#fff;">'
             . '[FORGE_PDF_PAGENO_START]</span>'
-            // translators: %1$s: current page number placeholder, %2$s: total page count placeholder (both
-            // substituted by mPDF at render time).
+            // translators: %1$s: current page number placeholder, %2$s: total page count placeholder (both substituted by mPDF at render time).
             . sprintf(__('Page %1$s of %2$s', 'form-forge'), '{PAGENO}', '{nbpg}')
             . '<span style="font-size:0.1px;line-height:0.1px;color:#fff;">'
             . '[FORGE_PDF_PAGENO_END]</span>';
@@ -445,7 +454,7 @@ class Generator
                 . $pageno . '</div>';
         }
 
-        // $user_text already passed through wp_kses(PDF_HEADER_TITLE_ALLOWED_TAGS) in
+        // $user_text already passed through wp_kses(FORGE_PDF_HEADER_TITLE_ALLOWED_TAGS) in
         // layout.php's footer() closure — it is safe HTML, not plain text. Re-escaping
         // it here would turn already-permitted tags (<strong>, <em>, <span>, ...) into
         // visible literal text, silently defeating that allowlist.

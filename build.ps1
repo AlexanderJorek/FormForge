@@ -40,10 +40,21 @@ foreach ($rel in $nestedExclude) {
 Write-Host "Installing production-only dependencies (composer install --no-dev)..." -ForegroundColor Cyan
 Push-Location $stageDir
 try {
-    # --ignore-platform-req=ext-gd: your local CLI's php.ini doesn't have the gd
-    # extension enabled. A normal WordPress host does, so this only affects
-    # building the zip here, not the plugin at runtime.
-    composer install --no-dev --optimize-autoloader --no-interaction --ignore-platform-req=ext-gd
+    # Composer writes its normal progress output to stderr. With
+    # $ErrorActionPreference = 'Stop' (set at the top of this script), PowerShell
+    # 5.1 wraps each such line in a NativeCommandError and aborts the script even
+    # though composer itself exits 0 — a real failure is still caught below via
+    # $LASTEXITCODE, which composer sets correctly regardless of this quirk.
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        # --ignore-platform-req=ext-gd: your local CLI's php.ini doesn't have the gd
+        # extension enabled. A normal WordPress host does, so this only affects
+        # building the zip here, not the plugin at runtime.
+        composer install --no-dev --optimize-autoloader --no-interaction --ignore-platform-req=ext-gd
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
     if ($LASTEXITCODE -ne 0) { throw "composer install failed with exit code $LASTEXITCODE" }
 } finally {
     Pop-Location
@@ -55,6 +66,36 @@ try {
 # be copied in separately or every release build would silently ship without it.
 Write-Host "Copying manually-vendored pdf.js..." -ForegroundColor Cyan
 Copy-Item -Path (Join-Path $root 'vendor\pdfjs') -Destination (Join-Path $stageDir 'vendor\pdfjs') -Recurse -Force
+
+# mpdf/mpdf ships ~80 TTF/OTF font files (DejaVu, FreeFont, and many others for
+# scripts like Devanagari/Khmer/Syriac/etc, ~88MB total) covering every font it
+# ever might need. FormForge only ever selects one of 4 families — see the
+# font_family match in includes/PDF/templates/layout.php ('dejavusans' [default],
+# 'dejavuserif', 'dejavusansmono', 'freemono') — and mPDF's autoScriptToLang/
+# autoLangToFont/useSubstitutions are all left at their default of false in
+# Generator.php's $mpdf_config, so mPDF never auto-switches to a different font
+# family for unsupported scripts; it never touches any font file outside these 4
+# families, regardless of what text a form submission contains. Trimming this
+# ONLY in the staged release build (never the working vendor/, which a plain
+# `composer install` would just restore anyway, and which stays full for local
+# testing) cuts ~85MB of dead weight from what actually ships. If you add a fifth
+# selectable PDF font, add its files to $keepFonts below or this step will delete
+# them and PDF generation will fatal on "font file not found."
+Write-Host "Trimming unused mPDF font files..." -ForegroundColor Cyan
+$fontsDir = Join-Path $stageDir 'vendor\mpdf\mpdf\ttfonts'
+$keepFonts = @(
+    'DejaVuSans.ttf', 'DejaVuSans-Bold.ttf', 'DejaVuSans-Oblique.ttf', 'DejaVuSans-BoldOblique.ttf',
+    'DejaVuSerif.ttf', 'DejaVuSerif-Bold.ttf', 'DejaVuSerif-Italic.ttf', 'DejaVuSerif-BoldItalic.ttf',
+    'DejaVuSansMono.ttf', 'DejaVuSansMono-Bold.ttf', 'DejaVuSansMono-Oblique.ttf', 'DejaVuSansMono-BoldOblique.ttf',
+    'FreeMono.ttf', 'FreeMonoBold.ttf', 'FreeMonoOblique.ttf', 'FreeMonoBoldOblique.ttf',
+    'DejaVuinfo.txt', 'GNUFreeFontinfo.txt'
+)
+if (Test-Path $fontsDir) {
+    $before = (Get-ChildItem -Path $fontsDir -File | Measure-Object -Property Length -Sum).Sum
+    Get-ChildItem -Path $fontsDir -File | Where-Object { $keepFonts -notcontains $_.Name } | Remove-Item -Force
+    $after = (Get-ChildItem -Path $fontsDir -File | Measure-Object -Property Length -Sum).Sum
+    Write-Host ("  {0:N1} MB -> {1:N1} MB" -f ($before / 1MB), ($after / 1MB)) -ForegroundColor Cyan
+}
 
 Write-Host "Creating zip..." -ForegroundColor Cyan
 if (Test-Path $zipPath) { Remove-Item -Force $zipPath }

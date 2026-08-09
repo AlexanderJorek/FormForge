@@ -2,7 +2,7 @@
 Contributors: alexanderjorek
 Tags: forms, form builder, pdf, gdpr, sepa
 Requires at least: 7.0.0
-Tested up to: 7.0.2
+Tested up to: 7.0
 Requires PHP: 8.1
 Stable tag: 1.0.0
 License: GPLv3 or later

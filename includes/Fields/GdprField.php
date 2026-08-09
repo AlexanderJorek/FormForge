@@ -129,13 +129,13 @@ CSS;
         $policy_text = esc_html($config['privacy_policy_text'] ?? __('Privacy policy', 'form-forge'));
 
         if ($policy_url !== '') {
+            // This is framed as an acknowledgment of having read the notice (lawful under
+            // GDPR Art. 13 without needing consent mechanics), not a freely-given "consent" —
+            // use ConsentField instead for cases that need genuine opt-in consent (e.g.
+            // marketing use), since that field already supports a non-forced, per-form
+            // required toggle.
             $text = sprintf(
                 // translators: %1$s: privacy policy URL, %2$s: privacy policy link text.
-                // This is framed as an acknowledgment of having read the notice (lawful under
-                // GDPR Art. 13 without needing consent mechanics), not a freely-given "consent" —
-                // use ConsentField instead for cases that need genuine opt-in consent (e.g.
-                // marketing use), since that field already supports a non-forced, per-form
-                // required toggle.
                 __('I have read and acknowledge the <a href="%1$s" target="_blank" rel="noopener">%2$s</a>.', 'form-forge'),
                 $policy_url,
                 $policy_text
@@ -151,8 +151,7 @@ CSS;
                 . ' WP privacy policy page is set — rendering acknowledgment text without a link.'
             );
             $text = sprintf(
-                // translators: %s: privacy policy link text (rendered without a link since no URL is
-                // configured).
+                // translators: %s: privacy policy link text (rendered without a link since no URL is configured).
                 __('I have read and acknowledge the %s.', 'form-forge'),
                 $policy_text
             );
@@ -203,8 +202,7 @@ CSS;
         $policy_text = wp_strip_all_tags((string)($config['privacy_policy_text'] ?? __('Privacy policy', 'form-forge')));
         $policy_url  = (string)($config['privacy_policy_url'] ?? get_privacy_policy_url());
         return sprintf(
-            // translators: %1$s: privacy policy link text, %2$s: privacy policy URL, %3$s: acknowledgment
-            // timestamp.
+            // translators: %1$s: privacy policy link text, %2$s: privacy policy URL, %3$s: acknowledgment timestamp.
             __('Acknowledged "%1$s" (%2$s) on %3$s', 'form-forge'),
             $policy_text,
             $policy_url,

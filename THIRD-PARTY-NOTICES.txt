@@ -35,6 +35,19 @@ Apache-2.0 text in `vendor/pdfjs/LICENSE`. Apache-2.0 is GPL-compatible
 (one-way, per the FSF's license-compatibility list) and requires no
 relicensing to bundle here.
 
+FormForge also bundles Font Awesome Free under `assets/vendor/fontawesome/`
+(placed there manually, not installed via Composer/npm), used for admin-UI
+icons:
+
+| Library              | Version | License                          | Purpose            |
+|----------------------|---------|-----------------------------------|--------------------|
+| Font Awesome Free    | 6.5.2   | CC BY 4.0 (icons) / SIL OFL 1.1 (fonts) / MIT (code) | Admin-UI iconography |
+
+Font Awesome Free's full license text is included at
+`assets/vendor/fontawesome/LICENSE.txt`. All three of its constituent
+licenses (CC BY 4.0, SIL OFL 1.1, MIT) are GPL-compatible and require no
+relicensing to bundle here.
+
 Development-only tooling (PHP_CodeSniffer, WordPress Coding Standards, PHPStubs)
 is listed in `composer.json`'s `require-dev` and is **not** included in release
 builds — see `build.ps1`.
