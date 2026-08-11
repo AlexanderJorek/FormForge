@@ -1400,11 +1400,13 @@ function closeFieldPickerModal() {
 function onFieldPickerEsc(e) { if (e.key === 'Escape') closeFieldPickerModal(); }
 
 function addField(type, targetGroup) {
-    var pal      = findPaletteItem(type);
-    var defaults = (pal && pal.defaults) ? shallowCopy(pal.defaults) : {};
-    var field    = shallowCopy(defaults);
-    field.id     = generateId(type);
-    field.type   = type;
+    var pal = findPaletteItem(type);
+    /* Deep-clone: pal.defaults is reused for every field of this type, and nested
+     * values (e.g. GroupField's 'conditions', Select's 'options') must not be shared
+     * by reference across instances. */
+    var field = pal && pal.defaults ? JSON.parse(JSON.stringify(pal.defaults)) : {};
+    field.id   = generateId(type);
+    field.type = type;
     if (!field.label) field.label = pal ? pal.label : type;
 
     if (targetGroup !== null && targetGroup !== undefined) {
@@ -1421,7 +1423,7 @@ function addField(type, targetGroup) {
         openSettingsModal(ctx.groupIdx, { groupIdx: ctx.groupIdx, childIdx: childIdx });
     } else {
         /* Regular top-level add */
-        if (type === 'group') { field.children = []; }
+        if (type === 'group' && !field.children) { field.children = []; }
         state.fields.push(field);
         renderFieldList();
         openSettingsModal(state.fields.length - 1, null);
@@ -4906,12 +4908,6 @@ function escHtml(str) {
        via string concatenation, where a raw " or ' would break out of the
        attribute. Encode both so escHtml() is safe in attribute context too. */
     return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
-
-function shallowCopy(obj) {
-    var out = {};
-    for (var k in obj) { if (Object.prototype.hasOwnProperty.call(obj, k)) out[k] = obj[k]; }
-    return out;
 }
 
 })();
