@@ -278,8 +278,12 @@
             form.dataset.forgeConditionsInit = '1';
 
             function getFieldValue(fieldId) {
-                var name    = CSS.escape(fieldId);
-                var all     = Array.from(form.querySelectorAll('[name="' + name + '"]'));
+                var name = CSS.escape(fieldId);
+                /* CheckboxField renders its inputs as name="{id}[]" (PHP array-submission
+                 * convention) — every other field type uses the bare id. Match both, or a
+                 * condition rule referencing a checkbox field would never find its inputs
+                 * and always see an empty value. */
+                var all = Array.from(form.querySelectorAll('[name="' + name + '"], [name="' + name + '[]"]'));
                 if (!all.length) return '';
                 /* Treat inputs inside a hidden conditional ancestor as absent */
                 var inputs = all.filter(function (i) {

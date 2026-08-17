@@ -17,7 +17,7 @@
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.0
+ * @version   1.0.1
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or

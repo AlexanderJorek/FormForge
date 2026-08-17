@@ -97,6 +97,38 @@ if (Test-Path $fontsDir) {
     Write-Host ("  {0:N1} MB -> {1:N1} MB" -f ($before / 1MB), ($after / 1MB)) -ForegroundColor Cyan
 }
 
+# Dev-only tooling bundled inside Composer packages themselves (not something
+# `composer install --no-dev` strips, since they ship as regular package files, and
+# `--no-dev` only controls OUR OWN require-dev, not what each dependency chooses to
+# include in its own distributed files): CI workflows/issue templates, static-analysis
+# (PHPStan/Psalm) configs, PHPUnit configs, a phpcs ruleset, .gitignore files, an unused
+# scratch tmp/ dir (mPDF only falls back to vendor/mpdf/mpdf/tmp when no 'tempDir' is
+# passed in config — Generator.php always passes its own, so this is never touched), and
+# a phar-building shell script (WordPress.org's Plugin Check disallows shipping shell
+# scripts) plus the build artifacts/PHP script it invoked. None of this is needed at
+# runtime; none of it is excluded by composer.json's own `require-dev` (that only
+# affects OUR dependency tree, not what upstream packages bundle in their own dist).
+Write-Host "Removing dev-only tooling bundled inside dependencies..." -ForegroundColor Cyan
+$vendorExclude = @(
+    'vendor/paragonie/random_compat/build-phar.sh',
+    'vendor/paragonie/random_compat/dist',
+    'vendor/paragonie/random_compat/other',
+    'vendor/paragonie/random_compat/psalm-autoload.php',
+    'vendor/paragonie/random_compat/psalm.xml',
+    'vendor/mpdf/mpdf/.github',
+    'vendor/mpdf/mpdf/.gitignore',
+    'vendor/mpdf/mpdf/tmp',
+    'vendor/mpdf/mpdf/phpstan-baseline.neon',
+    'vendor/mpdf/mpdf/phpstan.neon',
+    'vendor/mpdf/mpdf/phpunit.xml',
+    'vendor/mpdf/mpdf/ruleset.xml',
+    'vendor/mpdf/psr-log-aware-trait/.gitignore'
+)
+foreach ($rel in $vendorExclude) {
+    $path = Join-Path $stageDir $rel
+    if (Test-Path $path) { Remove-Item -Recurse -Force $path }
+}
+
 Write-Host "Creating zip..." -ForegroundColor Cyan
 if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
 Compress-Archive -Path $stageDir -DestinationPath $zipPath

@@ -10,7 +10,7 @@
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.0
+ * @version   1.0.1
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -233,16 +233,21 @@ class FormRenderer
                     $next_handler = null;
                 }
 
-                // A field with its own visibility rule needs its own row wrapper so it can be
-                // shown/hidden independently — pairing it into a shared two-column row with its
-                // neighbor would hide or show both together regardless of each one's own rule
-                $either_cond = !empty($field_cfg['conditions']['rules'])
-                    || !empty($next['conditions']['rules']);
-
-                if ($next_handler && !$either_cond) {
-                    $col_a  = '<div class="forge-col forge-col-6">';
+                if ($next_handler) {
+                    // Each field's own condition goes on ITS OWN column, not the shared row —
+                    // that way the two fields still toggle independently, but stay visually
+                    // paired side by side (the row/flex layout is untouched either way; only
+                    // whichever column is hidden collapses) instead of each getting its own
+                    // full-width row and stacking vertically once conditions are satisfied.
+                    $col_a_cond = !empty($field_cfg['conditions']['rules'])
+                        ? ' data-conditions="' . esc_attr(wp_json_encode($field_cfg['conditions'])) . '"'
+                        : '';
+                    $col_b_cond = !empty($next['conditions']['rules'])
+                        ? ' data-conditions="' . esc_attr(wp_json_encode($next['conditions'])) . '"'
+                        : '';
+                    $col_a  = '<div class="forge-col forge-col-6"' . $col_a_cond . '>';
                     $col_a .= $handler->render($field_cfg, $field_id) . '</div>';
-                    $col_b  = '<div class="forge-col forge-col-6">';
+                    $col_b  = '<div class="forge-col forge-col-6"' . $col_b_cond . '>';
                     $col_b .= $next_handler->render($next, $next_id) . '</div>';
                     $html  .= '<div class="forge-row forge-row--pair">' . $col_a . $col_b . '</div>';
                     $i += 2;

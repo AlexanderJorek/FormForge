@@ -4,7 +4,7 @@ Tags: forms, form builder, pdf, gdpr, sepa
 Requires at least: 7.0.0
 Tested up to: 7.0
 Requires PHP: 8.1
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -77,6 +77,12 @@ FormForge generates a cryptographic seal key used to make generated PDFs tamper-
 Yes — the PDF Layout Editor (under FormForge → PDF Layout) lets you configure the logo, colors, fonts, margins, and header/footer content used when rendering submissions to PDF.
 
 == Changelog ==
+
+= 1.0.1 =
+* Fixed conditional logic not working for checkbox (multivalue) fields.
+* Fixed two fields that were arranged side by side in the builder dropping to a stacked, full-width layout on the front end once a conditional logic rule made them visible.
+* Translated the Name and Address field sub-field labels in the form builder.
+* Smaller plugin package: removed unused developer files bundled inside third-party libraries.
 
 = 1.0.0 =
 * Initial public release.
