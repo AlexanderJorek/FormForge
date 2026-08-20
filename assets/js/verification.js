@@ -1,8 +1,11 @@
 /*!
- * FormForge — PDF Verification Page
+ * FormFabricator — PDF Verification Page
  * @copyright 2026 Alexander Jorek
  * @license   GPL-3.0-or-later
  */
+
+/* pdf.js 6.x ships ES modules only, so this loads as a <script type="module"> and imports pdf.mjs directly. */
+import * as pdfjsLib from '../../vendor/pdfjs/pdf.mjs';
 
 /* Strips <script>, on*="" handlers and javascript:/vbscript: URIs from a
    server-rendered HTML fragment before it's assigned to innerHTML. Defense
@@ -100,14 +103,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
 const Y_THRESHOLD = 3;
 
-/* Set PDF.js worker — local file only, no CDN */
-if (typeof pdfjsLib !== 'undefined') {
-    const workerSrc = window.ForgeVerifier && window.ForgeVerifier.pdfJsWorker;
-    if (!workerSrc) {
-        console.error('[FormForge] pdfJsWorker is not set. PDF.js worker may be missing.');
-    } else {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
-    }
+/* Set PDF.js worker — local file only, no CDN. window.ForgeVerifier is populated by a classic
+   inline script (wp_localize_script has no module equivalent); safe to read here since module
+   top-level code always runs after classic scripts. */
+const workerSrc = window.ForgeVerifier && window.ForgeVerifier.pdfJsWorker;
+if (!workerSrc) {
+    console.error('[FormFabricator] pdfJsWorker is not set. PDF.js worker may be missing.');
+} else {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 }
 
 /* ── Per-PDF inline progress cards ── */
@@ -257,7 +260,12 @@ window.FORGE_VERIFICATION_PROCESS_PDF = async function processPdf(pdfInfo) {
     var i18n = (window.ForgeVerifier && window.ForgeVerifier.i18n) || {};
     try {
         _forgeUpdateCard(card, i18n.pdf_loading || 'Loading PDF…', 2);
-        const pdf = await pdfjsLib.getDocument({ url: pdfUrl, withCredentials: true }).promise;
+        // pdf.js 6.x removed eval()/Function() usage entirely, so CVE-2024-4367's isEvalSupported:false
+        // workaround no longer applies (that option no longer exists).
+        const pdf = await pdfjsLib.getDocument({
+            url: pdfUrl,
+            withCredentials: true
+        }).promise;
         const allLines = [];
 
         for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
@@ -362,7 +370,7 @@ window.FORGE_VERIFICATION_PROCESS_PDF = async function processPdf(pdfInfo) {
             try {
                 json = JSON.parse(rawText);
             } catch (_) {
-                console.error('[FormForge] Non-JSON response (HTTP ' + res.status + ') for', pdfUrl, '\n', rawText);
+                console.error('[FormFabricator] Non-JSON response (HTTP ' + res.status + ') for', pdfUrl, '\n', rawText);
                 _forgeUpdateCard(card, (i18n.server_error || 'Server error (HTTP %d)').replace('%d', res.status), 100);
                 card.classList.add('forge-vpc--error');
                 done();
@@ -380,7 +388,7 @@ window.FORGE_VERIFICATION_PROCESS_PDF = async function processPdf(pdfInfo) {
                 tmp.innerHTML = _forgeSanitizeFragment(json.data.html);
                 card.parentNode.replaceChild(tmp.firstElementChild || tmp, card);
             } else {
-                console.error('[FormForge] Server returned error:', json);
+                console.error('[FormFabricator] Server returned error:', json);
                 card.classList.add('forge-vpc--error');
                 var msg = (json.data && json.data.message) || (i18n.unknown_error || 'Unknown server error');
                 var stepEl = card.querySelector('.forge-vpc__step');
@@ -388,7 +396,7 @@ window.FORGE_VERIFICATION_PROCESS_PDF = async function processPdf(pdfInfo) {
             }
         } catch (err) {
             stopPoll();
-            console.error('[FormForge] Fetch error for', pdfUrl, err);
+            console.error('[FormFabricator] Fetch error for', pdfUrl, err);
             _forgeUpdateCard(card, i18n.network_error || 'Network error', 100);
             card.classList.add('forge-vpc--error');
             done();
@@ -397,7 +405,7 @@ window.FORGE_VERIFICATION_PROCESS_PDF = async function processPdf(pdfInfo) {
         return allLines;
     } catch (e) {
         stopPoll();
-        console.error('[FormForge] Error parsing PDF', pdfUrl, e);
+        console.error('[FormFabricator] Error parsing PDF', pdfUrl, e);
         _forgeUpdateCard(card, (i18n.pdf_load_error || 'PDF load error: ') + e.message, 100);
         card.classList.add('forge-vpc--error');
         done();

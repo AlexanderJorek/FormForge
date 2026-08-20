@@ -6,12 +6,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -57,7 +57,7 @@ class FieldTestPage
     }
 
     /**
-     * Adds the submenu page under the FormForge menu.
+     * Adds the submenu page under the FormFabricator menu.
      *
      * @return void
      */
@@ -269,7 +269,7 @@ class FieldTestPage
             return self::expectOk('abcde', array_merge($cfg, ['limit_type'=>'chars','limit_max'=>'5']), $h);
         });
         self::run('map non-empty', fn() => self::expectMap('Hello', $cfg, $h, 'Hello'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'formfabricator')));
         self::run('sanitize strips <script>', function () use ($h) {
             return !str_contains($h->sanitizeConfigValue('label', '<script>x</script>'), '<script') ? true : 'script not stripped';
         });
@@ -300,7 +300,7 @@ class FieldTestPage
             return self::expectOk('a b c', array_merge($cfg, ['limit_type'=>'words','limit_max'=>'3']), $h);
         });
         self::run('map non-empty', fn() => self::expectMap('Hello', $cfg, $h, 'Hello'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'formfabricator')));
         self::run('sanitize strips <script> (inherited from BaseField)', function () use ($h) {
             return !str_contains($h->sanitizeConfigValue('description', '<p>ok</p><script>x</script>'), '<script') ? true : 'script not stripped';
         });
@@ -370,10 +370,10 @@ class FieldTestPage
             return self::expectError(['fname'=>'Hans','lname'=>''], $exp, $h);
         });
         self::run('map simple string', fn() => self::expectMap('Max Mustermann', $cfg, $h, 'Max Mustermann'));
-        self::run('map simple empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
+        self::run('map simple empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'formfabricator')));
         self::run('map expanded has Vorname', fn() => self::expectMapContains(['fname'=>'Hans','lname'=>'Müller'], $exp, $h, 'Hans'));
         self::run('map expanded has Nachname', fn() => self::expectMapContains(['fname'=>'Hans','lname'=>'Müller'], $exp, $h, 'Müller'));
-        self::run('map expanded empty → Kein Eintrag', fn() => self::expectMapContains(['fname'=>'','lname'=>''], $exp, $h, __('[No entry]', 'form-forge')));
+        self::run('map expanded empty → Kein Eintrag', fn() => self::expectMapContains(['fname'=>'','lname'=>''], $exp, $h, __('[No entry]', 'formfabricator')));
         self::run('render middle name subfield', function () use ($h, $exp) {
             $c = array_merge($exp, ['mname_enabled'=>true,'mname_label'=>'Zweiter Vorname']);
             return self::contains($h->render($c, 'f1'), 'Zweiter Vorname');
@@ -441,7 +441,7 @@ class FieldTestPage
             return self::expectOk('+358123456789', $c, $h);
         });
         self::run('map non-empty', fn() => self::expectMap('+4915123456789', $cfg, $h, '+4915123456789'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'formfabricator')));
     }
 
     private static function testNumber(): void
@@ -497,7 +497,7 @@ class FieldTestPage
         self::run('validate partial required exp err', function () use ($h, $exp) {
             return self::expectError(['street'=>'Hauptstr. 1','city'=>'','zip'=>'10115'], $exp, $h);
         });
-        self::run('map non-array → Kein Eintrag', fn() => self::expectMapContains('not-array', $cfg, $h, __('[No entry]', 'form-forge')));
+        self::run('map non-array → Kein Eintrag', fn() => self::expectMapContains('not-array', $cfg, $h, __('[No entry]', 'formfabricator')));
         self::run('map array has Straße', fn() => self::expectMapContains(['street'=>'Hauptstr. 1','city'=>'Berlin','zip'=>'10115'], $exp, $h, 'Hauptstr'));
         self::run('map array has Stadt', fn() => self::expectMapContains(['street'=>'Hauptstr. 1','city'=>'Berlin','zip'=>'10115'], $exp, $h, 'Berlin'));
         $expFull = array_merge($exp, [
@@ -564,7 +564,7 @@ class FieldTestPage
         self::run('validate wrong format (text)', fn() => self::expectError('not-a-date', array_merge($cfg, ['required'=>true]), $h));
         self::run('validate invalid calendar date', fn() => self::expectError('31.02.2026', $cfg, $h));
         self::run('map non-empty returns value', fn() => self::expectMap('10.07.2026', $cfg, $h, '10.07.2026'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'formfabricator')));
         self::run('validate before min_date → error', function () use ($h, $cfg) {
             return self::expectError('10.07.2020', array_merge($cfg, ['min_date'=>'01.01.2025','max_date'=>'31.12.2025']), $h);
         });
@@ -609,7 +609,7 @@ class FieldTestPage
         self::run('validate any non-empty', fn() => self::expectOk('14:30', $cfg, $h));
         self::run('validate string passes', fn() => self::expectOk('not-a-time', $cfg, $h));
         self::run('map non-empty', fn() => self::expectMap('14:30', $cfg, $h, '14:30'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'formfabricator')));
     }
 
     private static function testCurrency(): void
@@ -642,7 +642,7 @@ class FieldTestPage
         self::run('map has currency symbol', fn() => self::expectMapContains('12.5', $cfg, $h, '€'));
         self::run('map uses comma decimal', fn() => self::expectMapContains('12.5', $cfg, $h, ','));
         self::run('map non-numeric string passes through unformatted', fn() => self::expectMap('N/A', $cfg, $h, 'N/A €'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'formfabricator')));
     }
 
     private static function testSelect(): void
@@ -698,9 +698,9 @@ class FieldTestPage
             return self::expectError(['value'=>'__other__','__other_text__'=>'one two three'], $c, $h);
         });
         self::run('map known value → label', fn() => self::expectMap('a', $cfg, $h, 'Alpha'));
-        self::run('map __other__ → [Other]', fn() => self::expectMapContains('__other__', $cfg, $h, __('[Other]', 'form-forge')));
+        self::run('map __other__ → [Other]', fn() => self::expectMapContains('__other__', $cfg, $h, __('[Other]', 'formfabricator')));
         self::run('map unknown value → raw', fn() => self::expectMap('unknown', $cfg, $h, 'unknown'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'formfabricator')));
     }
 
     private static function testRadio(): void
@@ -765,7 +765,7 @@ class FieldTestPage
         });
         self::run('map known value → label', fn() => self::expectMap('x', $cfg, $h, 'X-Ray'));
         self::run('map unknown value → raw', fn() => self::expectMap('unknown', $cfg, $h, 'unknown'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'formfabricator')));
     }
 
     private static function testCheckbox(): void
@@ -805,8 +805,8 @@ class FieldTestPage
         self::run('validate exact at max_selections passes', fn() => self::expectOk(['one','two'], array_merge($cfg, ['max_selections'=>2]), $h));
         self::run('map known values has Eins', fn() => self::expectMapContains(['one','two'], $cfg, $h, 'Eins'));
         self::run('map known values has Zwei', fn() => self::expectMapContains(['one','two'], $cfg, $h, 'Zwei'));
-        self::run('map __other__ → [Other]', fn() => self::expectMapContains(['__other__'], $cfg, $h, __('[Other]', 'form-forge')));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains([], $cfg, $h, __('[No entry]', 'form-forge')));
+        self::run('map __other__ → [Other]', fn() => self::expectMapContains(['__other__'], $cfg, $h, __('[Other]', 'formfabricator')));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains([], $cfg, $h, __('[No entry]', 'formfabricator')));
         self::run('render other_max_length chars → maxlength attr', function () use ($h, $cfg) {
             $c = array_merge($cfg, ['other_option'=>true,'other_max_type'=>'chars','other_max_length'=>'20']);
             return self::contains($h->render($c, 'f1'), 'maxlength="20"');
@@ -874,7 +874,7 @@ class FieldTestPage
         self::run('validate blocked ext exe', fn() => self::expectError(['name'=>'evil.exe','tmp_name'=>'/tmp/x','error'=>0,'size'=>100,'type'=>'application/octet-stream'], $cfg, $h));
         self::run('validate allowed ext pdf', fn() => self::expectOk(['name'=>'doc.pdf','tmp_name'=>'/tmp/x','error'=>0,'size'=>100,'type'=>'application/pdf'], $cfg, $h));
         self::run('map string value', fn() => self::expectMap('file.pdf', $cfg, $h, 'file.pdf'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'formfabricator')));
     }
 
     private static function testSignature(): void
@@ -906,7 +906,7 @@ class FieldTestPage
             return self::expectError($validPng, array_merge($cfg, ['required'=>true,'export_format'=>'jpeg']), $h);
         });
         self::run('map non-empty → empty string', fn() => self::expectMap($validPng, $cfg, $h, ''));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'formfabricator')));
         self::run('includeValueInSeal=false', fn() => !$h->includeValueInSeal() ? true : 'expected false');
     }
 
@@ -952,7 +952,7 @@ class FieldTestPage
         self::run('validate exactly at max → ok', fn() => self::expectOk('5', $cfg, $h));
         self::run('map value/max format', fn() => self::expectMap('3', $cfg, $h, '3 / 5'));
         self::run('map half value format', fn() => self::expectMap('2.5', $cfg, $h, '2.5 / 5'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'formfabricator')));
     }
 
     private static function testSlider(): void
@@ -984,7 +984,7 @@ class FieldTestPage
             return self::expectOk(['from'=>'0','to'=>'100'], array_merge($cfg, ['ranged'=>true]), $h);
         });
         self::run('map scalar value', fn() => self::expectMap('50', $cfg, $h, '50'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'formfabricator')));
         self::run('map ranged has from', fn() => self::expectMapContains(['from'=>'20','to'=>'80'], array_merge($cfg, ['ranged'=>true]), $h, '20'));
         self::run('map ranged has to', fn() => self::expectMapContains(['from'=>'20','to'=>'80'], array_merge($cfg, ['ranged'=>true]), $h, '80'));
     }
@@ -1020,7 +1020,7 @@ class FieldTestPage
             $c = $h->getDefaultConfig();
             unset($c['consent_text']);
             $c['type'] = 'consent';
-            return self::contains($h->render($c, 'f1'), __('I agree.', 'form-forge'));
+            return self::contains($h->render($c, 'f1'), __('I agree.', 'formfabricator'));
         });
         self::run('validate required empty', fn() => self::expectError('', array_merge($cfg, ['required'=>true]), $h));
         self::run('validate required checked', fn() => self::expectOk('1', array_merge($cfg, ['required'=>true]), $h));
@@ -1029,8 +1029,8 @@ class FieldTestPage
         self::run('map checked → includes timestamp (demonstrable per Art. 7(1))', function () use ($h, $cfg) {
             return self::expectMapContains('1', $cfg, $h, current_time('mysql'));
         });
-        self::run('map unchecked → Not agreed', fn() => self::expectMap('', $cfg, $h, __('Not agreed', 'form-forge')));
-        self::run('map 0 → Not agreed', fn() => self::expectMap('0', $cfg, $h, __('Not agreed', 'form-forge')));
+        self::run('map unchecked → Not agreed', fn() => self::expectMap('', $cfg, $h, __('Not agreed', 'formfabricator')));
+        self::run('map 0 → Not agreed', fn() => self::expectMap('0', $cfg, $h, __('Not agreed', 'formfabricator')));
         self::run('sanitize keeps <a> in text', function () use ($h) {
             $out = $h->sanitizeConfigValue('consent_text', '<a href="https://x.com">Link</a>');
             return str_contains($out, '<a') ? true : 'link stripped: '.$out;
@@ -1072,7 +1072,7 @@ class FieldTestPage
         self::run('map checked → includes timestamp (demonstrable per Art. 7(1))', function () use ($h, $cfg) {
             return self::expectMapContains('1', $cfg, $h, current_time('mysql'));
         });
-        self::run('map unchecked → Privacy notice not acknowledged', fn() => self::expectMap('', $cfg, $h, __('Privacy notice not acknowledged', 'form-forge')));
+        self::run('map unchecked → Privacy notice not acknowledged', fn() => self::expectMap('', $cfg, $h, __('Privacy notice not acknowledged', 'formfabricator')));
     }
 
     private static function testHtml(): void
@@ -1086,7 +1086,8 @@ class FieldTestPage
         self::run('render preserves <strong>', fn() => self::contains($h->render($cfg, 'f1'), '<strong>World</strong>'));
         self::run('hasRequired=false', fn() => !$h->hasRequired() ? true : 'expected false');
         self::run('skipValidation=true', fn() => $h->skipValidation() ? true : 'expected true');
-        self::run('includeInEmailSummary=false', fn() => !$h->includeInEmailSummary() ? true : 'expected false');
+        self::run('includeInEmailSummary=true', fn() => $h->includeInEmailSummary() ? true : 'expected true');
+        self::run('rawEmailHtml=true', fn() => $h->rawEmailHtml() ? true : 'expected true');
         self::run('map strips all tags', function () use ($h, $cfg) {
             $m = $h->map('', $cfg);
             self::$lastIn  = '(html_content from config)';
@@ -1138,6 +1139,22 @@ class FieldTestPage
             self::$lastOut = var_export($r, true);
             return (isset($r['f1']) && $r['f1']['label'] === 'Block' && str_contains($r['f1']['value'], 'Hi'))
                 ? true : 'unexpected result: ' . var_export($r, true);
+        });
+        self::run('mapNormalized show_in_output omitted (legacy saved config) → still included', function () use ($h) {
+            // Legacy configs lack this key entirely; mapNormalized()'s `?? true` must default to enabled.
+            $c = array_merge($h->getDefaultConfig(), ['type'=>'html','label'=>'Block','html_content'=>'<p>Hi</p>']);
+            unset($c['show_in_output']);
+            $r = $h->mapNormalized('f1', 'Block', '', $c, []);
+            self::$lastIn  = 'show_in_output key absent';
+            self::$lastOut = var_export($r, true);
+            return isset($r['f1']) ? true : 'expected the entry to still be included by default';
+        });
+        self::run('mapNormalized show_in_output=false → []', function () use ($h) {
+            $c = array_merge($h->getDefaultConfig(), ['type'=>'html','label'=>'Block','html_content'=>'<p>Hi</p>','show_in_output'=>false]);
+            $r = $h->mapNormalized('f1', 'Block', '', $c, []);
+            self::$lastIn  = 'show_in_output=false';
+            self::$lastOut = var_export($r, true);
+            return $r === [] ? true : 'expected [], got: ' . var_export($r, true);
         });
     }
 
@@ -1301,8 +1318,8 @@ class FieldTestPage
             }
             return str_contains($r, 'My Page') ? true : 'expected "My Page" in output';
         });
-        self::run('map empty array → Kein Eintrag', fn() => self::expectMapContains([], $cfg, $h, __('[No entry]', 'form-forge')));
-        self::run('map non-array → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
+        self::run('map empty array → Kein Eintrag', fn() => self::expectMapContains([], $cfg, $h, __('[No entry]', 'formfabricator')));
+        self::run('map non-array → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'formfabricator')));
     }
 
     private static function testWebsite(): void
@@ -1322,7 +1339,7 @@ class FieldTestPage
         // validate_url=false: invalid URLs pass (no format check)
         self::run('validate invalid URL no flag', fn() => self::expectOk('not a url', array_merge($cfg, ['validate_url'=>false]), $h));
         self::run('map value', fn() => self::expectMap('https://example.com', $cfg, $h, 'https://example.com'));
-        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'form-forge')));
+        self::run('map empty → Kein Eintrag', fn() => self::expectMapContains('', $cfg, $h, __('[No entry]', 'formfabricator')));
     }
 
     private static function testSepa(): void
@@ -1403,7 +1420,7 @@ class FieldTestPage
         });
         self::run('validate req empty signature → error', fn() => self::expectError(['iban'=>'DE89370400440532013000','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>''], array_merge($cfg, ['required'=>true]), $h));
         self::run('validate req non-image signature → error', fn() => self::expectError(['iban'=>'DE89370400440532013000','bic'=>'COBADEFFXXX','holder'=>'Max','sig'=>'not-a-data-uri'], array_merge($cfg, ['required'=>true]), $h));
-        self::run('map non-array → No entry', fn() => str_contains($h->map(null, $cfg), __('[No entry]', 'form-forge')) ? true : 'wrong map');
+        self::run('map non-array → No entry', fn() => str_contains($h->map(null, $cfg), __('[No entry]', 'formfabricator')) ? true : 'wrong map');
         self::run('map valid data contains IBAN', fn() => self::expectMapContains($validData, $cfg, $h, 'IBAN'));
         self::run('map valid data contains BIC', fn() => self::expectMapContains($validData, $cfg, $h, 'BIC'));
         self::run('map valid data contains holder', fn() => self::expectMapContains($validData, $cfg, $h, 'Mustermann'));
@@ -2416,6 +2433,101 @@ class FieldTestPage
         });
     }
 
+    /* ── front.js resilience guards (via ForgeTestHooks) ── */
+    section('JS: front.js — resilience guards');
+
+    run('ForgeTestHooks.showCaptchaBlockedNotice exported', function () {
+        return typeof hooks.showCaptchaBlockedNotice === 'function'
+            ? ok('ForgeTestHooks', 'showCaptchaBlockedNotice function')
+            : ko('', '', 'not exported — check __FORGE_TEST__ hook in front.js');
+    });
+    run('ForgeTestHooks.resetFormsOnBfcacheRestore exported', function () {
+        return typeof hooks.resetFormsOnBfcacheRestore === 'function'
+            ? ok('ForgeTestHooks', 'resetFormsOnBfcacheRestore function')
+            : ko('', '', 'not exported — check __FORGE_TEST__ hook in front.js');
+    });
+
+    if (typeof hooks.showCaptchaBlockedNotice === 'function') {
+        run('CAPTCHA blocked: re-enables the activation button', function () {
+            var wrap = document.createElement('div');
+            wrap.innerHTML = '<div class="forge-captcha-gate" data-sitekey="x">'
+                + '<button type="button" class="forge-captcha-activate" disabled></button></div>';
+            document.body.appendChild(wrap);
+            var gate = wrap.querySelector('.forge-captcha-gate');
+            var btn  = wrap.querySelector('.forge-captcha-activate');
+            hooks.showCaptchaBlockedNotice(gate, btn);
+            var stillDisabled = btn.disabled;
+            document.body.removeChild(wrap);
+            return !stillDisabled
+                ? ok('btn.disabled=true → showCaptchaBlockedNotice()', 'btn.disabled=false')
+                : ko('btn.disabled=true → showCaptchaBlockedNotice()', 'btn.disabled=true', 'expected the button to be re-enabled so the visitor isn\'t stuck');
+        });
+
+        run('CAPTCHA blocked: shows a visible, non-empty error notice', function () {
+            var wrap = document.createElement('div');
+            wrap.innerHTML = '<div class="forge-captcha-gate" data-sitekey="x">'
+                + '<button type="button" class="forge-captcha-activate" disabled></button></div>';
+            document.body.appendChild(wrap);
+            var gate = wrap.querySelector('.forge-captcha-gate');
+            var btn  = wrap.querySelector('.forge-captcha-activate');
+            hooks.showCaptchaBlockedNotice(gate, btn);
+            var notice = gate.querySelector('.forge-notice.forge-error');
+            var text   = notice ? notice.textContent : '';
+            document.body.removeChild(wrap);
+            return (notice && text.length > 0)
+                ? ok('showCaptchaBlockedNotice()', text)
+                : ko('showCaptchaBlockedNotice()', '(no notice)', 'expected a non-empty .forge-notice.forge-error message');
+        });
+
+        run('CAPTCHA blocked: calling it twice does not duplicate the notice', function () {
+            var wrap = document.createElement('div');
+            wrap.innerHTML = '<div class="forge-captcha-gate" data-sitekey="x">'
+                + '<button type="button" class="forge-captcha-activate" disabled></button></div>';
+            document.body.appendChild(wrap);
+            var gate = wrap.querySelector('.forge-captcha-gate');
+            var btn  = wrap.querySelector('.forge-captcha-activate');
+            hooks.showCaptchaBlockedNotice(gate, btn);
+            hooks.showCaptchaBlockedNotice(gate, btn);
+            var count = gate.querySelectorAll('.forge-notice.forge-error').length;
+            document.body.removeChild(wrap);
+            return count === 1
+                ? ok('showCaptchaBlockedNotice() x2', count + ' notice(s)')
+                : ko('showCaptchaBlockedNotice() x2', count + ' notice(s)', 'expected exactly 1 notice element, not a growing pile');
+        });
+    }
+
+    if (typeof hooks.resetFormsOnBfcacheRestore === 'function') {
+        run('bfcache restore: clears the durable "submitted" flag', function () {
+            var wrap = document.createElement('div');
+            wrap.className = 'forge-form-wrap';
+            wrap.innerHTML = '<div class="forge-form-messages" style="display:block;"></div>'
+                + '<form class="forge-form"><button type="submit" class="forge-submit-btn" data-forge-submitted="1"></button></form>';
+            document.body.appendChild(wrap);
+            hooks.resetFormsOnBfcacheRestore();
+            var btn = wrap.querySelector('.forge-submit-btn');
+            var stillSet = 'forgeSubmitted' in btn.dataset;
+            document.body.removeChild(wrap);
+            return !stillSet
+                ? ok('btn.dataset.forgeSubmitted=1 → resetFormsOnBfcacheRestore()', 'flag cleared')
+                : ko('btn.dataset.forgeSubmitted=1 → resetFormsOnBfcacheRestore()', 'flag still set', 'a restored page would let a second click fire another submission');
+        });
+
+        run('bfcache restore: hides the stale message box', function () {
+            var wrap = document.createElement('div');
+            wrap.className = 'forge-form-wrap';
+            wrap.innerHTML = '<div class="forge-form-messages" style="display:block;">Thank you!</div>'
+                + '<form class="forge-form"><button type="submit" class="forge-submit-btn"></button></form>';
+            document.body.appendChild(wrap);
+            hooks.resetFormsOnBfcacheRestore();
+            var msgBox = wrap.querySelector('.forge-form-messages');
+            var stillVisible = msgBox.style.display !== 'none';
+            document.body.removeChild(wrap);
+            return !stillVisible
+                ? ok('message box visible → resetFormsOnBfcacheRestore()', 'display:none')
+                : ko('message box visible → resetFormsOnBfcacheRestore()', 'still visible', 'a restored page would show a stale success/error message');
+        });
+    }
+
     /* ── Render results ──────────────────────────────────────────────────── */
     var container = document.getElementById('forge-js-tests');
     if (!container) { return; }
@@ -2450,13 +2562,11 @@ JS;
         $frontUrl = esc_url(FORGE_FORMS_URL . 'assets/js/front.js');
 
         echo '<div id="forge-js-tests" style="color:#555;font-style:italic;">Running JS tests…</div>';
-        /* $globals is dynamically-generated per-request test data (not a static file), so it is
-           attached via wp_add_inline_script() to a blank-src registered handle — the WP-approved
-           pattern for inline script content that must still go through the enqueue system. */
-        wp_register_script('forge-field-test-globals', false, [], FORGE_FORMS_VERSION, true);
-        wp_add_inline_script('forge-field-test-globals', $globals);
-        wp_enqueue_script('forge-field-test-globals');
-        wp_enqueue_script('forge-field-test-front', $frontUrl, [], FORGE_FORMS_VERSION, true);
+        /* Echoed directly (not wp_enqueue_script) since this runs after admin_print_scripts —
+           inline order guarantees globals → front.js → harness regardless of WP's script queue. */
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- generateFrontGlobals() returns PHP-generated JS, never raw user input.
+        echo '<script>' . $globals . '</script>';
+        echo '<script src="' . esc_url($frontUrl) . '"></script>';
         /* Collapse helper must be defined BEFORE the harness script that calls it */
         echo <<<'JS'
 <script>

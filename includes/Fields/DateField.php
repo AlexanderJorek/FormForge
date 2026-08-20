@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -74,7 +74,7 @@ CSS;
 
     public function getLabel(): string
     {
-        return __('Date', 'form-forge');
+        return __('Date', 'formfabricator');
     }
 
     /**
@@ -171,7 +171,7 @@ CSS;
             . '<input type="text" id="' . esc_attr($field_id) . '"'
             . ' name="' . esc_attr($field_id) . '"'
             . ' class="forge-input forge-date-text"'
-            . ' placeholder="' . esc_attr__('DD.MM.YYYY', 'form-forge') . '"'
+            . ' placeholder="' . esc_attr__('DD.MM.YYYY', 'formfabricator') . '"'
             . ' maxlength="10"'
             // Not every DateField instance represents a birthdate (appointment date,
             // deadline, etc.) — "bday" would signal browsers to auto-suggest/auto-fill
@@ -183,7 +183,7 @@ CSS;
 
         if ($picker) {
             $inner .= '<button type="button" class="forge-date-cal-btn" data-for="' . esc_attr($field_id) . '"'
-                . ' aria-label="' . esc_attr__('Open calendar', 'form-forge') . '" title="' . esc_attr__('Open calendar', 'form-forge') . '">'
+                . ' aria-label="' . esc_attr__('Open calendar', 'formfabricator') . '" title="' . esc_attr__('Open calendar', 'formfabricator') . '">'
                 . '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"'
                 . ' viewBox="0 0 24 24" fill="none" stroke="currentColor"'
                 . ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round"'
@@ -213,19 +213,19 @@ CSS;
     {
         if (empty($value) || trim((string)$value) === '') {
             if (!empty($config['required'])) {
-                $label = $config['label'] ?? __('Date', 'form-forge');
+                $label = $config['label'] ?? __('Date', 'formfabricator');
                 // translators: %s: field label.
-                return sprintf(__('%s: Required field.', 'form-forge'), esc_html($label));
+                return sprintf(__('%s: Required field.', 'formfabricator'), esc_html($label));
             }
             return true;
         }
         $v = trim((string)$value);
         if (!preg_match('/^\d{2}\.\d{2}\.\d{4}$/', $v)) {
-            return __('Please enter a date in DD.MM.YYYY format.', 'form-forge');
+            return __('Please enter a date in DD.MM.YYYY format.', 'formfabricator');
         }
         [$d, $m, $y] = explode('.', $v);
         if (!checkdate((int)$m, (int)$d, (int)$y)) {
-            return __('Please enter a valid date.', 'form-forge');
+            return __('Please enter a valid date.', 'formfabricator');
         }
         // Compare as YYYYMMDD strings so chronological order matches string order
         $ymd = sprintf('%04d%02d%02d', (int)$y, (int)$m, (int)$d);
@@ -236,7 +236,7 @@ CSS;
             $minYmd = sprintf('%04d%02d%02d', (int)$minY, (int)$minM, (int)$minD);
             if ($ymd < $minYmd) {
                 // translators: %s: minimum allowed date.
-                return sprintf(__('Please enter a date on or after %s.', 'form-forge'), $minDate);
+                return sprintf(__('Please enter a date on or after %s.', 'formfabricator'), $minDate);
             }
         }
 
@@ -246,7 +246,7 @@ CSS;
             $maxYmd = sprintf('%04d%02d%02d', (int)$maxY, (int)$maxM, (int)$maxD);
             if ($ymd > $maxYmd) {
                 // translators: %s: maximum allowed date.
-                return sprintf(__('Please enter a date on or before %s.', 'form-forge'), $maxDate);
+                return sprintf(__('Please enter a date on or before %s.', 'formfabricator'), $maxDate);
             }
         }
 
@@ -263,7 +263,7 @@ CSS;
     public function map(mixed $value, array $config): string
     {
         if (empty($value)) {
-            return __('[No entry]', 'form-forge');
+            return __('[No entry]', 'formfabricator');
         }
         return (string)$value;
     }
@@ -297,27 +297,27 @@ CSS;
             [
                 'key'   => 'description',
                 'type'  => 'text',
-                'label' => __('Description', 'form-forge'),
+                'label' => __('Description', 'formfabricator'),
             ],
             [
                 'key'   => 'show_picker',
                 'type'  => 'checkbox',
-                'label' => __('Show calendar icon', 'form-forge'),
+                'label' => __('Show calendar icon', 'formfabricator'),
             ],
             [
                 'key'   => 'prefill_today',
                 'type'  => 'checkbox',
-                'label' => __('Pre-fill with today', 'form-forge'),
+                'label' => __('Pre-fill with today', 'formfabricator'),
             ],
             [
                 'key'   => 'min_date',
                 'type'  => 'text',
-                'label' => __('Earliest allowed date (DD.MM.YYYY)', 'form-forge'),
+                'label' => __('Earliest allowed date (DD.MM.YYYY)', 'formfabricator'),
             ],
             [
                 'key'   => 'max_date',
                 'type'  => 'text',
-                'label' => __('Latest allowed date (DD.MM.YYYY)', 'form-forge'),
+                'label' => __('Latest allowed date (DD.MM.YYYY)', 'formfabricator'),
             ],
         ];
     }

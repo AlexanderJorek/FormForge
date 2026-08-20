@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -62,6 +62,10 @@ class SignatureField extends BaseField
     touch-action: none;
     background: #ffffff !important;
     color-scheme: light;
+    forced-color-adjust: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 .forge-signature-toolbar {
     display: flex;
@@ -116,7 +120,7 @@ CSS;
 
     public function getLabel(): string
     {
-        return __('Signature', 'form-forge');
+        return __('Signature', 'formfabricator');
     }
 
     /**
@@ -261,12 +265,12 @@ CSS;
             . ' width="500" height="' . $height . '"'
             . ' style="height:' . $height . 'px"'
             . ' tabindex="0"'
-            . ' aria-label="' . esc_attr($config['label'] ?? __('Signature', 'form-forge')) . '"></canvas>'
+            . ' aria-label="' . esc_attr($config['label'] ?? __('Signature', 'formfabricator')) . '"></canvas>'
             . '<div class="forge-signature-toolbar">'
             . '<button type="button" class="forge-signature-clear"'
-            . ' data-canvas="' . esc_attr($canvas_id) . '" title="' . esc_attr__('Clear', 'form-forge') . '" aria-label="' . esc_attr__('Clear signature', 'form-forge') . '">'
+            . ' data-canvas="' . esc_attr($canvas_id) . '" title="' . esc_attr__('Clear', 'formfabricator') . '" aria-label="' . esc_attr__('Clear signature', 'formfabricator') . '">'
             . self::ICON_RESET . '</button>'
-            . '<span class="forge-signature-hint">' . esc_html__('Sign here', 'form-forge') . '</span>'
+            . '<span class="forge-signature-hint">' . esc_html__('Sign here', 'formfabricator') . '</span>'
             . '</div>'
             . '<input type="hidden" name="' . esc_attr($field_id) . '" id="' . esc_attr($field_id) . '-data"'
             . ' value="' . esc_attr((string)($value ?? '')) . '">'
@@ -308,16 +312,16 @@ CSS;
         if (!empty($config['required'])) {
             $format = ($config['export_format'] ?? 'png') === 'jpeg' ? 'jpeg' : 'png';
             if (empty($value) || !self::isSignatureDataUri((string)$value, $format)) {
-                $label = $config['label'] ?? __('Signature', 'form-forge');
+                $label = $config['label'] ?? __('Signature', 'formfabricator');
                 // translators: %s: field label.
-                return sprintf(__('%s is a required field.', 'form-forge'), esc_html($label));
+                return sprintf(__('%s is a required field.', 'formfabricator'), esc_html($label));
             }
         }
         // A real canvas signature is a few KB; cap well above that so a
         // crafted oversized data URI can't inflate memory/CPU use per
         // submission (extractValue() has no upper bound of its own).
         if (!empty($value) && strlen((string)$value) > 2 * 1024 * 1024) {
-            return __('Signature data is too large.', 'form-forge');
+            return __('Signature data is too large.', 'formfabricator');
         }
         return true;
     }
@@ -331,7 +335,7 @@ CSS;
      */
     public function map(mixed $value, array $config): string
     {
-        return empty($value) ? __('[No entry]', 'form-forge') : '';
+        return empty($value) ? __('[No entry]', 'formfabricator') : '';
     }
 
     /**
@@ -355,7 +359,7 @@ CSS;
         return [$field_id => [
             'label'              => $label,
             'type'               => 'signature',
-            'value'              => $materialized ? __('[Signature present – see attachment]', 'form-forge') : __('[No entry]', 'form-forge'),
+            'value'              => $materialized ? __('[Signature present – see attachment]', 'formfabricator') : __('[No entry]', 'formfabricator'),
             'materialized_files' => $materialized,
         ]];
     }
@@ -420,17 +424,17 @@ CSS;
             [
                 'key'   => 'canvas_height',
                 'type'  => 'number',
-                'label' => __('Height (px)', 'form-forge'),
+                'label' => __('Height (px)', 'formfabricator'),
             ],
             [
                 'key'   => 'stroke_width',
                 'type'  => 'number',
-                'label' => __('Stroke width', 'form-forge'),
+                'label' => __('Stroke width', 'formfabricator'),
             ],
             [
                 'key'    => 'export_format',
                 'type'   => 'pill3',
-                'label'  => __('File format', 'form-forge'),
+                'label'  => __('File format', 'formfabricator'),
                 'values' => ['png', 'jpeg'],
                 'labels' => ['PNG', 'JPEG'],
             ],

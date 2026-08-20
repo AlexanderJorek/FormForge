@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -57,7 +57,7 @@ CSS;
 
     public function getLabel(): string
     {
-        return __('Number', 'form-forge');
+        return __('Number', 'formfabricator');
     }
 
     /**
@@ -115,16 +115,16 @@ CSS;
             return $hard;
         }
         if (!is_numeric($value)) {
-            return __('Please enter a valid number.', 'form-forge');
+            return __('Please enter a valid number.', 'formfabricator');
         }
         $num = (float)$value;
         if (($config['min'] ?? '') !== '' && $num < (float)$config['min']) {
             // translators: %s: minimum allowed value.
-            return sprintf(__('Minimum value: %s', 'form-forge'), $config['min']);
+            return sprintf(__('Minimum value: %s', 'formfabricator'), $config['min']);
         }
         if (($config['max'] ?? '') !== '' && $num > (float)$config['max']) {
             // translators: %s: maximum allowed value.
-            return sprintf(__('Maximum value: %s', 'form-forge'), $config['max']);
+            return sprintf(__('Maximum value: %s', 'formfabricator'), $config['max']);
         }
         return true;
     }
@@ -184,17 +184,17 @@ CSS;
             [
                 'key'   => 'min',
                 'type'  => 'number',
-                'label' => __('Minimum value', 'form-forge'),
+                'label' => __('Minimum value', 'formfabricator'),
             ],
             [
                 'key'   => 'max',
                 'type'  => 'number',
-                'label' => __('Maximum value', 'form-forge'),
+                'label' => __('Maximum value', 'formfabricator'),
             ],
             [
                 'key'   => 'step',
                 'type'  => 'number',
-                'label' => __('Step size', 'form-forge'),
+                'label' => __('Step size', 'formfabricator'),
             ],
             ]
         );

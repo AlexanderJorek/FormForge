@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -298,22 +298,22 @@ class HashSeal
     {
         $errors = [];
         if (strlen($password) < 12) {
-            $errors[] = __('At least 12 characters required.', 'form-forge');
+            $errors[] = __('At least 12 characters required.', 'formfabricator');
         }
         if (strlen($password) > 256) {
-            $errors[] = __('Password must not exceed 256 characters.', 'form-forge');
+            $errors[] = __('Password must not exceed 256 characters.', 'formfabricator');
         }
         if (!preg_match('/[A-Z]/', $password)) {
-            $errors[] = __('At least one uppercase letter required.', 'form-forge');
+            $errors[] = __('At least one uppercase letter required.', 'formfabricator');
         }
         if (!preg_match('/[a-z]/', $password)) {
-            $errors[] = __('At least one lowercase letter required.', 'form-forge');
+            $errors[] = __('At least one lowercase letter required.', 'formfabricator');
         }
         if (!preg_match('/[0-9]/', $password)) {
-            $errors[] = __('At least one digit required.', 'form-forge');
+            $errors[] = __('At least one digit required.', 'formfabricator');
         }
         if (!preg_match('/[^A-Za-z0-9]/', $password)) {
-            $errors[] = __('At least one special character required.', 'form-forge');
+            $errors[] = __('At least one special character required.', 'formfabricator');
         }
         return $errors;
     }

@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -53,7 +53,7 @@ CSS;
 
     public function getLabel(): string
     {
-        return __('HTML Block', 'form-forge');
+        return __('HTML Block', 'formfabricator');
     }
 
     /**
@@ -87,13 +87,23 @@ CSS;
     }
 
     /**
-     * HTML blocks are excluded from the {all_fields} email summary.
+     * Presence in the mapped data (and thus PDF/email) is instead gated upstream by mapNormalized().
      *
      * @return bool
      */
     public function includeInEmailSummary(): bool
     {
-        return false;
+        return true;
+    }
+
+    /**
+     * Already passed through self::kses() at save/render time, so MailSender injects it as-is.
+     *
+     * @return bool
+     */
+    public function rawEmailHtml(): bool
+    {
+        return true;
     }
 
     /**
@@ -240,6 +250,10 @@ CSS;
         array $config,
         array $context
     ): array {
+        // Excluding here skips it from both PDF and email — they both read from $mapped.
+        if (!($config['show_in_output'] ?? true)) {
+            return [];
+        }
         $html = self::kses($config['html_content'] ?? '');
         if ($html === '') {
             return [];
@@ -359,10 +373,11 @@ CSS;
     public function getDefaultConfig(): array
     {
         return [
-            'label'        => __('HTML Block', 'form-forge'),
-            'html_content' => '<p>' . esc_html__('Text here', 'form-forge') . '</p>',
-            'required'     => false,
-            'description'  => '',
+            'label'          => __('HTML Block', 'formfabricator'),
+            'html_content'   => '<p>' . esc_html__('Text here', 'formfabricator') . '</p>',
+            'required'       => false,
+            'description'    => '',
+            'show_in_output' => true,
         ];
     }
 
@@ -375,9 +390,16 @@ CSS;
     {
         return [
             [
+                'key'     => 'show_in_output',
+                'type'    => 'checkbox',
+                'label'   => __('Show in mail/PDF', 'formfabricator'),
+                // Fallback for configs missing this key, to match mapNormalized()'s `?? true`.
+                'default' => true,
+            ],
+            [
                 'key'   => 'html_content',
                 'type'  => 'html_editor',
-                'label' => __('HTML content', 'form-forge'),
+                'label' => __('HTML content', 'formfabricator'),
             ],
         ];
     }

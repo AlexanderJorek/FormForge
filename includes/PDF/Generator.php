@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -55,7 +55,7 @@ class Generator
         $image_vars     = [];
         $sealed_uploads = [];
 
-        $title = $form_title !== '' ? $form_title : __('Form submission', 'form-forge');
+        $title = $form_title !== '' ? $form_title : __('Form submission', 'formfabricator');
 
         $metadata = [
             'generated' => current_time('mysql'),
@@ -79,6 +79,10 @@ class Generator
             // this call site — a crafted form-JSON import with a `]`/`<` in a field
             // key could otherwise break Verificationpage's marker-parsing regex or
             // inject markup into the invisible marker span below.
+            if (!ctype_alnum(str_replace(['_', '-'], '', (string) $key))) {
+                \ForgeForms\forge_log('ForgeForms Generator: rejected suspicious field key: ' . $key);
+                continue;
+            }
             $field_id = 'field_' . preg_replace('/[^A-Za-z0-9_-]/', '_', (string) $key);
             $handler  = FieldRegistry::get($field['type'] ?? '');
             $pdf      = $handler ? $handler->pdfData($field) : [
@@ -286,7 +290,7 @@ class Generator
             $pdf_meta = [
                 'title'   => self::normalizeFieldValue($title),
                 'author'  => self::normalizeFieldValue((string) get_bloginfo('name')),
-                'creator' => 'FormForge',
+                'creator' => 'FormFabricator',
             ];
 
             $seal_data = [
@@ -443,7 +447,7 @@ class Generator
         $pageno = '<span style="font-size:0.1px;line-height:0.1px;color:#fff;">'
             . '[FORGE_PDF_PAGENO_START]</span>'
             // translators: %1$s: current page number placeholder, %2$s: total page count placeholder (both substituted by mPDF at render time).
-            . sprintf(__('Page %1$s of %2$s', 'form-forge'), '{PAGENO}', '{nbpg}')
+            . sprintf(__('Page %1$s of %2$s', 'formfabricator'), '{PAGENO}', '{nbpg}')
             . '<span style="font-size:0.1px;line-height:0.1px;color:#fff;">'
             . '[FORGE_PDF_PAGENO_END]</span>';
 

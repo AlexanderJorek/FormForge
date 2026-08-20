@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -60,6 +60,21 @@ class FormModel
     }
 
     /**
+     * Optimistic-concurrency snapshot token for a form (its post_modified_gmt).
+     *
+     * @param int $form_id The post ID of the form.
+     * @return string The snapshot token, or '' if the form doesn't exist.
+     */
+    public static function snapshot(int $form_id): string
+    {
+        $post = get_post($form_id);
+        if (!$post || $post->post_type !== 'forge_form') {
+            return '';
+        }
+        return (string) $post->post_modified_gmt;
+    }
+
+    /**
      * Creates or updates a form. Returns the form ID on success or WP_Error on failure.
      *
      * @param array $data           Keys: title, fields, notifications, settings.
@@ -68,8 +83,9 @@ class FormModel
      *                              nonce before calling this method. When false (the default), a generic
      *                              internal nonce check is performed as a backstop — see
      *                              {@see self::nonceVerifiedOrCheck()}.
+     * @param string $expected_snapshot Optimistic-concurrency token; rejects with WP_Error on mismatch.
      */
-    public static function save(array $data, int $form_id = 0, bool $nonce_verified = false): int|\WP_Error
+    public static function save(array $data, int $form_id = 0, bool $nonce_verified = false, string $expected_snapshot = ''): int|\WP_Error
     {
         // Defense-in-depth: every current admin call site already gates on
         // Plugin::userCan('edit_forms') before reaching here, but this model
@@ -77,11 +93,22 @@ class FormModel
         // a single missed gate anywhere in the admin layer would otherwise be
         // a full privilege-escalation/CSRF path with no second line of defense.
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
-            return new \WP_Error('forbidden', __('Insufficient permissions.', 'form-forge'));
+            return new \WP_Error('forbidden', __('Insufficient permissions.', 'formfabricator'));
         }
         if (!self::nonceVerifiedOrCheck($nonce_verified)) {
-            return new \WP_Error('invalid_nonce', __('Security check failed. Please reload and try again.', 'form-forge'));
+            return new \WP_Error('invalid_nonce', __('Security check failed. Please reload and try again.', 'formfabricator'));
         }
+
+        if ($form_id > 0 && $expected_snapshot !== '') {
+            $current = get_post($form_id);
+            if ($current && $current->post_type === 'forge_form' && $current->post_modified_gmt !== $expected_snapshot) {
+                return new \WP_Error(
+                    'conflict',
+                    __('This form was changed in another tab or by another user. Please reload and try again.', 'formfabricator')
+                );
+            }
+        }
+
         $title = sanitize_text_field(\ForgeForms\Utils\Sanitize::str($data['title'] ?? null, 'Untitled Form'));
 
         $post_data = [
@@ -125,12 +152,12 @@ class FormModel
     {
         $source = self::get($form_id);
         if (!$source) {
-            return new \WP_Error('not_found', __('Form not found.', 'form-forge'));
+            return new \WP_Error('not_found', __('Form not found.', 'formfabricator'));
         }
         return self::save(
             [
             /* translators: %s: original form title. */
-            'title'         => sprintf(__('%s (Copy)', 'form-forge'), $source->title),
+            'title'         => sprintf(__('%s (Copy)', 'formfabricator'), $source->title),
             'fields'        => $source->fields,
             'notifications' => $source->notifications,
             'settings'      => $source->settings,
@@ -162,7 +189,7 @@ class FormModel
     }
 
     /**
-     * Returns all forge_form posts as model instances. Gated on view_forms (the least-privilege FormForge
+     * Returns all forge_form posts as model instances. Gated on view_forms (the least-privilege FormFabricator
      * capability for read access) rather than edit_forms — every current call site (FormList.php's and
      * FormSelectList.php's admin listing pages) is already an admin screen gated on view_forms before it ever
      * reaches this method, so this mirrors that without narrowing legitimate access.

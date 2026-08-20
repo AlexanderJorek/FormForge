@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -40,7 +40,7 @@ class AddressField extends BaseField
 
     public function getLabel(): string
     {
-        return __('Address', 'form-forge');
+        return __('Address', 'formfabricator');
     }
 
     /**
@@ -90,12 +90,12 @@ CSS;
     private static function subfieldLabel(string $default_label): string
     {
         return match ($default_label) {
-            'Street and house number' => __('Street and house number', 'form-forge'),
-            'Address supplement'      => __('Address supplement', 'form-forge'),
-            'City'                    => __('City', 'form-forge'),
-            'State / Canton'          => __('State / Canton', 'form-forge'),
-            'Postal code'             => __('Postal code', 'form-forge'),
-            'Country'                 => __('Country', 'form-forge'),
+            'Street and house number' => __('Street and house number', 'formfabricator'),
+            'Address supplement'      => __('Address supplement', 'formfabricator'),
+            'City'                    => __('City', 'formfabricator'),
+            'State / Canton'          => __('State / Canton', 'formfabricator'),
+            'Postal code'             => __('Postal code', 'formfabricator'),
+            'Country'                 => __('Country', 'formfabricator'),
             default                  => $default_label,
         };
     }
@@ -194,9 +194,9 @@ CSS;
         if (empty($config['expanded'])) {
             $scalar = is_array($value) ? '' : trim((string)($value ?? ''));
             if (!empty($config['required']) && $scalar === '') {
-                $label = $config['label'] ?? __('Address', 'form-forge');
+                $label = $config['label'] ?? __('Address', 'formfabricator');
                 // translators: %s: field label.
-                return sprintf(__('%s: Required field.', 'form-forge'), esc_html($label));
+                return sprintf(__('%s: Required field.', 'formfabricator'), esc_html($label));
             }
             if ($scalar !== '') {
                 $hard = self::validateTextHardCap($scalar);
@@ -228,7 +228,7 @@ CSS;
         }
         return $errors
             // translators: %s: comma-separated list of missing sub-field labels.
-            ? sprintf(__('%s: Required field.', 'form-forge'), implode(', ', $errors))
+            ? sprintf(__('%s: Required field.', 'formfabricator'), implode(', ', $errors))
             : true;
     }
 
@@ -242,7 +242,7 @@ CSS;
     public function map(mixed $value, array $config): string
     {
         if (!is_array($value)) {
-            return __('[No entry]', 'form-forge');
+            return __('[No entry]', 'formfabricator');
         }
         $sfMap = [];
         foreach (self::SUBFIELDS as $sf) {
@@ -264,7 +264,7 @@ CSS;
                 $lines[] = implode(' ', $parts);
             }
         }
-        return $lines ? implode(', ', $lines) : __('[No entry]', 'form-forge');
+        return $lines ? implode(', ', $lines) : __('[No entry]', 'formfabricator');
     }
 
     /**
@@ -279,27 +279,27 @@ CSS;
             [
             'expanded'            => false,
             'street_enabled'      => true,
-            'street_label'        => __('Street and house number', 'form-forge'),
+            'street_label'        => __('Street and house number', 'formfabricator'),
             'street_placeholder'  => '',
             'street_required'     => true,
             'street2_enabled'     => true,
-            'street2_label'       => __('Address supplement', 'form-forge'),
-            'street2_placeholder' => __('Apartment, floor, c/o ...', 'form-forge'),
+            'street2_label'       => __('Address supplement', 'formfabricator'),
+            'street2_placeholder' => __('Apartment, floor, c/o ...', 'formfabricator'),
             'street2_required'    => false,
             'city_enabled'        => true,
-            'city_label'          => __('City', 'form-forge'),
+            'city_label'          => __('City', 'formfabricator'),
             'city_placeholder'    => '',
             'city_required'       => true,
             'state_enabled'       => false,
-            'state_label'         => __('State / Canton', 'form-forge'),
+            'state_label'         => __('State / Canton', 'formfabricator'),
             'state_placeholder'   => '',
             'state_required'      => false,
             'zip_enabled'         => true,
-            'zip_label'           => __('Postal code', 'form-forge'),
+            'zip_label'           => __('Postal code', 'formfabricator'),
             'zip_placeholder'     => '',
             'zip_required'        => true,
             'country_enabled'     => false,
-            'country_label'       => __('Country', 'form-forge'),
+            'country_label'       => __('Country', 'formfabricator'),
             'country_placeholder' => '',
             'country_required'    => false,
             ]
@@ -317,27 +317,27 @@ CSS;
             [
                 'key'         => 'expanded',
                 'type'        => 'bool_seg',
-                'label'       => __('Mode', 'form-forge'),
-                'false_label' => __('Simple', 'form-forge'),
-                'true_label'  => __('Extended', 'form-forge'),
+                'label'       => __('Mode', 'formfabricator'),
+                'false_label' => __('Simple', 'formfabricator'),
+                'true_label'  => __('Extended', 'formfabricator'),
                 'rebuild'     => true,
             ],
             [
                 'key'        => 'placeholder',
                 'type'       => 'text',
-                'label'      => __('Placeholder', 'form-forge'),
+                'label'      => __('Placeholder', 'formfabricator'),
                 'depends_on' => ['expanded' => false],
             ],
             [
                 'key'        => 'description',
                 'type'       => 'text',
-                'label'      => __('Hint text', 'form-forge'),
+                'label'      => __('Hint text', 'formfabricator'),
                 'depends_on' => ['expanded' => false],
             ],
             [
                 'key'        => 'subfields',
                 'type'       => 'subfields',
-                'label'      => __('Sub-fields', 'form-forge'),
+                'label'      => __('Sub-fields', 'formfabricator'),
                 'depends_on' => ['expanded' => true],
                 // Translate labels for the builder UI (SUBFIELDS itself can't call __()).
                 'items'      => array_map(

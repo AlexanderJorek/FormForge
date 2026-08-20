@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -24,7 +24,7 @@ namespace ForgeForms\Fields;
 defined('ABSPATH') || exit;
 
 /**
- * Abstract base class for all FormForge field types.
+ * Abstract base class for all FormFabricator field types.
  */
 abstract class BaseField
 {
@@ -80,14 +80,14 @@ abstract class BaseField
             $count = count(preg_split('/\s+/', trim($other), -1, PREG_SPLIT_NO_EMPTY));
             if ($count > $max) {
                 // translators: %1$d: maximum word count allowed, %2$d: current word count.
-                return sprintf(__('Please enter at most %1$d words for "Other" (currently: %2$d).', 'form-forge'), $max, $count);
+                return sprintf(__('Please enter at most %1$d words for "Other" (currently: %2$d).', 'formfabricator'), $max, $count);
             }
             return true;
         }
         $length = function_exists('mb_strlen') ? mb_strlen($other) : strlen($other);
         if ($length > $max) {
             // translators: %1$d: maximum character count allowed, %2$d: current character count.
-            return sprintf(__('Please enter at most %1$d characters for "Other" (currently: %2$d).', 'form-forge'), $max, $length);
+            return sprintf(__('Please enter at most %1$d characters for "Other" (currently: %2$d).', 'formfabricator'), $max, $length);
         }
         return true;
     }
@@ -118,7 +118,7 @@ abstract class BaseField
         $length = function_exists('mb_strlen') ? mb_strlen($value) : strlen($value);
         if ($length > self::TEXT_FIELD_HARD_CAP) {
             // translators: %1$d: absolute maximum character count allowed, %2$d: current character count.
-            return sprintf(__('Please enter at most %1$d characters (currently: %2$d).', 'form-forge'), self::TEXT_FIELD_HARD_CAP, $length);
+            return sprintf(__('Please enter at most %1$d characters (currently: %2$d).', 'formfabricator'), self::TEXT_FIELD_HARD_CAP, $length);
         }
         return true;
     }
@@ -285,6 +285,17 @@ abstract class BaseField
         return true;
     }
 
+    /**
+     * Whether this field's mapped value is admin-authored HTML to inject verbatim into the email
+     * body, instead of MailSender's default nl2br(esc_html(...)) escaping for untrusted values.
+     *
+     * @return bool
+     */
+    public function rawEmailHtml(): bool
+    {
+        return false;
+    }
+
     // Whether this field's value is included in the HMAC integrity seal.
     // Override to false for values that are a data URI or binary blob (e.g. SignatureField).
     public function includeValueInSeal(): bool
@@ -371,9 +382,9 @@ abstract class BaseField
     public function validate(mixed $value, array $config): bool|string
     {
         if (!empty($config['required']) && $this->isEmpty($value)) {
-            $label = $config['label'] ?? __('Field', 'form-forge');
+            $label = $config['label'] ?? __('Field', 'formfabricator');
             // translators: %s: field label.
-            return sprintf(__('%s is a required field.', 'form-forge'), esc_html($label));
+            return sprintf(__('%s is a required field.', 'formfabricator'), esc_html($label));
         }
         return true;
     }
@@ -383,7 +394,7 @@ abstract class BaseField
     public function map(mixed $value, array $config): string
     {
         if ($this->isEmpty($value)) {
-            return __('[No entry]', 'form-forge');
+            return __('[No entry]', 'formfabricator');
         }
         return (string) $value;
     }
@@ -466,12 +477,12 @@ abstract class BaseField
             [
                 'key'   => 'placeholder',
                 'type'  => 'text',
-                'label' => __('Placeholder', 'form-forge'),
+                'label' => __('Placeholder', 'formfabricator'),
             ],
             [
                 'key'   => 'description',
                 'type'  => 'text',
-                'label' => __('Description', 'form-forge'),
+                'label' => __('Description', 'formfabricator'),
             ],
         ];
     }

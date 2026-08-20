@@ -1,5 +1,5 @@
 /*!
- * FormForge — Frontend interactions
+ * FormFabricator — Frontend interactions
  * @copyright 2026 Alexander Jorek
  * @license   GPL-3.0-or-later
  */
@@ -363,7 +363,9 @@
             var isSubmitting = false;
             form.addEventListener('submit', function (e) {
                 e.preventDefault();
-                if (isSubmitting) return;
+                var submitBtn = form.querySelector('.forge-submit-btn');
+                /* Durable flag survives a bfcache restore, blocking a second submit before pageshow resets the form. */
+                if (isSubmitting || (submitBtn && submitBtn.dataset.forgeSubmitted === '1')) return;
 
                 var wrap    = form.closest('.forge-form-wrap');
                 var msgBox  = wrap && wrap.querySelector('.forge-form-messages');
@@ -426,21 +428,61 @@
                 if (msgBox) { msgBox.style.display = 'none'; msgBox.className = 'forge-form-messages'; }
 
                 isSubmitting = true;
-                var data = new FormData(form);
 
-                fetch((window.ForgeForms && window.ForgeForms.ajaxUrl) || '', {
+                function resetSubmitUi() {
+                    isSubmitting = false;
+                    if (label) label.textContent = origLabel;
+                    if (btn) btn.disabled = false;
+                    if (spinner) spinner.style.display = 'none';
+                }
+
+                function showServerError() {
+                    if (msgBox) {
+                        msgBox.className = 'forge-form-messages error';
+                        msgBox.textContent = i18n.error_server || 'Server error. Please try again.';
+                        msgBox.style.display = '';
+                    }
+                }
+
+                var ajaxUrl = (window.ForgeForms && window.ForgeForms.ajaxUrl) || '';
+
+                /* forge_nonce/forge_submission_token are intentionally never rendered into this
+                   page's HTML (see FormRenderer::render()'s comment) — fetched fresh here, right
+                   before the actual submit, so a full-page cache in front of this page can't hand
+                   two different visitors the same replay-protection token. */
+                fetch(ajaxUrl, {
                     method: 'POST',
-                    body: data,
+                    body: new URLSearchParams({ action: 'forge_forms_get_token', form_id: form.dataset.formId || '' }),
                     credentials: 'same-origin',
                 })
                 .then(function (r) { return r.json(); })
-                .then(function (res) {
+                .then(function (tokenRes) {
+                    if (!tokenRes.success || !tokenRes.data) {
+                        resetSubmitUi();
+                        showServerError();
+                        return;
+                    }
+                    var nonceField = form.querySelector('.forge-nonce-field');
+                    var tokenField = form.querySelector('.forge-submission-token-field');
+                    if (nonceField) nonceField.value = tokenRes.data.nonce || '';
+                    if (tokenField) tokenField.value = tokenRes.data.token || '';
+
+                    var data = new FormData(form);
+
+                    return fetch(ajaxUrl, {
+                        method: 'POST',
+                        body: data,
+                        credentials: 'same-origin',
+                    })
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) {
                     if (spinner) spinner.style.display = 'none';
 
                     isSubmitting = false;
                     if (res.success) {
                         if (label) label.textContent = origLabel;
                         if (btn) btn.disabled = false;
+                        if (btn) btn.dataset.forgeSubmitted = '1';
                         if (msgBox) {
                             msgBox.className = 'forge-form-messages success';
                             msgBox.textContent = (btn && btn.dataset.success)
@@ -485,17 +527,15 @@
                             scrollToField(firstErrEl);
                         }
                     }
+                    })
+                    .catch(function () {
+                        resetSubmitUi();
+                        showServerError();
+                    });
                 })
                 .catch(function () {
-                    isSubmitting = false;
-                    if (label) label.textContent = origLabel;
-                    if (btn) btn.disabled = false;
-                    if (spinner) spinner.style.display = 'none';
-                    if (msgBox) {
-                        msgBox.className = 'forge-form-messages error';
-                        msgBox.textContent = i18n.error_server || 'Server error. Please try again.';
-                        msgBox.style.display = '';
-                    }
+                    resetSubmitUi();
+                    showServerError();
                 });
             });
         });
@@ -508,12 +548,14 @@
        before the visitor has interacted with the form. */
     var recaptchaLoading = false;
     var recaptchaCallbacks = [];
-    function loadRecaptchaScript(cb) {
+    var recaptchaErrorCallbacks = [];
+    function loadRecaptchaScript(cb, onError) {
         if (window.grecaptcha && window.grecaptcha.render) {
             cb();
             return;
         }
         recaptchaCallbacks.push(cb);
+        if (onError) { recaptchaErrorCallbacks.push(onError); }
         if (recaptchaLoading) {
             return;
         }
@@ -521,12 +563,35 @@
         window.__forgeRecaptchaOnLoad = function () {
             recaptchaCallbacks.forEach(function (fn) { fn(); });
             recaptchaCallbacks = [];
+            recaptchaErrorCallbacks = [];
         };
         var s = document.createElement('script');
         s.src = 'https://www.google.com/recaptcha/api.js?onload=__forgeRecaptchaOnLoad&render=explicit';
         s.async = true;
         s.defer = true;
+        /* Ad blockers commonly block this request, leaving the activation button stuck disabled. */
+        s.onerror = function () {
+            recaptchaLoading = false;
+            recaptchaCallbacks = [];
+            var errCbs = recaptchaErrorCallbacks;
+            recaptchaErrorCallbacks = [];
+            errCbs.forEach(function (fn) { fn(); });
+        };
         document.head.appendChild(s);
+    }
+    /* Extracted so FieldTestPage's JS test suite can drive it without a real blocked request. */
+    function showCaptchaBlockedNotice(gate, btn) {
+        var i18n = (window.ForgeForms && window.ForgeForms.i18n) || {};
+        btn.disabled = false;
+        if (!gate.querySelector('.forge-notice')) {
+            gate.insertAdjacentHTML('beforeend',
+                '<p class="forge-notice forge-error"></p>');
+        }
+        var notice = gate.querySelector('.forge-notice');
+        if (notice) {
+            notice.textContent = i18n.recaptcha_blocked
+                || 'Could not load CAPTCHA. Please disable content blockers for this site or try another browser.';
+        }
     }
     function initCaptchaGates(root) {
         root.querySelectorAll('.forge-captcha-gate').forEach(function (gate) {
@@ -543,7 +608,7 @@
                     gate.innerHTML = '';
                     gate.appendChild(widget);
                     window.grecaptcha.render(widget, { sitekey: gate.dataset.sitekey });
-                });
+                }, function () { showCaptchaBlockedNotice(gate, btn); });
             });
         });
     }
@@ -574,11 +639,29 @@
         init(document);
     }
 
+    /* Resets stale submitted/message state after a bfcache restore; named so tests can call it directly. */
+    function resetFormsOnBfcacheRestore() {
+        document.querySelectorAll('.forge-form').forEach(function (form) {
+            form.reset();
+            var btn = form.querySelector('.forge-submit-btn');
+            if (btn) delete btn.dataset.forgeSubmitted;
+            var wrap   = form.closest('.forge-form-wrap');
+            var msgBox = wrap && wrap.querySelector('.forge-form-messages');
+            if (msgBox) msgBox.style.display = 'none';
+        });
+    }
+    window.addEventListener('pageshow', function (e) {
+        if (!e.persisted) return;
+        resetFormsOnBfcacheRestore();
+    });
+
     /* ── Test hook (WP_DEBUG only) ────────────────────────────────────────── */
     if (window.__FORGE_TEST__) {
         window.ForgeTestHooks = {
-            validatePage:   validatePage,
-            initConditions: initConditions,
+            validatePage:               validatePage,
+            initConditions:             initConditions,
+            showCaptchaBlockedNotice:   showCaptchaBlockedNotice,
+            resetFormsOnBfcacheRestore: resetFormsOnBfcacheRestore,
         };
     }
 }());

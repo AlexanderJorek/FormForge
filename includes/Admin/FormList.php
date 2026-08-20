@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -86,8 +86,8 @@ class FormList
                 . 'M4.12 9.58l-.71.71 6.37 6.37.71-.71z'
                 . '"/></svg>';
             add_menu_page(
-                __('FormForge Form List', 'form-forge'),
-                __('FormForge', 'form-forge'),
+                __('FormFabricator Form List', 'formfabricator'),
+                __('FormFabricator', 'formfabricator'),
                 'read',
                 'forge-forms',
                 [self::class, 'render'],
@@ -95,11 +95,11 @@ class FormList
                 30
             );
 
-            // Rename the auto-generated first submenu entry from "FormForge" to "Formular Liste"
+            // Rename the auto-generated first submenu entry from "FormFabricator" to "Formular Liste"
             add_submenu_page(
                 'forge-forms',
-                __('FormForge Form List', 'form-forge'),
-                __('Form List', 'form-forge'),
+                __('FormFabricator Form List', 'formfabricator'),
+                __('Form List', 'formfabricator'),
                 'read',
                 'forge-forms',
                 [self::class, 'render']
@@ -115,7 +115,7 @@ class FormList
     public static function render(): void
     {
         if (!\ForgeForms\Plugin::userCan('view_forms')) {
-            wp_die(esc_html__('Permission denied.', 'form-forge'));
+            wp_die(esc_html__('Permission denied.', 'formfabricator'));
         }
 
         $forms   = FormModel::getAll();
@@ -126,25 +126,25 @@ class FormList
            from JS) — mirrors the wp_localize_script i18n pattern used
            elsewhere (e.g. Assets.php's ForgeVerifier). */
         $list_i18n = [
-            'deleteConfirm'      => __('Really delete form?', 'form-forge'),
+            'deleteConfirm'      => __('Really delete form?', 'formfabricator'),
             // translators: %d is replaced client-side with the number of selected forms.
-            'deleteConfirmMulti' => __('Really delete %d form(s)?', 'form-forge'),
-            'chooseAction'       => __('Choose action', 'form-forge'),
-            'chooseActionAlert'  => __('Please choose an action.', 'form-forge'),
+            'deleteConfirmMulti' => __('Really delete %d form(s)?', 'formfabricator'),
+            'chooseAction'       => __('Choose action', 'formfabricator'),
+            'chooseActionAlert'  => __('Please choose an action.', 'formfabricator'),
             // translators: %d is replaced client-side with the number of selected forms.
-            'selectedCount'      => __('%d selected', 'form-forge'),
-            'error'              => __('Error', 'form-forge'),
-            'importError'        => __('Import error', 'form-forge'),
-            'copied'             => __('Copied!', 'form-forge'),
-            'copyShortcode'      => __('Copy shortcode', 'form-forge'),
-            'copy'               => __('Copy', 'form-forge'),
+            'selectedCount'      => __('%d selected', 'formfabricator'),
+            'error'              => __('Error', 'formfabricator'),
+            'importError'        => __('Import error', 'formfabricator'),
+            'copied'             => __('Copied!', 'formfabricator'),
+            'copyShortcode'      => __('Copy shortcode', 'formfabricator'),
+            'copy'               => __('Copy', 'formfabricator'),
         ];
         ?>
         <canvas id="forge-particle-canvas"></canvas>
 
         <div class="wrap forge-list-wrap">
 
-            <div class="forge-title-pill"><?php esc_html_e('Forms', 'form-forge'); ?></div>
+            <div class="forge-title-pill"><?php esc_html_e('Forms', 'formfabricator'); ?></div>
             <hr class="wp-header-end" style="display:none">
 
             <div class="forge-list-toolbar" id="forge-list-toolbar">
@@ -152,53 +152,53 @@ class FormList
                     <?php $noForms = empty($forms) ? ' hidden' : ''; ?>
                     <div class="forge-toolbar-left" id="forge-toolbar-left"<?php echo esc_attr($noForms); ?>>
                         <label class="forge-select-all-wrap">
-                            <input type="checkbox" id="forge-select-all" title="<?php echo esc_attr__('Select all', 'form-forge'); ?>">
+                            <input type="checkbox" id="forge-select-all" title="<?php echo esc_attr__('Select all', 'formfabricator'); ?>">
                         </label>
                         <div class="forge-bulk-bar" id="forge-bulk-bar" hidden>
                             <span class="forge-bulk-count" id="forge-bulk-count"></span>
                             <div class="forge-bulk-action-wrap">
                                 <button class="button forge-list-btn" id="forge-bulk-action-btn">
-                                    <span id="forge-bulk-action-label"><?php esc_html_e('Choose action', 'form-forge'); ?></span> &#9660;
+                                    <span id="forge-bulk-action-label"><?php esc_html_e('Choose action', 'formfabricator'); ?></span> &#9660;
                                 </button>
                                 <div class="forge-row-dropdown" id="forge-bulk-action-dd" hidden>
                                     <button class="forge-dd-item" data-action="duplicate">
-                                        <i class="fa-solid fa-copy"></i> <?php esc_html_e('Duplicate', 'form-forge'); ?>
+                                        <i class="fa-solid fa-copy"></i> <?php esc_html_e('Duplicate', 'formfabricator'); ?>
                                     </button>
                                     <div class="forge-dd-sep"></div>
                                     <button class="forge-dd-item forge-dd-item--danger" data-action="delete">
-                                        <i class="fa-solid fa-trash"></i> <?php esc_html_e('Delete', 'form-forge'); ?>
+                                        <i class="fa-solid fa-trash"></i> <?php esc_html_e('Delete', 'formfabricator'); ?>
                                     </button>
                                 </div>
                             </div>
-                            <button class="button forge-list-btn button-primary" id="forge-bulk-apply"><?php esc_html_e('Apply', 'form-forge'); ?></button>
+                            <button class="button forge-list-btn button-primary" id="forge-bulk-apply"><?php esc_html_e('Apply', 'formfabricator'); ?></button>
                         </div>
                     </div>
                     <!-- Center: search -->
                     <div class="forge-toolbar-center" id="forge-toolbar-center"<?php echo esc_attr($noForms); ?>>
                         <input type="search" id="forge-form-search"
-                               placeholder="<?php echo esc_attr__('Search forms…', 'form-forge'); ?>" autocomplete="off">
+                               placeholder="<?php echo esc_attr__('Search forms…', 'formfabricator'); ?>" autocomplete="off">
                     </div>
                     <!-- Right: import input + new form -->
                     <div class="forge-toolbar-right">
                         <div class="forge-import-wrap">
                             <input type="text" id="forge-import-input"
-                                   placeholder="<?php echo esc_attr__('Paste export string…', 'form-forge'); ?>" autocomplete="off">
+                                   placeholder="<?php echo esc_attr__('Paste export string…', 'formfabricator'); ?>" autocomplete="off">
                             <button class="button forge-list-btn" id="forge-import-submit">
                                 <i class="fa-solid fa-file-import"></i>
                             </button>
                         </div>
                         <a href="<?php echo esc_url($new_url); ?>"
                            class="button button-primary forge-list-btn">
-                            <?php esc_html_e('+ New Form', 'form-forge'); ?>
+                            <?php esc_html_e('+ New Form', 'formfabricator'); ?>
                         </a>
                     </div>
                 </div>
 
             <div class="forge-list-empty" id="forge-list-empty"<?php echo !empty($forms) ? ' hidden' : ''; ?>>
-                <h2><?php esc_html_e('No forms yet', 'form-forge'); ?></h2>
-                <p><?php esc_html_e('Create your first form and embed it via shortcode on any page.', 'form-forge'); ?></p>
+                <h2><?php esc_html_e('No forms yet', 'formfabricator'); ?></h2>
+                <p><?php esc_html_e('Create your first form and embed it via shortcode on any page.', 'formfabricator'); ?></p>
                 <a href="<?php echo esc_url($new_url); ?>" class="button button-primary">
-                    <?php esc_html_e('+ Create First Form', 'form-forge'); ?>
+                    <?php esc_html_e('+ Create First Form', 'formfabricator'); ?>
                 </a>
             </div>
 
@@ -230,7 +230,7 @@ class FormList
                                 </a>
                                 <div class="forge-form-row-meta">
                                     <?php // translators: %d: number of fields in the form. ?>
-                                    <span><?php echo esc_html(sprintf(_n('%d Field', '%d Fields', $count, 'form-forge'), $count)); ?></span>
+                                    <span><?php echo esc_html(sprintf(_n('%d Field', '%d Fields', $count, 'formfabricator'), $count)); ?></span>
                                     <span class="forge-meta-sep">&middot;</span>
                                     <code class="forge-form-row-code"><?php echo esc_html($shortcode); ?></code>
                                 </div>
@@ -238,31 +238,31 @@ class FormList
                             <div class="forge-form-row-actions">
                                 <a href="<?php echo esc_url($edit_url); ?>"
                                    class="button forge-btn-edit">
-                                    <?php esc_html_e('Edit', 'form-forge'); ?>
+                                    <?php esc_html_e('Edit', 'formfabricator'); ?>
                                 </a>
                                 <div class="forge-row-menu-wrap">
-                                    <button class="button forge-row-menu-btn" title="<?php echo esc_attr__('More actions', 'form-forge'); ?>">&#8942;</button>
+                                    <button class="button forge-row-menu-btn" title="<?php echo esc_attr__('More actions', 'formfabricator'); ?>">&#8942;</button>
                                     <div class="forge-row-dropdown" hidden>
                                         <button class="forge-dd-item forge-copy-shortcode"
                                                 data-code="<?php echo esc_attr($shortcode); ?>">
-                                            <i class="fa-solid fa-clipboard"></i> <?php esc_html_e('Copy shortcode', 'form-forge'); ?>
+                                            <i class="fa-solid fa-clipboard"></i> <?php esc_html_e('Copy shortcode', 'formfabricator'); ?>
                                         </button>
                                         <button class="forge-dd-item forge-duplicate-form"
                                                 data-id="<?php echo esc_attr($form->id); ?>"
                                                 data-nonce="<?php echo esc_attr($dup_nonce); ?>">
-                                            <i class="fa-solid fa-copy"></i> <?php esc_html_e('Duplicate', 'form-forge'); ?>
+                                            <i class="fa-solid fa-copy"></i> <?php esc_html_e('Duplicate', 'formfabricator'); ?>
                                         </button>
                                         <div class="forge-dd-sep"></div>
                                         <button class="forge-dd-item forge-export-form"
                                                 data-id="<?php echo esc_attr($form->id); ?>"
                                                 data-nonce="<?php echo esc_attr($exp_nonce); ?>">
-                                            <i class="fa-solid fa-file-export"></i> <?php esc_html_e('Export', 'form-forge'); ?>
+                                            <i class="fa-solid fa-file-export"></i> <?php esc_html_e('Export', 'formfabricator'); ?>
                                         </button>
                                         <div class="forge-dd-sep"></div>
                                         <button class="forge-dd-item forge-dd-item--danger forge-delete-form"
                                                 data-id="<?php echo esc_attr($form->id); ?>"
                                                 data-nonce="<?php echo esc_attr($del_nonce); ?>">
-                                            <i class="fa-solid fa-trash"></i> <?php esc_html_e('Delete', 'form-forge'); ?>
+                                            <i class="fa-solid fa-trash"></i> <?php esc_html_e('Delete', 'formfabricator'); ?>
                                         </button>
                                     </div>
                                 </div>
@@ -270,7 +270,7 @@ class FormList
                         </div>
                     <?php endforeach; ?>
                     <div class="forge-no-results" id="forge-no-results" hidden>
-                        <?php esc_html_e('No forms found.', 'form-forge'); ?>
+                        <?php esc_html_e('No forms found.', 'formfabricator'); ?>
                     </div>
                 </div>
             <?php endif; ?>
@@ -279,11 +279,11 @@ class FormList
         <!-- Export modal -->
         <div id="forge-export-modal" class="forge-modal-backdrop" hidden>
             <div class="forge-modal forge-modal--wide">
-                <h3 class="forge-modal-title"><?php esc_html_e('Export form', 'form-forge'); ?></h3>
+                <h3 class="forge-modal-title"><?php esc_html_e('Export form', 'formfabricator'); ?></h3>
 
                 <!-- Loading state -->
                 <div id="forge-export-loading">
-                    <p class="forge-export-loading-label"><?php esc_html_e('Exporting…', 'form-forge'); ?></p>
+                    <p class="forge-export-loading-label"><?php esc_html_e('Exporting…', 'formfabricator'); ?></p>
                     <div class="forge-export-bar-track">
                         <div class="forge-export-bar-fill" id="forge-export-bar"></div>
                     </div>
@@ -292,14 +292,14 @@ class FormList
                 <!-- Result state -->
                 <div id="forge-export-result" hidden>
                     <p class="forge-modal-hint">
-                        <?php esc_html_e('Copy this string. It contains all fields, notifications and settings.', 'form-forge'); ?>
+                        <?php esc_html_e('Copy this string. It contains all fields, notifications and settings.', 'formfabricator'); ?>
                     </p>
                     <textarea id="forge-export-string" class="forge-modal-textarea" readonly rows="6"></textarea>
                     <div class="forge-modal-actions">
                         <button class="button forge-list-btn" id="forge-export-copy">
-                            <i class="fa-solid fa-copy"></i> <?php esc_html_e('Copy', 'form-forge'); ?>
+                            <i class="fa-solid fa-copy"></i> <?php esc_html_e('Copy', 'formfabricator'); ?>
                         </button>
-                        <button class="button forge-list-btn" id="forge-export-close"><?php esc_html_e('Close', 'form-forge'); ?></button>
+                        <button class="button forge-list-btn" id="forge-export-close"><?php esc_html_e('Close', 'formfabricator'); ?></button>
                     </div>
                 </div>
             </div>
@@ -308,10 +308,10 @@ class FormList
 <!-- Delete confirmation modal -->
         <div id="forge-delete-modal" class="forge-modal-backdrop" hidden>
             <div class="forge-modal">
-                <p class="forge-modal-msg" id="forge-modal-msg"><?php esc_html_e('Really delete form?', 'form-forge'); ?></p>
+                <p class="forge-modal-msg" id="forge-modal-msg"><?php esc_html_e('Really delete form?', 'formfabricator'); ?></p>
                 <div class="forge-modal-actions">
-                    <button class="button forge-list-btn" id="forge-modal-cancel"><?php esc_html_e('Cancel', 'form-forge'); ?></button>
-                    <button class="button forge-list-btn forge-btn-danger" id="forge-modal-confirm"><?php esc_html_e('Delete', 'form-forge'); ?></button>
+                    <button class="button forge-list-btn" id="forge-modal-cancel"><?php esc_html_e('Cancel', 'formfabricator'); ?></button>
+                    <button class="button forge-list-btn forge-btn-danger" id="forge-modal-confirm"><?php esc_html_e('Delete', 'formfabricator'); ?></button>
                 </div>
             </div>
         </div>
@@ -873,7 +873,7 @@ class FormList
             wp_send_json_error(['message' => 'Nonce verification failed.'], 403);
         }
         FormModel::delete($form_id, true);
-        wp_send_json_success(['message' => __('Form deleted.', 'form-forge')]);
+        wp_send_json_success(['message' => __('Form deleted.', 'formfabricator')]);
     }
 
     /**
@@ -908,38 +908,38 @@ class FormList
                 </a>
                 <div class="forge-form-row-meta">
                     <?php // translators: %d: number of fields in the form. ?>
-                    <span><?php echo esc_html(sprintf(_n('%d Field', '%d Fields', $count, 'form-forge'), $count)); ?></span>
+                    <span><?php echo esc_html(sprintf(_n('%d Field', '%d Fields', $count, 'formfabricator'), $count)); ?></span>
                     <span class="forge-meta-sep">&middot;</span>
                     <code class="forge-form-row-code"><?php echo esc_html($shortcode); ?></code>
                 </div>
             </div>
             <div class="forge-form-row-actions">
                 <a href="<?php echo esc_url($edit_url); ?>" class="button forge-btn-edit">
-                    <?php esc_html_e('Edit', 'form-forge'); ?>
+                    <?php esc_html_e('Edit', 'formfabricator'); ?>
                 </a>
                 <div class="forge-row-menu-wrap">
-                    <button class="button forge-row-menu-btn" title="<?php echo esc_attr__('More actions', 'form-forge'); ?>">&#8942;</button>
+                    <button class="button forge-row-menu-btn" title="<?php echo esc_attr__('More actions', 'formfabricator'); ?>">&#8942;</button>
                     <div class="forge-row-dropdown" hidden>
                         <button class="forge-dd-item forge-copy-shortcode"
                                 data-code="<?php echo esc_attr($shortcode); ?>">
-                            <i class="fa-solid fa-clipboard"></i> <?php esc_html_e('Copy shortcode', 'form-forge'); ?>
+                            <i class="fa-solid fa-clipboard"></i> <?php esc_html_e('Copy shortcode', 'formfabricator'); ?>
                         </button>
                         <button class="forge-dd-item forge-duplicate-form"
                                 data-id="<?php echo esc_attr($form->id); ?>"
                                 data-nonce="<?php echo esc_attr($dup_nonce); ?>">
-                            <i class="fa-solid fa-copy"></i> <?php esc_html_e('Duplicate', 'form-forge'); ?>
+                            <i class="fa-solid fa-copy"></i> <?php esc_html_e('Duplicate', 'formfabricator'); ?>
                         </button>
                         <div class="forge-dd-sep"></div>
                         <button class="forge-dd-item forge-export-form"
                                 data-id="<?php echo esc_attr($form->id); ?>"
                                 data-nonce="<?php echo esc_attr($exp_nonce); ?>">
-                            <i class="fa-solid fa-file-export"></i> <?php esc_html_e('Export', 'form-forge'); ?>
+                            <i class="fa-solid fa-file-export"></i> <?php esc_html_e('Export', 'formfabricator'); ?>
                         </button>
                         <div class="forge-dd-sep"></div>
                         <button class="forge-dd-item forge-dd-item--danger forge-delete-form"
                                 data-id="<?php echo esc_attr($form->id); ?>"
                                 data-nonce="<?php echo esc_attr($del_nonce); ?>">
-                            <i class="fa-solid fa-trash"></i> <?php esc_html_e('Delete', 'form-forge'); ?>
+                            <i class="fa-solid fa-trash"></i> <?php esc_html_e('Delete', 'formfabricator'); ?>
                         </button>
                     </div>
                 </div>
@@ -970,7 +970,7 @@ class FormList
         $new_form = FormModel::get((int) $result);
         $row_html = $new_form ? self::renderRow($new_form) : '';
         wp_send_json_success(
-            ['message' => __('Form duplicated.', 'form-forge'), 'new_id' => $result, 'html' => $row_html]
+            ['message' => __('Form duplicated.', 'formfabricator'), 'new_id' => $result, 'html' => $row_html]
         );
     }
 
@@ -1061,7 +1061,7 @@ class FormList
         }
         $form = FormModel::get($form_id);
         if (!$form) {
-            wp_send_json_error(['message' => __('Form not found.', 'form-forge')], 404);
+            wp_send_json_error(['message' => __('Form not found.', 'formfabricator')], 404);
         }
         $payload = ['v' => 2, 't' => $form->title];
         $payload['f'] = self::stripFieldDefaults($form->fields);
@@ -1093,12 +1093,12 @@ class FormList
         }
         $raw = sanitize_text_field(wp_unslash($_POST['string'] ?? ''));
         if ($raw === '') {
-            wp_send_json_error(['message' => __('No import string provided.', 'form-forge')], 400);
+            wp_send_json_error(['message' => __('No import string provided.', 'formfabricator')], 400);
         }
         $padded  = $raw . str_repeat('=', (4 - strlen($raw) % 4) % 4);
         $decoded = base64_decode(strtr($padded, '-_', '+/'), true);
         if ($decoded === false) {
-            wp_send_json_error(['message' => __('Invalid import string.', 'form-forge')], 400);
+            wp_send_json_error(['message' => __('Invalid import string.', 'formfabricator')], 400);
         }
         // Support both v2 (gzdeflate) and v1 (gzencode) strings.
         // Bound the inflated size so a small crafted payload can't expand into a
@@ -1109,7 +1109,7 @@ class FormList
             $json = @gzdecode($decoded, $max_inflated_size);
         }
         if ($json === false) {
-            wp_send_json_error(['message' => __('Decompression failed.', 'form-forge')], 400);
+            wp_send_json_error(['message' => __('Decompression failed.', 'formfabricator')], 400);
         }
         // Import always creates a NEW form (FormModel::save() with no id) rather than
         // overwriting an existing one, even if the exported payload originated from a
@@ -1119,7 +1119,7 @@ class FormList
             || !isset($payload['v'], $payload['t'], $payload['f'])
             || !in_array((int)$payload['v'], [1, 2], true)
         ) {
-            wp_send_json_error(['message' => __('Unknown format.', 'form-forge')], 400);
+            wp_send_json_error(['message' => __('Unknown format.', 'formfabricator')], 400);
         }
         $fields = is_array($payload['f']) ? $payload['f'] : [];
         if ((int)$payload['v'] === 2) {

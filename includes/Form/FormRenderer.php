@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -77,11 +77,12 @@ class FormRenderer
             $form->fields = $fields_override;
         }
 
-        $nonce        = wp_create_nonce('forge_forms_submit_' . $form_id);
+        /* Not generated here: this HTML is served to every visitor of a cacheable page, so baking in
+           a nonce/token would collide across visitors. front.js fetches both fresh via AJAX before submit. */
         $ajax_url     = admin_url('admin-ajax.php');
-        $submit_label   = $form->settings['submit_label']   ?? __('Submit', 'form-forge');
-        $submit_working = $form->settings['submit_working'] ?? __('Sending…', 'form-forge');
-        $success_msg    = $form->settings['success_message'] ?? __('Thank you!', 'form-forge');
+        $submit_label   = $form->settings['submit_label']   ?? __('Submit', 'formfabricator');
+        $submit_working = $form->settings['submit_working'] ?? __('Sending…', 'formfabricator');
+        $success_msg    = $form->settings['success_message'] ?? __('Thank you!', 'formfabricator');
 
         /* Resolve one handler per unique field type; let each field enqueue its own scripts. */
         $seen_handlers = [];
@@ -114,7 +115,10 @@ class FormRenderer
             >
                 <input type="hidden" name="action"     value="forge_forms_submit">
                 <input type="hidden" name="form_id"    value="<?php echo esc_attr($form_id); ?>">
-                <input type="hidden" name="forge_nonce" value="<?php echo esc_attr($nonce); ?>">
+                <!-- Filled in by front.js from forge_forms_get_token immediately before submit —
+                     never rendered server-side, see the comment above render()'s $ajax_url line. -->
+                <input type="hidden" name="forge_nonce" value="" class="forge-nonce-field">
+                <input type="hidden" name="forge_submission_token" value="" class="forge-submission-token-field">
                 <!-- Honeypot -->
                 <input type="text" name="forge_hp_field"
                        style="display:none!important" tabindex="-1" autocomplete="off">

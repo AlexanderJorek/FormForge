@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -40,7 +40,7 @@ class EmailField extends BaseField
 
     public function getLabel(): string
     {
-        return __('Email', 'form-forge');
+        return __('Email', 'formfabricator');
     }
 
     /**
@@ -138,7 +138,7 @@ class EmailField extends BaseField
         $v = strtolower(trim((string)$value));
         if ($config['validate_format'] ?? true) {
             if (!is_email($v)) {
-                return __('Please enter a valid email address.', 'form-forge');
+                return __('Please enter a valid email address.', 'formfabricator');
             }
         }
         $mode     = $config['filter_mode']     ?? '';
@@ -154,10 +154,10 @@ class EmailField extends BaseField
                 }
             }
             if ($mode === 'allow' && !$matched) {
-                return __('This email address is not allowed.', 'form-forge');
+                return __('This email address is not allowed.', 'formfabricator');
             }
             if ($mode === 'block' && $matched) {
-                return __('This email address is not allowed.', 'form-forge');
+                return __('This email address is not allowed.', 'formfabricator');
             }
         }
         return true;
@@ -203,7 +203,7 @@ class EmailField extends BaseField
             [
                 'key'   => 'validate_format',
                 'type'  => 'checkbox',
-                'label' => __('Validate email format', 'form-forge'),
+                'label' => __('Validate email format', 'formfabricator'),
             ],
             ]
         );
@@ -220,14 +220,14 @@ class EmailField extends BaseField
             [
                 'key'    => 'filter_mode',
                 'type'   => 'pill3',
-                'label'  => __('Email filter', 'form-forge'),
+                'label'  => __('Email filter', 'formfabricator'),
                 'values' => ['', 'allow', 'block'],
-                'labels' => [__('Off', 'form-forge'), __('Allowed', 'form-forge'), __('Blocked', 'form-forge')],
+                'labels' => [__('Off', 'formfabricator'), __('Allowed', 'formfabricator'), __('Blocked', 'formfabricator')],
             ],
             [
                 'key'        => 'filter_patterns',
                 'type'       => 'textarea',
-                'label'      => __('Pattern (one per line or separated by ;)', 'form-forge'),
+                'label'      => __('Pattern (one per line or separated by ;)', 'formfabricator'),
                 'hint'       => '*no-reply* · *.outlook.com · user@example.com',
                 'depends_on' => ['key' => 'filter_mode', 'not' => ''],
             ],

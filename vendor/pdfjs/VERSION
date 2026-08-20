@@ -1,0 +1,20 @@
+pdfjs-dist 6.2.108
+Source: https://www.npmjs.com/package/pdfjs-dist (npm registry, official Mozilla-published package)
+Build: legacy/build/pdf.mjs + legacy/build/pdf.worker.mjs (the "legacy" build — transpiled/polyfilled
+for older browsers; this project has no fixed minimum browser matrix, so the broader-compat build was
+chosen over the "modern" build, which targets Chrome 110+/Safari 16.4+ only)
+Vendored: 2026-08-20
+Fetched via: npm pack pdfjs-dist@6.2.108 (verified against the npm registry's published integrity hash
+by npm itself during download)
+Files intentionally NOT vendored (unused by this plugin — see assets/js/verification.js's
+getDocument() call, which sets no cMapUrl/standardFontDataUrl/wasmUrl): cmaps/, standard_fonts/,
+wasm/, image_decoders/, the sandbox/scripting bundle, and all source maps (*.map).
+
+Update procedure:
+  npm pack pdfjs-dist@<version>
+  tar -xzf pdfjs-dist-<version>.tgz package/legacy/build/pdf.mjs package/legacy/build/pdf.worker.mjs package/LICENSE
+  # copy pdf.mjs -> vendor/pdfjs/pdf.mjs, pdf.worker.mjs -> vendor/pdfjs/pdf.worker.mjs, LICENSE -> vendor/pdfjs/LICENSE
+  # update this VERSION file
+Then re-check that assets/js/verification.js's API usage (getDocument/getPage/getTextContent/
+GlobalWorkerOptions) is still compatible — see CHANGELOG entries between the old and new version for
+any [api-major]/[api-minor] breaking changes.

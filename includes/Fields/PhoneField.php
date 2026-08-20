@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -40,7 +40,7 @@ class PhoneField extends BaseField
 
     public function getLabel(): string
     {
-        return __('Phone', 'form-forge');
+        return __('Phone', 'formfabricator');
     }
 
     /**
@@ -101,7 +101,7 @@ class PhoneField extends BaseField
     public function render(array $config, string $field_id, mixed $value = null): string
     {
         $mode  = $config['phone_mode'] ?? '';
-        $attrs = $this->inputAttrs($config, $field_id, 'tel', ['value' => esc_attr((string)($value ?? ''))]);
+        $attrs = $this->inputAttrs($config, $field_id, 'tel', ['value' => esc_attr((string)($value ?? '')), 'autocomplete' => 'tel']);
         if ($mode !== '') {
             $attrs .= ' data-phone-mode="' . esc_attr($mode) . '"';
         }
@@ -147,13 +147,13 @@ class PhoneField extends BaseField
         switch ($mode) {
             case 'any':
                 if (!preg_match('/^\+?[0-9]{7,15}$/', $v)) {
-                    return __('Please enter a valid phone number.', 'form-forge');
+                    return __('Please enter a valid phone number.', 'formfabricator');
                 }
                 break;
 
             case 'countries':
                 if (!str_starts_with($v, '+')) {
-                    return __('Please enter the number with international prefix (+...).', 'form-forge');
+                    return __('Please enter the number with international prefix (+...).', 'formfabricator');
                 }
                 $digits = substr($v, 1);
                 $list   = (array)($config['phone_country_list'] ?? []); /* e.g. ['+49', '+43'] */
@@ -175,10 +175,10 @@ class PhoneField extends BaseField
                     }
                 }
                 if ($cmode === 'allow' && !$in) {
-                    return __('This phone number is not allowed for your country.', 'form-forge');
+                    return __('This phone number is not allowed for your country.', 'formfabricator');
                 }
                 if ($cmode === 'disallow' && $in) {
-                    return __('This phone number is not allowed for your country.', 'form-forge');
+                    return __('This phone number is not allowed for your country.', 'formfabricator');
                 }
                 break;
         }

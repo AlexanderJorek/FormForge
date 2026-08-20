@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -176,7 +176,7 @@ CSS;
 
     public function getLabel(): string
     {
-        return __('SEPA Direct Debit', 'form-forge');
+        return __('SEPA Direct Debit', 'formfabricator');
     }
 
     /**
@@ -443,15 +443,15 @@ CSS;
     {
         $val = is_array($value) ? $value : [];
 
-        $mandate_title = esc_html($config['mandate_title'] ?? __('SEPA Direct Debit Mandate', 'form-forge'));
+        $mandate_title = esc_html($config['mandate_title'] ?? __('SEPA Direct Debit Mandate', 'formfabricator'));
         $mandate_text  = wp_kses_post($config['mandate_text'] ?? $this->defaultMandateText());
         $mandate_note  = wp_kses_post($config['mandate_note'] ?? $this->defaultMandateNote());
-        $iban_label    = esc_html($config['iban_label']    ?? __('IBAN:', 'form-forge'));
-        $bic_label     = esc_html($config['bic_label']     ?? __('BIC:', 'form-forge'));
-        $holder_label  = esc_html($config['holder_label']  ?? __('Account holder:', 'form-forge'));
+        $iban_label    = esc_html($config['iban_label']    ?? __('IBAN:', 'formfabricator'));
+        $bic_label     = esc_html($config['bic_label']     ?? __('BIC:', 'formfabricator'));
+        $holder_label  = esc_html($config['holder_label']  ?? __('Account holder:', 'formfabricator'));
         $creditor_id   = esc_html($config['creditor_id']   ?? '');
-        $mandate_ref   = esc_html($config['mandate_ref']   ?? __('Your member number', 'form-forge'));
-        $sig_label     = esc_html($config['sig_label']     ?? __('Signature', 'form-forge'));
+        $mandate_ref   = esc_html($config['mandate_ref']   ?? __('Your member number', 'formfabricator'));
+        $sig_label     = esc_html($config['sig_label']     ?? __('Signature', 'formfabricator'));
         $req_attr      = !empty($config['required']) ? ' data-required="true"' : '';
 
         $placeholder_cc    = esc_attr($config['placeholder_country'] ?? 'DE');
@@ -508,7 +508,7 @@ CSS;
             $html .= '<p class="forge-sepa-lookup-notice">'
                 . esc_html__(
                     'Your IBAN is sent to a third-party service (openiban.com) to look up the BIC.',
-                    'form-forge'
+                    'formfabricator'
                 ) . '</p>';
         }
         $html .= '<div class="forge-field-error" id="' . esc_attr($field_id) . '-iban-error" role="alert"></div>';
@@ -547,10 +547,10 @@ CSS;
         if ($creditor_id !== '' || $mandate_ref !== '') {
             $html .= '<div class="forge-sepa-creditor">';
             if ($creditor_id !== '') {
-                $html .= '<p>' . esc_html__('Creditor identification number:', 'form-forge') . ' ' . $creditor_id . '</p>';
+                $html .= '<p>' . esc_html__('Creditor identification number:', 'formfabricator') . ' ' . $creditor_id . '</p>';
             }
             if ($mandate_ref !== '') {
-                $html .= '<p>' . esc_html__('Mandate reference:', 'form-forge') . ' ' . $mandate_ref . '</p>';
+                $html .= '<p>' . esc_html__('Mandate reference:', 'formfabricator') . ' ' . $mandate_ref . '</p>';
             }
             $html .= '</div>';
         }
@@ -587,9 +587,9 @@ CSS;
             . ' 123.7 0 224-100.3 224-224S401.7 32 278 32c-78.1 0-145.8 39.4-185.3 99.3z"/>'
             . '</svg>';
         $html .= '<button type="button" class="forge-signature-clear"'
-            . ' data-canvas="' . $canvas_id . '" title="' . esc_attr__('Clear', 'form-forge') . '" aria-label="' . esc_attr__('Clear signature', 'form-forge') . '">'
+            . ' data-canvas="' . $canvas_id . '" title="' . esc_attr__('Clear', 'formfabricator') . '" aria-label="' . esc_attr__('Clear signature', 'formfabricator') . '">'
             . $reset_icon . '</button>';
-        $html .= '<span class="forge-signature-hint">' . esc_html__('Sign here', 'form-forge') . '</span>';
+        $html .= '<span class="forge-signature-hint">' . esc_html__('Sign here', 'formfabricator') . '</span>';
         $html .= '</div>';
         $html .= '</div>';
         $html .= '<div class="forge-field-error forge-sepa-sig-error"'
@@ -688,7 +688,7 @@ CSS;
         // upper bound of its own, so a crafted oversized data URI could otherwise
         // inflate memory/CPU use even on an optional SEPA field.
         if (is_array($value) && strlen((string)($value['sig'] ?? '')) > 2 * 1024 * 1024) {
-            return __('Signature data is too large.', 'form-forge');
+            return __('Signature data is too large.', 'formfabricator');
         }
 
         if (empty($config['required'])) {
@@ -696,7 +696,7 @@ CSS;
         }
 
         if (!is_array($value)) {
-            return __('SEPA data missing.', 'form-forge');
+            return __('SEPA data missing.', 'formfabricator');
         }
 
         $iban   = trim((string)($value['iban']   ?? ''));
@@ -704,18 +704,18 @@ CSS;
         $holder = trim((string)($value['holder'] ?? ''));
 
         if ($iban === '') {
-            return __('IBAN is a required field.', 'form-forge');
+            return __('IBAN is a required field.', 'formfabricator');
         }
         $iban_clean = strtoupper(preg_replace('/\s/', '', $iban));
         if (!preg_match('/^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/', $iban_clean)) {
-            return __('Please enter a valid IBAN.', 'form-forge');
+            return __('Please enter a valid IBAN.', 'formfabricator');
         }
         $iban_cc = substr($iban_clean, 0, 2);
         if (isset(self::IBAN_LEN[$iban_cc]) && strlen($iban_clean) !== self::IBAN_LEN[$iban_cc]) {
-            return __('Please enter a valid IBAN.', 'form-forge');
+            return __('Please enter a valid IBAN.', 'formfabricator');
         }
         if (!self::ibanChecksumValid($iban_clean)) {
-            return __('Please enter a valid IBAN.', 'form-forge');
+            return __('Please enter a valid IBAN.', 'formfabricator');
         }
 
         // Re-checks the country allow/disallow list server-side even though front.js
@@ -730,28 +730,28 @@ CSS;
         if ($filter_mode === 'allow' && !empty($filter_list)) {
             if (!in_array($iban_country, $filter_list, true)) {
                 // translators: %s: two-letter IBAN country code.
-                return sprintf(__('IBANs from country "%s" are not allowed.', 'form-forge'), esc_html($iban_country));
+                return sprintf(__('IBANs from country "%s" are not allowed.', 'formfabricator'), esc_html($iban_country));
             }
         } elseif ($filter_mode === 'disallow' && !empty($filter_list)) {
             if (in_array($iban_country, $filter_list, true)) {
                 // translators: %s: two-letter IBAN country code.
-                return sprintf(__('IBANs from country "%s" are not allowed.', 'form-forge'), esc_html($iban_country));
+                return sprintf(__('IBANs from country "%s" are not allowed.', 'formfabricator'), esc_html($iban_country));
             }
         }
 
         if ($bic === '') {
-            return __('BIC is a required field.', 'form-forge');
+            return __('BIC is a required field.', 'formfabricator');
         }
         if (!preg_match('/^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/i', $bic)) {
-            return __('Please enter a valid BIC.', 'form-forge');
+            return __('Please enter a valid BIC.', 'formfabricator');
         }
         if ($holder === '') {
-            return __('Account holder is a required field.', 'form-forge');
+            return __('Account holder is a required field.', 'formfabricator');
         }
 
         $sig = (string)($value['sig'] ?? '');
         if ($sig === '' || !self::isSignatureDataUri($sig)) {
-            return __('Signature is a required field.', 'form-forge');
+            return __('Signature is a required field.', 'formfabricator');
         }
 
         return true;
@@ -778,7 +778,7 @@ CSS;
             return [$field_id => [
                 'label'              => $label,
                 'type'               => 'sepa',
-                'value'              => __('[No entry]', 'form-forge'),
+                'value'              => __('[No entry]', 'formfabricator'),
                 'materialized_files' => [],
             ]];
         }
@@ -791,20 +791,20 @@ CSS;
 
         $entries = [
             $field_id . '_iban' => [
-                'label' => $config['iban_label'] ?? __('IBAN', 'form-forge'),
+                'label' => $config['iban_label'] ?? __('IBAN', 'formfabricator'),
                 'type'  => 'sepa',
                 'value' => $iban !== ''
-                    ? chunk_split($iban, 4, ' ') : __('[No entry]', 'form-forge'),
+                    ? chunk_split($iban, 4, ' ') : __('[No entry]', 'formfabricator'),
             ],
             $field_id . '_bic' => [
-                'label' => $config['bic_label'] ?? __('BIC', 'form-forge'),
+                'label' => $config['bic_label'] ?? __('BIC', 'formfabricator'),
                 'type'  => 'sepa',
-                'value' => $bic !== '' ? $bic : __('[No entry]', 'form-forge'),
+                'value' => $bic !== '' ? $bic : __('[No entry]', 'formfabricator'),
             ],
             $field_id . '_holder' => [
-                'label' => $config['holder_label'] ?? __('Account holder', 'form-forge'),
+                'label' => $config['holder_label'] ?? __('Account holder', 'formfabricator'),
                 'type'  => 'sepa',
-                'value' => $holder !== '' ? $holder : __('[No entry]', 'form-forge'),
+                'value' => $holder !== '' ? $holder : __('[No entry]', 'formfabricator'),
             ],
         ];
 
@@ -813,9 +813,9 @@ CSS;
             ? self::materializeSignature($sig_val, 'sepa-signature.png')
             : [];
         $entries[$field_id . '_sig'] = [
-            'label'              => $config['sig_label'] ?? __('Signature', 'form-forge'),
+            'label'              => $config['sig_label'] ?? __('Signature', 'formfabricator'),
             'type'               => 'signature',
-            'value'              => $materialized ? '' : __('[No entry]', 'form-forge'),
+            'value'              => $materialized ? '' : __('[No entry]', 'formfabricator'),
             'materialized_files' => $materialized,
         ];
 
@@ -832,7 +832,7 @@ CSS;
     public function map(mixed $value, array $config): string
     {
         if (!is_array($value)) {
-            return __('[No entry]', 'form-forge');
+            return __('[No entry]', 'formfabricator');
         }
         $iban   = strtoupper(preg_replace('/\s/', '', (string)($value['iban']   ?? '')));
         $bic    = strtoupper((string)($value['bic']    ?? ''));
@@ -841,14 +841,14 @@ CSS;
         $parts = array_filter(
             [
             // translators: %s: formatted IBAN.
-            $iban   !== '' ? sprintf(__('IBAN: %s', 'form-forge'), wordwrap($iban, 4, ' ', true)) : '',
+            $iban   !== '' ? sprintf(__('IBAN: %s', 'formfabricator'), wordwrap($iban, 4, ' ', true)) : '',
             // translators: %s: BIC.
-            $bic    !== '' ? sprintf(__('BIC: %s', 'form-forge'), $bic) : '',
+            $bic    !== '' ? sprintf(__('BIC: %s', 'formfabricator'), $bic) : '',
             // translators: %s: account holder name.
-            $holder !== '' ? sprintf(__('Account holder: %s', 'form-forge'), $holder) : '',
+            $holder !== '' ? sprintf(__('Account holder: %s', 'formfabricator'), $holder) : '',
             ]
         );
-        return $parts ? trim(implode(' | ', $parts)) : __('[No entry]', 'form-forge');
+        return $parts ? trim(implode(' | ', $parts)) : __('[No entry]', 'formfabricator');
     }
 
     /**
@@ -859,18 +859,18 @@ CSS;
     public function getDefaultConfig(): array
     {
         return [
-            'label'               => __('SEPA Direct Debit Mandate', 'form-forge'),
+            'label'               => __('SEPA Direct Debit Mandate', 'formfabricator'),
             'required'            => true,
             'description'         => '',
-            'mandate_title'       => __('SEPA Direct Debit Mandate', 'form-forge'),
+            'mandate_title'       => __('SEPA Direct Debit Mandate', 'formfabricator'),
             'mandate_text'        => $this->defaultMandateText(),
             'mandate_note'        => $this->defaultMandateNote(),
-            'iban_label'          => __('IBAN:', 'form-forge'),
-            'bic_label'           => __('BIC:', 'form-forge'),
-            'holder_label'        => __('Account holder:', 'form-forge'),
+            'iban_label'          => __('IBAN:', 'formfabricator'),
+            'bic_label'           => __('BIC:', 'formfabricator'),
+            'holder_label'        => __('Account holder:', 'formfabricator'),
             'creditor_id'         => '',
             'mandate_ref'         => '',
-            'sig_label'           => __('Signature', 'form-forge'),
+            'sig_label'           => __('Signature', 'formfabricator'),
             'canvas_height'       => 200,
             'stroke_width'        => 2,
             'placeholder_country' => 'DE',
@@ -892,64 +892,64 @@ CSS;
             [
                 'key'        => 'live_iban_lookup',
                 'type'       => 'checkbox',
-                'label'      => __('Auto-fill BIC via live IBAN lookup', 'form-forge'),
+                'label'      => __('Auto-fill BIC via live IBAN lookup', 'formfabricator'),
                 'default'    => false,
                 'disclaimer' => __(
                     "When enabled, the visitor's IBAN is sent to the third-party service openiban.com as soon as it's fully typed — before the form is submitted — to look up the matching BIC. Disable this to have visitors enter the BIC manually instead, keeping IBAN data on your own site until submission.", // phpcs:ignore Generic.Files.LineLength
-                    'form-forge'
+                    'formfabricator'
                 ),
             ],
             [
                 'key'   => 'mandate_title',
                 'type'  => 'text',
-                'label' => __('Mandate title', 'form-forge'),
+                'label' => __('Mandate title', 'formfabricator'),
             ],
             [
                 'key'   => 'mandate_text',
                 'type'  => 'textarea',
-                'label' => __('Mandate text (HTML allowed)', 'form-forge'),
+                'label' => __('Mandate text (HTML allowed)', 'formfabricator'),
             ],
             [
                 'key'   => 'mandate_note',
                 'type'  => 'textarea',
-                'label' => __('Hint text (fine print, HTML allowed)', 'form-forge'),
+                'label' => __('Hint text (fine print, HTML allowed)', 'formfabricator'),
             ],
             [
                 'key'   => 'iban_label',
                 'type'  => 'text',
-                'label' => __('IBAN label', 'form-forge'),
+                'label' => __('IBAN label', 'formfabricator'),
             ],
             [
                 'key'     => 'placeholder_country',
                 'type'    => 'select',
-                'label'   => __('Placeholder country (IBAN format)', 'form-forge'),
+                'label'   => __('Placeholder country (IBAN format)', 'formfabricator'),
                 'default' => 'DE',
                 'options' => $country_options,
             ],
             [
                 'key'   => 'bic_label',
                 'type'  => 'text',
-                'label' => __('BIC label', 'form-forge'),
+                'label' => __('BIC label', 'formfabricator'),
             ],
             [
                 'key'   => 'holder_label',
                 'type'  => 'text',
-                'label' => __('Account holder label', 'form-forge'),
+                'label' => __('Account holder label', 'formfabricator'),
             ],
             [
                 'key'   => 'creditor_id',
                 'type'  => 'text',
-                'label' => __('Creditor ID', 'form-forge'),
+                'label' => __('Creditor ID', 'formfabricator'),
             ],
             [
                 'key'   => 'mandate_ref',
                 'type'  => 'text',
-                'label' => __('Mandate reference', 'form-forge'),
+                'label' => __('Mandate reference', 'formfabricator'),
             ],
             [
                 'key'   => 'sig_label',
                 'type'  => 'text',
-                'label' => __('Signature label', 'form-forge'),
+                'label' => __('Signature label', 'formfabricator'),
             ],
         ];
     }
@@ -965,13 +965,13 @@ CSS;
             [
                 'key'     => 'canvas_height',
                 'type'    => 'number',
-                'label'   => __('Signature height (px)', 'form-forge'),
+                'label'   => __('Signature height (px)', 'formfabricator'),
                 'default' => 200,
             ],
             [
                 'key'     => 'stroke_width',
                 'type'    => 'number',
-                'label'   => __('Stroke width', 'form-forge'),
+                'label'   => __('Stroke width', 'formfabricator'),
                 'default' => 2,
             ],
         ];
@@ -985,31 +985,31 @@ CSS;
     private function ibanCountryOptions(): array
     {
         $countries = [
-            'AD' => __('Andorra', 'form-forge'),               'AE' => __('United Arab Emirates', 'form-forge'), 'AL' => __('Albania', 'form-forge'),
-            'AT' => __('Austria', 'form-forge'),                'AZ' => __('Azerbaijan', 'form-forge'),           'BA' => __('Bosnia and Herzegovina', 'form-forge'),
-            'BE' => __('Belgium', 'form-forge'),                'BG' => __('Bulgaria', 'form-forge'),             'BH' => __('Bahrain', 'form-forge'),
-            'BR' => __('Brazil', 'form-forge'),                 'CH' => __('Switzerland', 'form-forge'),          'CR' => __('Costa Rica', 'form-forge'),
-            'CY' => __('Cyprus', 'form-forge'),                 'CZ' => __('Czechia', 'form-forge'),              'DE' => __('Germany', 'form-forge'),
-            'DJ' => __('Djibouti', 'form-forge'),               'DK' => __('Denmark', 'form-forge'),              'DO' => __('Dominican Republic', 'form-forge'),
-            'EE' => __('Estonia', 'form-forge'),                'EG' => __('Egypt', 'form-forge'),                'ES' => __('Spain', 'form-forge'),
-            'FI' => __('Finland', 'form-forge'),                'FR' => __('France', 'form-forge'),               'GB' => __('United Kingdom', 'form-forge'),
-            'GE' => __('Georgia', 'form-forge'),                'GI' => __('Gibraltar', 'form-forge'),            'GL' => __('Greenland', 'form-forge'),
-            'GR' => __('Greece', 'form-forge'),                 'GT' => __('Guatemala', 'form-forge'),            'HR' => __('Croatia', 'form-forge'),
-            'HU' => __('Hungary', 'form-forge'),                'IE' => __('Ireland', 'form-forge'),              'IL' => __('Israel', 'form-forge'),
-            'IQ' => __('Iraq', 'form-forge'),                   'IS' => __('Iceland', 'form-forge'),              'IT' => __('Italy', 'form-forge'),
-            'JO' => __('Jordan', 'form-forge'),                 'KW' => __('Kuwait', 'form-forge'),               'KZ' => __('Kazakhstan', 'form-forge'),
-            'LB' => __('Lebanon', 'form-forge'),                'LC' => __('St. Lucia', 'form-forge'),            'LI' => __('Liechtenstein', 'form-forge'),
-            'LT' => __('Lithuania', 'form-forge'),              'LU' => __('Luxembourg', 'form-forge'),           'LV' => __('Latvia', 'form-forge'),
-            'LY' => __('Libya', 'form-forge'),                  'MA' => __('Morocco', 'form-forge'),              'MC' => __('Monaco', 'form-forge'),
-            'MD' => __('Moldova', 'form-forge'),                'ME' => __('Montenegro', 'form-forge'),           'MK' => __('North Macedonia', 'form-forge'),
-            'MR' => __('Mauritania', 'form-forge'),             'MT' => __('Malta', 'form-forge'),                'MU' => __('Mauritius', 'form-forge'),
-            'NI' => __('Nicaragua', 'form-forge'),              'NL' => __('Netherlands', 'form-forge'),          'NO' => __('Norway', 'form-forge'),
-            'PK' => __('Pakistan', 'form-forge'),               'PL' => __('Poland', 'form-forge'),               'PT' => __('Portugal', 'form-forge'),
-            'QA' => __('Qatar', 'form-forge'),                  'RO' => __('Romania', 'form-forge'),              'RS' => __('Serbia', 'form-forge'),
-            'SA' => __('Saudi Arabia', 'form-forge'),           'SE' => __('Sweden', 'form-forge'),               'SI' => __('Slovenia', 'form-forge'),
-            'SK' => __('Slovakia', 'form-forge'),               'SM' => __('San Marino', 'form-forge'),           'SV' => __('El Salvador', 'form-forge'),
-            'TN' => __('Tunisia', 'form-forge'),                'TR' => __('Turkey', 'form-forge'),               'UA' => __('Ukraine', 'form-forge'),
-            'VA' => __('Vatican City', 'form-forge'),           'VG' => __('British Virgin Islands', 'form-forge'), 'XK' => __('Kosovo', 'form-forge'),
+            'AD' => __('Andorra', 'formfabricator'),               'AE' => __('United Arab Emirates', 'formfabricator'), 'AL' => __('Albania', 'formfabricator'),
+            'AT' => __('Austria', 'formfabricator'),                'AZ' => __('Azerbaijan', 'formfabricator'),           'BA' => __('Bosnia and Herzegovina', 'formfabricator'),
+            'BE' => __('Belgium', 'formfabricator'),                'BG' => __('Bulgaria', 'formfabricator'),             'BH' => __('Bahrain', 'formfabricator'),
+            'BR' => __('Brazil', 'formfabricator'),                 'CH' => __('Switzerland', 'formfabricator'),          'CR' => __('Costa Rica', 'formfabricator'),
+            'CY' => __('Cyprus', 'formfabricator'),                 'CZ' => __('Czechia', 'formfabricator'),              'DE' => __('Germany', 'formfabricator'),
+            'DJ' => __('Djibouti', 'formfabricator'),               'DK' => __('Denmark', 'formfabricator'),              'DO' => __('Dominican Republic', 'formfabricator'),
+            'EE' => __('Estonia', 'formfabricator'),                'EG' => __('Egypt', 'formfabricator'),                'ES' => __('Spain', 'formfabricator'),
+            'FI' => __('Finland', 'formfabricator'),                'FR' => __('France', 'formfabricator'),               'GB' => __('United Kingdom', 'formfabricator'),
+            'GE' => __('Georgia', 'formfabricator'),                'GI' => __('Gibraltar', 'formfabricator'),            'GL' => __('Greenland', 'formfabricator'),
+            'GR' => __('Greece', 'formfabricator'),                 'GT' => __('Guatemala', 'formfabricator'),            'HR' => __('Croatia', 'formfabricator'),
+            'HU' => __('Hungary', 'formfabricator'),                'IE' => __('Ireland', 'formfabricator'),              'IL' => __('Israel', 'formfabricator'),
+            'IQ' => __('Iraq', 'formfabricator'),                   'IS' => __('Iceland', 'formfabricator'),              'IT' => __('Italy', 'formfabricator'),
+            'JO' => __('Jordan', 'formfabricator'),                 'KW' => __('Kuwait', 'formfabricator'),               'KZ' => __('Kazakhstan', 'formfabricator'),
+            'LB' => __('Lebanon', 'formfabricator'),                'LC' => __('St. Lucia', 'formfabricator'),            'LI' => __('Liechtenstein', 'formfabricator'),
+            'LT' => __('Lithuania', 'formfabricator'),              'LU' => __('Luxembourg', 'formfabricator'),           'LV' => __('Latvia', 'formfabricator'),
+            'LY' => __('Libya', 'formfabricator'),                  'MA' => __('Morocco', 'formfabricator'),              'MC' => __('Monaco', 'formfabricator'),
+            'MD' => __('Moldova', 'formfabricator'),                'ME' => __('Montenegro', 'formfabricator'),           'MK' => __('North Macedonia', 'formfabricator'),
+            'MR' => __('Mauritania', 'formfabricator'),             'MT' => __('Malta', 'formfabricator'),                'MU' => __('Mauritius', 'formfabricator'),
+            'NI' => __('Nicaragua', 'formfabricator'),              'NL' => __('Netherlands', 'formfabricator'),          'NO' => __('Norway', 'formfabricator'),
+            'PK' => __('Pakistan', 'formfabricator'),               'PL' => __('Poland', 'formfabricator'),               'PT' => __('Portugal', 'formfabricator'),
+            'QA' => __('Qatar', 'formfabricator'),                  'RO' => __('Romania', 'formfabricator'),              'RS' => __('Serbia', 'formfabricator'),
+            'SA' => __('Saudi Arabia', 'formfabricator'),           'SE' => __('Sweden', 'formfabricator'),               'SI' => __('Slovenia', 'formfabricator'),
+            'SK' => __('Slovakia', 'formfabricator'),               'SM' => __('San Marino', 'formfabricator'),           'SV' => __('El Salvador', 'formfabricator'),
+            'TN' => __('Tunisia', 'formfabricator'),                'TR' => __('Turkey', 'formfabricator'),               'UA' => __('Ukraine', 'formfabricator'),
+            'VA' => __('Vatican City', 'formfabricator'),           'VG' => __('British Virgin Islands', 'formfabricator'), 'XK' => __('Kosovo', 'formfabricator'),
         ];
 
         $opts = [];
@@ -1028,11 +1028,11 @@ CSS;
     {
         return '<p>' . __(
             'I hereby authorize the creditor to collect payments from my account by direct debit. At the same time, I instruct my bank to honor the direct debits drawn by the creditor on my account.',
-            'form-forge'
+            'formfabricator'
         ) . '</p>'
             . '<p>' . __(
                 'If my account does not have sufficient funds, my bank is under no obligation to honor the direct debit. Partial payments will not be made under the direct debit scheme. I bear the costs of the returned direct debit.',
-                'form-forge'
+                'formfabricator'
             ) . '</p>';
     }
 
@@ -1045,7 +1045,7 @@ CSS;
     {
         return '<small>' . __(
             'Note: I can request a refund of the debited amount within eight weeks, starting from the debit date. The terms agreed with my bank apply.',
-            'form-forge'
+            'formfabricator'
         ) . '</small>';
     }
 }

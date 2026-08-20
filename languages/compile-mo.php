@@ -1,7 +1,7 @@
 <?php
 /**
  * Compiles a .po file to a binary .mo file.
- * Usage: php compile-mo.php form-forge-de_DE.po
+ * Usage: php compile-mo.php formfabricator-de_DE.po
  *
  * Build-time CLI tool only — run manually when translations change, never included
  * or executed by the plugin itself at runtime.

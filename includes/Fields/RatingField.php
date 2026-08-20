@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -90,7 +90,7 @@ CSS;
 
     public function getLabel(): string
     {
-        return __('Rating', 'form-forge');
+        return __('Rating', 'formfabricator');
     }
 
     /**
@@ -186,7 +186,7 @@ CSS;
         $custom_url = $custom ? esc_url($config['custom_icon_url'], ['http', 'https']) : '';
 
         $inner = '<div class="forge-rating-group" role="group"'
-            . ' aria-label="' . esc_attr($config['label'] ?? __('Rating', 'form-forge')) . '"'
+            . ' aria-label="' . esc_attr($config['label'] ?? __('Rating', 'formfabricator')) . '"'
             . ' data-half="' . ($half ? '1' : '0') . '"'
             . $req . '>';
 
@@ -263,7 +263,7 @@ CSS;
             return $hard;
         }
         if (!is_numeric($value)) {
-            return __('Please select a valid rating.', 'form-forge');
+            return __('Please select a valid rating.', 'formfabricator');
         }
         $max = (float)($config['max'] ?? 5);
         if ($max <= 0) {
@@ -276,13 +276,13 @@ CSS;
         $n    = (float)$value;
         if ($n < 0 || $n > $max) {
             // translators: %s: maximum allowed rating value.
-            return sprintf(__('Please select a rating between 0 and %s.', 'form-forge'), $max);
+            return sprintf(__('Please select a rating between 0 and %s.', 'formfabricator'), $max);
         }
         // Scale to whole steps (1 per icon, or 2 when half-icons are allowed) and reject
         // anything off-grid, e.g. 2.3 when only whole or half values are selectable
         $steps = $n * ($half ? 2 : 1);
         if (abs($steps - round($steps)) > 0.0001) {
-            return __('Please select a valid rating.', 'form-forge');
+            return __('Please select a valid rating.', 'formfabricator');
         }
         return true;
     }
@@ -297,7 +297,7 @@ CSS;
     public function map(mixed $value, array $config): string
     {
         if ($value === null || $value === '') {
-            return __('[No entry]', 'form-forge');
+            return __('[No entry]', 'formfabricator');
         }
         return $value . ' / ' . (int)($config['max'] ?? 5);
     }
@@ -332,36 +332,36 @@ CSS;
             [
                 'key'     => 'max',
                 'type'    => 'number',
-                'label'   => __('Number of symbols', 'form-forge'),
+                'label'   => __('Number of symbols', 'formfabricator'),
                 'rebuild' => true,
             ],
             [
                 'key'      => 'icon_type',
                 'type'     => 'icon_row',
-                'label'    => __('Symbol & half values', 'form-forge'),
+                'label'    => __('Symbol & half values', 'formfabricator'),
                 'half_key' => 'allow_half',
                 'rebuild'  => true,
                 'options'  => [
-                    ['value' => 'star',    'label' => '★ ' . __('Star', 'form-forge')],
-                    ['value' => 'heart',   'label' => '♥ ' . __('Heart', 'form-forge')],
-                    ['value' => 'circle',  'label' => '● ' . __('Circle', 'form-forge')],
-                    ['value' => 'diamond', 'label' => '◆ ' . __('Diamond', 'form-forge')],
+                    ['value' => 'star',    'label' => '★ ' . __('Star', 'formfabricator')],
+                    ['value' => 'heart',   'label' => '♥ ' . __('Heart', 'formfabricator')],
+                    ['value' => 'circle',  'label' => '● ' . __('Circle', 'formfabricator')],
+                    ['value' => 'diamond', 'label' => '◆ ' . __('Diamond', 'formfabricator')],
                 ],
             ],
             [
                 'key'         => 'icon_source',
                 'type'        => 'bool_seg',
-                'label'       => __('Icon source', 'form-forge'),
-                'false_label' => __('Preset', 'form-forge'),
-                'true_label'  => __('Custom image', 'form-forge'),
+                'label'       => __('Icon source', 'formfabricator'),
+                'false_label' => __('Preset', 'formfabricator'),
+                'true_label'  => __('Custom image', 'formfabricator'),
                 'rebuild'     => true,
             ],
             [
                 'key'        => 'custom_icon_url',
                 'type'       => 'media_upload',
-                'label'      => __('Image', 'form-forge'),
+                'label'      => __('Image', 'formfabricator'),
                 'rebuild'    => true,
-                'hint'       => __('Square image. For half values the left half is used.', 'form-forge'),
+                'hint'       => __('Square image. For half values the left half is used.', 'formfabricator'),
                 'depends_on' => ['icon_source' => true],
             ],
             [

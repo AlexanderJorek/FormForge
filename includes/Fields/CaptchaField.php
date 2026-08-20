@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -40,7 +40,7 @@ class CaptchaField extends BaseField
 
     public function getLabel(): string
     {
-        return __('CAPTCHA', 'form-forge');
+        return __('CAPTCHA', 'formfabricator');
     }
 
     /**
@@ -76,16 +76,16 @@ class CaptchaField extends BaseField
         $site_key = get_option('forge_forms_recaptcha_site_key', '');
         if ($site_key === '') {
             return '<div class="forge-field forge-field--captcha">'
-                . '<p class="forge-notice">' . esc_html(__('reCAPTCHA: Please enter the site key in the plugin settings.', 'form-forge')) . '</p>'
+                . '<p class="forge-notice">' . esc_html(__('reCAPTCHA: Please enter the site key in the plugin settings.', 'formfabricator')) . '</p>'
                 . '</div>';
         }
 
         $inner = '<div class="forge-captcha-gate" data-sitekey="' . esc_attr($site_key) . '">'
             . '<button type="button" class="forge-captcha-activate">'
-            . esc_html__('Load CAPTCHA', 'form-forge')
+            . esc_html__('Load CAPTCHA', 'formfabricator')
             . '</button>'
             . '<p class="forge-field-hint">'
-            . esc_html__('This loads a script from Google (reCAPTCHA) once activated.', 'form-forge')
+            . esc_html__('This loads a script from Google (reCAPTCHA) once activated.', 'formfabricator')
             . '</p>'
             . '</div>';
         return $this->wrap($field_id, $config, $inner);
@@ -116,7 +116,7 @@ class CaptchaField extends BaseField
     {
         $secret = get_option('forge_forms_recaptcha_secret_key', '');
         if ($secret === '' || empty($value)) {
-            return __('Please confirm the CAPTCHA.', 'form-forge');
+            return __('Please confirm the CAPTCHA.', 'formfabricator');
         }
 
         $response = wp_remote_post(
@@ -132,12 +132,13 @@ class CaptchaField extends BaseField
         );
 
         if (is_wp_error($response)) {
-            return __('CAPTCHA verification failed.', 'form-forge');
+            \ForgeForms\forge_log('ForgeForms CaptchaField: reCAPTCHA request failed — ' . $response->get_error_message());
+            return __('CAPTCHA verification could not be completed. Please try again.', 'formfabricator');
         }
 
         $data = json_decode(wp_remote_retrieve_body($response), true);
         if (empty($data['success'])) {
-            return __('Please confirm the CAPTCHA.', 'form-forge');
+            return __('Please confirm the CAPTCHA.', 'formfabricator');
         }
         return true;
     }
@@ -151,7 +152,7 @@ class CaptchaField extends BaseField
      */
     public function map(mixed $value, array $config): string
     {
-        return __('[CAPTCHA confirmed]', 'form-forge');
+        return __('[CAPTCHA confirmed]', 'formfabricator');
     }
 
     /**
@@ -162,7 +163,7 @@ class CaptchaField extends BaseField
     public function getDefaultConfig(): array
     {
         return [
-            'label'       => __('CAPTCHA', 'form-forge'),
+            'label'       => __('CAPTCHA', 'formfabricator'),
             'required'    => true,
             'description' => '',
         ];
@@ -181,7 +182,7 @@ class CaptchaField extends BaseField
                 'level' => 'info',
                 'text'  => __(
                     "This field sends the visitor's CAPTCHA response and IP address to Google (reCAPTCHA) for verification on every submission. Reflect this third-party data transfer in your site's privacy policy.",
-                    'form-forge'
+                    'formfabricator'
                 ),
             ],
         ];

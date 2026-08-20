@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -84,7 +84,65 @@ class ClientIp
         if (!defined('FORGE_TRUSTED_PROXIES') || (string) FORGE_TRUSTED_PROXIES === '') {
             return false;
         }
-        $trusted = array_map('trim', explode(',', (string) FORGE_TRUSTED_PROXIES));
-        return in_array($ip, $trusted, true);
+        foreach (array_map('trim', explode(',', (string) FORGE_TRUSTED_PROXIES)) as $entry) {
+            if ($entry === '') {
+                continue;
+            }
+            if (strpos($entry, '/') !== false) {
+                if (self::ipInCidr($ip, $entry)) {
+                    return true;
+                }
+            } elseif (hash_equals($entry, $ip)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Checks whether an IP address falls within a CIDR range. Supports both IPv4 and IPv6
+     * via inet_pton()-based bitwise comparison rather than string prefix matching.
+     *
+     * @param string $ip   Address to check.
+     * @param string $cidr CIDR range, e.g. "192.168.0.0/16" or "2001:db8::/32".
+     * @return bool True when $ip is within $cidr.
+     */
+    private static function ipInCidr(string $ip, string $cidr): bool
+    {
+        [$subnet, $maskBits] = array_pad(explode('/', $cidr, 2), 2, null);
+        if ($subnet === null || $maskBits === null || !is_numeric($maskBits)) {
+            return false;
+        }
+        $maskBits = (int) $maskBits;
+
+        $ipBin     = @inet_pton($ip);
+        $subnetBin = @inet_pton($subnet);
+        if ($ipBin === false || $subnetBin === false || strlen($ipBin) !== strlen($subnetBin)) {
+            return false;
+        }
+
+        $bytes   = strlen($ipBin);
+        $maxBits = $bytes * 8;
+        if ($maskBits < 0 || $maskBits > $maxBits) {
+            return false;
+        }
+
+        $fullBytes    = intdiv($maskBits, 8);
+        $remainderBits = $maskBits % 8;
+
+        if ($fullBytes > 0 && strncmp($ipBin, $subnetBin, $fullBytes) !== 0) {
+            return false;
+        }
+
+        if ($remainderBits > 0) {
+            $mask = 0xFF << (8 - $remainderBits) & 0xFF;
+            $ipByte     = ord($ipBin[$fullBytes]);
+            $subnetByte = ord($subnetBin[$fullBytes]);
+            if (($ipByte & $mask) !== ($subnetByte & $mask)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

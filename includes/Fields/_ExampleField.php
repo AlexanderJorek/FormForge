@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -55,7 +55,7 @@ defined('ABSPATH') || exit;
  *   class MyField extends BaseField
  *   {
  *       public function getType(): string { return 'my-field'; }
- *       public function getLabel(): string { return __('My field', 'form-forge'); }
+ *       public function getLabel(): string { return __('My field', 'formfabricator'); }
  *       public function getIcon(): string { return 'fa-solid fa-star'; }
  *
  *       public function render(array $config, string $field_id, mixed $value = null): string
@@ -108,6 +108,7 @@ defined('ABSPATH') || exit;
  *   skipValidation() → true              purely presentational, no user input
  *   includeInEmailSummary() → false      exclude from {all_fields} email block
  *   includeValueInSeal() → false         exclude value from HMAC integrity seal
+ *   rawEmailHtml() → true                value is trusted HTML, output unescaped in mail — see HtmlField
  *   needsMultipartEncoding() → true      field uses a file input
  *   enqueueFrontScripts()                third-party script required (e.g. reCAPTCHA)
  *   isPageBreak() + renderBreak()        structural page-nav field
@@ -148,7 +149,12 @@ defined('ABSPATH') || exit;
  * CaptchaField     enqueueFrontScripts(), validate()
  * GroupField       isGroupContainer(), openTag(), closeTag()
  * PageBreakField   isPageBreak(), renderBreak(), skipValidation(), includeInEmailSummary()
- * HtmlField        skipValidation(), includeInEmailSummary()
+ * HtmlField        skipValidation(), includeInEmailSummary(), rawEmailHtml(), mapNormalized()
+ *                  (config-toggle-gated output — "Show in mail/PDF" checkbox)
+ * PostDataField    extractValue() resolving via a hidden companion input rather than global
+ *                  state — global $post is unavailable during admin-ajax.php requests, so
+ *                  render() emits a hidden {field_id}[_source_post_id] input and extractValue()
+ *                  re-resolves via get_post() instead of relying on the (absent) Loop context
  * TextField        hasTextPreview()
  *
  * NONCE / RESOURCE-LIMIT CONVENTIONS — apply to every extractValue()/extractFromRaw() override
@@ -198,7 +204,7 @@ class ExampleField extends BaseField
      */
     public function getLabel(): string
     {
-        return __('Example field', 'form-forge');
+        return __('Example field', 'formfabricator');
     }
 
     /**
@@ -425,7 +431,7 @@ class ExampleField extends BaseField
         }
 
         if (!preg_match('/^\d{5}$/', (string)$value)) {
-            return __('Please enter a five-digit number.', 'form-forge');
+            return __('Please enter a five-digit number.', 'formfabricator');
         }
         return true;
     }
@@ -437,7 +443,7 @@ class ExampleField extends BaseField
     private function exampleValidateRequiredMessage(string $label): string
     {
         // translators: %s: field label.
-        return sprintf(__('%s is a required field.', 'form-forge'), esc_html($label));
+        return sprintf(__('%s is a required field.', 'formfabricator'), esc_html($label));
     }
 
 
@@ -455,19 +461,19 @@ class ExampleField extends BaseField
     //
     //  map(mixed $value, array $config): string
     //    Returns a plain human-readable string. The BaseField default casts the
-    //    value to string and returns __('[No entry]', 'form-forge') when empty.
+    //    value to string and returns __('[No entry]', 'formfabricator') when empty.
     //    Override for composite (array) values or custom formatting (e.g. IBAN
     //    spacing, date format).
     //
     //  WELL-KNOWN SENTINEL RETURNS — use these exact strings so the translation
     //  system picks them up consistently across all fields:
-    //    __('[No entry]', 'form-forge')                 — field was left blank
-    //    __('[Other]', 'form-forge')                    — user chose the free-text "other" option
-    //    __('[Signature present – see attachment]', 'form-forge') — binary excluded from text output
-    //    __('Yes', 'form-forge') / __('No', 'form-forge')        — boolean consent
-    //    __('Privacy accepted', 'form-forge') / __('Privacy not accepted', 'form-forge')
+    //    __('[No entry]', 'formfabricator')                 — field was left blank
+    //    __('[Other]', 'formfabricator')                    — user chose the free-text "other" option
+    //    __('[Signature present – see attachment]', 'formfabricator') — binary excluded from text output
+    //    __('Yes', 'formfabricator') / __('No', 'formfabricator')        — boolean consent
+    //    __('Privacy accepted', 'formfabricator') / __('Privacy not accepted', 'formfabricator')
     //
-    //  Do NOT return raw German strings — always wrap in __('English source', 'form-forge').
+    //  Do NOT return raw German strings — always wrap in __('English source', 'formfabricator').
     //  JS strings inside heredocs cannot use __() directly; add them to Assets::enqueueFront()
     //  under ForgeForms.i18n and read them as:
     //    (window.ForgeForms && window.ForgeForms.i18n && window.ForgeForms.i18n.MY_KEY) || 'English fallback'
@@ -512,7 +518,7 @@ class ExampleField extends BaseField
     public function map(mixed $value, array $config): string
     {
         if ($this->isEmpty($value)) {
-            return __('[No entry]', 'form-forge');
+            return __('[No entry]', 'formfabricator');
         }
         if (is_array($value)) {
             return implode(', ', array_filter(array_map('trim', $value)));
@@ -733,6 +739,14 @@ class ExampleField extends BaseField
     //    string that is meaningful as a sample in the PDF layout token-picker
     //    preview. PDFLayoutEditor filters dummyFields() using this flag.
     //    Only TextField, EmailField, and TextareaField return true.
+    //
+    //  rawEmailHtml(): bool
+    //    Default: false. Return true when the field's value is trusted HTML that should be
+    //    output unescaped in {all_fields}/{field_id} mail placeholders instead of the normal
+    //    nl2br(esc_html(...)) treatment. Only safe when the value can never come from
+    //    end-user input — see HtmlField, which sanitizes html_content via wp_kses() at
+    //    config-save time, so marking it rawEmailHtml() here doesn't reopen an XSS path.
+    //    MailSender checks this flag per-field before choosing the escaping path.
 
     /** EXAMPLE (unused) — would replace the inherited BaseField::includeInEmailSummary(). */
     private function exampleIncludeInEmailSummary(): bool
@@ -868,29 +882,29 @@ class ExampleField extends BaseField
                 [
                     'key'         => 'my_toggle',
                     'type'        => 'bool_seg',
-                    'label'       => __('Mode', 'form-forge'),
-                    'false_label' => __('Simple', 'form-forge'),
-                    'true_label'  => __('Extended', 'form-forge'),
+                    'label'       => __('Mode', 'formfabricator'),
+                    'false_label' => __('Simple', 'formfabricator'),
+                    'true_label'  => __('Extended', 'formfabricator'),
                     'rebuild'     => true,
                 ],
                 [
                     'key'        => 'maxlength',
                     'type'       => 'number',
-                    'label'      => __('Character limit', 'form-forge'),
-                    'hint'       => __('Empty = no limit', 'form-forge'),
+                    'label'      => __('Character limit', 'formfabricator'),
+                    'hint'       => __('Empty = no limit', 'formfabricator'),
                     'depends_on' => ['my_toggle' => true],
                 ],
                 [
                     'key'    => 'my_select',
                     'type'   => 'pill3',
-                    'label'  => __('Filter type', 'form-forge'),
+                    'label'  => __('Filter type', 'formfabricator'),
                     'values' => ['option-a', 'option-b', 'option-c'],
-                    'labels' => [__('Off', 'form-forge'), __('Allowed', 'form-forge'), __('Blocked', 'form-forge')],
+                    'labels' => [__('Off', 'formfabricator'), __('Allowed', 'formfabricator'), __('Blocked', 'formfabricator')],
                 ],
                 // Media upload example — stores a URL string:
-                // ['key' => 'icon_url', 'type' => 'media_upload', 'label' => __('Icon', 'form-forge')],
+                // ['key' => 'icon_url', 'type' => 'media_upload', 'label' => __('Icon', 'formfabricator')],
                 // Notice (no key — display only, no config value):
-                // ['type' => 'notice', 'level' => 'warning', 'text' => __('Note…', 'form-forge')],
+                // ['type' => 'notice', 'level' => 'warning', 'text' => __('Note…', 'formfabricator')],
             ]
         );
     }
@@ -906,8 +920,8 @@ class ExampleField extends BaseField
             [
                 'key'        => 'maxlength',
                 'type'       => 'textarea',
-                'label'      => __('Pattern', 'form-forge'),
-                'hint'       => __('One per line', 'form-forge'),
+                'label'      => __('Pattern', 'formfabricator'),
+                'hint'       => __('One per line', 'formfabricator'),
                 'depends_on' => ['key' => 'my_select', 'not' => 'option-a'], // visible unless my_select = 'option-a'
             ],
         ];

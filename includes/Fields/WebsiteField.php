@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -40,7 +40,7 @@ class WebsiteField extends BaseField
 
     public function getLabel(): string
     {
-        return __('Website', 'form-forge');
+        return __('Website', 'formfabricator');
     }
 
     /**
@@ -110,7 +110,7 @@ class WebsiteField extends BaseField
         }
         if ($value !== null && $value !== '' && !empty($config['validate_url'])) {
             if (!filter_var((string)$value, FILTER_VALIDATE_URL) || !preg_match('#^https?://#i', (string)$value)) {
-                return __('Please enter a valid URL (e.g. https://example.com).', 'form-forge');
+                return __('Please enter a valid URL (e.g. https://example.com).', 'formfabricator');
             }
         }
         return true;
@@ -139,7 +139,7 @@ class WebsiteField extends BaseField
             [
                 'key'   => 'validate_url',
                 'type'  => 'checkbox',
-                'label' => __('Validate URL format', 'form-forge'),
+                'label' => __('Validate URL format', 'formfabricator'),
             ],
             ]
         );

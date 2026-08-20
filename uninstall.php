@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -93,6 +93,17 @@ $wpdb->query(
 );
 wp_cache_delete('alloptions', 'options');
 
+/* Remove single-use submission-claim rows (forge_su_*) for the same reason as the rate-limiter
+   rows above — see Utils/SingleUseToken.php. */
+// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- see forge_rl_ cleanup comment above
+$wpdb->query(
+    $wpdb->prepare(
+        "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
+        $wpdb->esc_like('forge_su_') . '%'
+    )
+);
+wp_cache_delete('alloptions', 'options');
+
 /* Remove upload directory */
 $forge_upload_dir = wp_upload_dir();
 $forge_plugin_dir = $forge_upload_dir['basedir'] . '/forge-secure-pdf';
@@ -119,7 +130,7 @@ if (is_dir($forge_plugin_dir)) {
         // a real cleanup failure here; this is uninstall diagnostics for a plugin that
         // handles PII, not leftover debug code.
         // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- see comment above
-        error_log('FormForge uninstall: WP_Filesystem unavailable, skipping removal of ' . $forge_plugin_dir);
+        error_log('FormFabricator uninstall: WP_Filesystem unavailable, skipping removal of ' . $forge_plugin_dir);
     } else {
         $forge_it    = new RecursiveDirectoryIterator($forge_plugin_dir, FilesystemIterator::SKIP_DOTS);
         $forge_files = new RecursiveIteratorIterator($forge_it, RecursiveIteratorIterator::CHILD_FIRST);
@@ -136,12 +147,12 @@ if (is_dir($forge_plugin_dir)) {
                 // normal bootstrap/logging, so wp-content debug logging is the only reasonable
                 // way to surface a real cleanup failure here.
                 // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- see comment above
-                error_log('FormForge uninstall: failed to remove ' . $forge_path);
+                error_log('FormFabricator uninstall: failed to remove ' . $forge_path);
             }
         }
         if (!$wp_filesystem->rmdir($forge_plugin_dir)) {
             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- see justification above.
-            error_log('FormForge uninstall: failed to remove directory ' . $forge_plugin_dir);
+            error_log('FormFabricator uninstall: failed to remove directory ' . $forge_plugin_dir);
         }
     }
 }

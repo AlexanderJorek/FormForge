@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -25,6 +25,7 @@ use ForgeForms\Fields\FieldRegistry;
 use ForgeForms\Form\FormModel;
 use ForgeForms\Admin\FormSettings;
 use ForgeForms\PDF\Generator;
+use ForgeForms\PDF\PdfUtils;
 
 defined('ABSPATH') || exit;
 
@@ -123,6 +124,19 @@ class MailSender
             );
         }
 
+        /* PHPMailer assembles the full MIME message (base64'd attachments) in memory before send,
+           so raise the ceiling for large multi-file sets — only ever up, never down. */
+        $has_attachable_content = ($pdf_path !== false && $pdf_path !== '')
+            || !empty($uploads['images'])
+            || !empty($uploads['others']);
+        if ($has_attachable_content) {
+            $current_limit = PdfUtils::phpMemoryLimitBytes();
+            if ($current_limit !== -1 && $current_limit < 3072 * 1024 * 1024) {
+                // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- legitimate resource-limit raise, mirrors Verificationpage.php's pattern.
+                @ini_set('memory_limit', '3072M');
+            }
+        }
+
         $global_from_email = get_option('forge_forms_from_email')
             ?: get_option('admin_email');
         $global_from_name  = get_option('forge_forms_from_name')
@@ -155,7 +169,7 @@ class MailSender
             $should_attach_uploads = !empty($notif['attach_uploads']);
 
             $subject = self::replacePlaceholders(
-                \ForgeForms\Utils\Sanitize::str($notif['subject'] ?? null, __('New Submission', 'form-forge')),
+                \ForgeForms\Utils\Sanitize::str($notif['subject'] ?? null, __('New Submission', 'formfabricator')),
                 $mapped,
                 $form
             );
@@ -304,9 +318,17 @@ class MailSender
            preserved for mail clients and concurrent requests can never
            collide on the same path (wp_unique_filename is not atomic). */
         $tmp_dir = get_temp_dir() . 'forge_' . wp_generate_uuid4() . DIRECTORY_SEPARATOR;
-        if (!wp_mkdir_p($tmp_dir)) {
-            \ForgeForms\forge_log("ForgeForms: could not create temp dir {$tmp_dir}");
-            return $result;
+        // Harden against shared/world-listable system temp dirs, same as Generator.php's PDF temp dir.
+        $prev_umask = umask(0077);
+        try {
+            if (!wp_mkdir_p($tmp_dir)) {
+                \ForgeForms\forge_log("ForgeForms: could not create temp dir {$tmp_dir}");
+                return $result;
+            }
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- shutdown-context, mirrors Generator.php.
+            chmod($tmp_dir, 0700);
+        } finally {
+            umask($prev_umask);
         }
         $result['tmp_dir'] = $tmp_dir;
 
@@ -511,9 +533,14 @@ class MailSender
         $reserved_tokens = array_merge(array_keys($tokens), ['{all_fields}']);
 
         foreach ($mapped as $key => $entry) {
+            $handler = FieldRegistry::get($entry['type'] ?? '');
+
             /* Per-field placeholder token. */
-            $raw_val  = $entry['value'] ?? '';
-            $safe_val = nl2br(esc_html(is_array($raw_val) ? implode(', ', $raw_val) : (string)$raw_val));
+            $raw_val = $entry['value'] ?? '';
+            // rawEmailHtml() fields already passed through wp_kses(), so inject as-is.
+            $safe_val = ($handler && $handler->rawEmailHtml())
+                ? (is_array($raw_val) ? implode('', $raw_val) : (string)$raw_val)
+                : nl2br(esc_html(is_array($raw_val) ? implode(', ', $raw_val) : (string)$raw_val));
             $safe_lbl = esc_html((string)($entry['label'] ?? ''));
             if ($safe_lbl !== '') {
                 $token = $inline
@@ -548,17 +575,17 @@ class MailSender
 
             /* {all_fields} accumulation — reuse the same handler lookup. */
             if ($needs_all_fields) {
-                $handler = FieldRegistry::get($entry['type'] ?? '');
                 if ($handler && !$handler->includeInEmailSummary()) {
                     continue;
                 }
                 $label = $entry['label'] ?? '';
                 if ($label !== '') {
-                    $sl   = esc_html((string) $label);
-                    $sv   = nl2br(esc_html(is_array($raw_val) ? implode(', ', $raw_val) : (string)$raw_val));
                     $all .= $inline
-                        ? '<strong>' . $sl . ':</strong> ' . $sv . '<br>'
-                        : '<strong>' . $sl . '</strong><br>' . $sv . '<br><br>';
+                        ? '<strong>' . $safe_lbl . ':</strong> ' . $safe_val . '<br>'
+                        : '<strong>' . $safe_lbl . '</strong><br>' . $safe_val . '<br><br>';
+                } elseif ($handler && $handler->rawEmailHtml()) {
+                    // Unlabeled HTML blocks still appear (e.g. banners), unlike other unlabeled fields.
+                    $all .= $safe_val;
                 }
             }
         }

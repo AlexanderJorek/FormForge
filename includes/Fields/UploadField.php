@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -37,6 +37,7 @@ class UploadField extends BaseField
         'php','php3','php4','php5','php7','pht','phar','cgi',
         'svg','swf','dfxp','rar','exe','htaccess','htpasswd','config','ini',
         'msi','vbs','vbe','ps1','ps1xml','psm1','scr','pif','wsf','wsh','reg','cer',
+        'zip','tar','gz','7z',
     ];
 
     // Second line of defense: real MIME type (via finfo) is checked against this list too,
@@ -49,6 +50,7 @@ class UploadField extends BaseField
         'text/x-shellscript', 'text/x-python', 'text/x-perl',
         'text/javascript', 'application/javascript', 'application/java-archive',
         'image/svg+xml', 'application/xml', 'text/xml',
+        'application/zip', 'application/x-tar', 'application/gzip', 'application/x-7z-compressed',
     ];
 
     // Hard ceiling on the admin-configurable max_size_mb, independent of whatever
@@ -63,7 +65,6 @@ class UploadField extends BaseField
         'documents' => ['pdf','doc','docx','xls','xlsx','odt','ods','ppt','pptx','txt','rtf'],
         'audio'     => ['mp3','ogg','wav','m4a','flac'],
         'video'     => ['mp4','mov','avi','wmv','mkv'],
-        'archives'  => ['zip','tar','gz','7z'],
     ];
 
     /**
@@ -164,7 +165,7 @@ CSS;
 
     public function getLabel(): string
     {
-        return __('File upload', 'form-forge');
+        return __('File upload', 'formfabricator');
     }
 
     /**
@@ -396,8 +397,8 @@ CSS;
             . ' class="forge-upload-input"' . $acc_attr . $multiple . $req . '>';
         $inner .= '<div class="forge-upload-zone-body" aria-hidden="true">'
             . '<span class="forge-upload-icon">↑</span>'
-            . '<span class="forge-upload-prompt">' . esc_html__('Drop file here or', 'form-forge') . ' '
-            . '<span class="forge-upload-link">' . esc_html__('click to select', 'form-forge') . '</span>'
+            . '<span class="forge-upload-prompt">' . esc_html__('Drop file here or', 'formfabricator') . ' '
+            . '<span class="forge-upload-link">' . esc_html__('click to select', 'formfabricator') . '</span>'
             . '</span>'
             . '</div>';
         $inner .= '</div>';
@@ -407,11 +408,11 @@ CSS;
         if ($accept !== '') {
             $inner .= '<p class="forge-field-hint">'
                 // translators: %s: comma-separated list of allowed file extensions.
-                . sprintf(__('Allowed file types: %s', 'form-forge'), esc_html($accept)) . '</p>';
+                . sprintf(__('Allowed file types: %s', 'formfabricator'), esc_html($accept)) . '</p>';
         }
         $inner .= '<p class="forge-field-hint">'
             // translators: %s: maximum file size in megabytes.
-            . sprintf(__('Maximum file size: %s MB', 'form-forge'), $max) . '</p>';
+            . sprintf(__('Maximum file size: %s MB', 'formfabricator'), $max) . '</p>';
 
         return $this->wrap($field_id, $config, $inner);
     }
@@ -527,9 +528,9 @@ CSS;
 
         if (!empty($config['required'])) {
             if (!$file || !self::hasFileName($file['name'] ?? null)) {
-                $label = $config['label'] ?? __('File', 'form-forge');
+                $label = $config['label'] ?? __('File', 'formfabricator');
                 // translators: %s: field label.
-                return sprintf(__('%s: Please upload a file.', 'form-forge'), esc_html($label));
+                return sprintf(__('%s: Please upload a file.', 'formfabricator'), esc_html($label));
             }
         }
 
@@ -547,10 +548,10 @@ CSS;
             $max_files = empty($config['multiple']) ? 1 : max(1, (int)(ini_get('max_file_uploads') ?: 20));
             if (count($names) > $max_files) {
                 return empty($config['multiple'])
-                    ? __('Only one file may be uploaded for this field.', 'form-forge')
+                    ? __('Only one file may be uploaded for this field.', 'formfabricator')
                     : sprintf(
                         // translators: %d: maximum number of files allowed.
-                        __('Too many files uploaded (maximum: %d).', 'form-forge'),
+                        __('Too many files uploaded (maximum: %d).', 'formfabricator'),
                         $max_files
                     );
             }
@@ -570,7 +571,7 @@ CSS;
                 $ext = strtolower(pathinfo((string)$name, PATHINFO_EXTENSION));
                 if (in_array($ext, self::BLOCKED_TYPES, true)) {
                     // translators: %s: rejected file extension.
-                    return sprintf(__('File type ".%s" is not allowed for security reasons.', 'form-forge'), esc_html($ext));
+                    return sprintf(__('File type ".%s" is not allowed for security reasons.', 'formfabricator'), esc_html($ext));
                 }
                 // Fail closed: an empty $allowed_exts means no type group (and no
                 // custom extension) is configured for this field, so nothing should
@@ -578,12 +579,12 @@ CSS;
                 // legacy/malformed configs is never correct here.
                 if (!in_array($ext, $allowed_exts, true)) {
                     // translators: %s: rejected file extension.
-                    return sprintf(__('File type ".%s" is not permitted for this field.', 'form-forge'), esc_html($ext));
+                    return sprintf(__('File type ".%s" is not permitted for this field.', 'formfabricator'), esc_html($ext));
                 }
                 if ((int)($sizes[$i] ?? 0) > $max_bytes) {
                     return sprintf(
                         // translators: %1$s: file name, %2$d: maximum allowed file size in megabytes.
-                        __('"%1$s" exceeds the maximum file size of %2$d MB.', 'form-forge'),
+                        __('"%1$s" exceeds the maximum file size of %2$d MB.', 'formfabricator'),
                         esc_html((string)$name),
                         self::maxSizeMb($config)
                     );
@@ -595,12 +596,12 @@ CSS;
                 // pass; a readable file that fails it is rejected to prevent path-traversal.
                 if ($tmp && is_readable($tmp)) {
                     if (!is_uploaded_file($tmp)) {
-                        return __('File upload could not be verified.', 'form-forge');
+                        return __('File upload could not be verified.', 'formfabricator');
                     }
                     $real_mime = $finfo->file($tmp) ?: '';
                     if (in_array($real_mime, self::BLOCKED_MIME_TYPES, true)) {
                         // translators: %s: rejected file extension.
-                        return sprintf(__('File type ".%s" is not allowed for security reasons.', 'form-forge'), esc_html($ext));
+                        return sprintf(__('File type ".%s" is not allowed for security reasons.', 'formfabricator'), esc_html($ext));
                     }
                 }
             }
@@ -621,7 +622,7 @@ CSS;
         if (is_string($value) && $value !== '') {
             return $value;
         }
-        return __('[No entry]', 'form-forge');
+        return __('[No entry]', 'formfabricator');
     }
 
     /**
@@ -647,7 +648,7 @@ CSS;
             return [$field_id => [
                 'label'              => $label,
                 'type'               => 'upload',
-                'value'              => __('[No entry]', 'form-forge'),
+                'value'              => __('[No entry]', 'formfabricator'),
                 'materialized_files' => [],
             ]];
         }
@@ -719,7 +720,7 @@ CSS;
             'label'              => $label,
             'type'               => 'upload',
             'value'              => $info_parts
-                ? implode('; ', $info_parts) : __('[No entry]', 'form-forge'),
+                ? implode('; ', $info_parts) : __('[No entry]', 'formfabricator'),
             'materialized_files' => $materialized,
         ]];
     }
@@ -761,7 +762,6 @@ CSS;
             'allow_documents' => true,
             'allow_audio'     => false,
             'allow_video'     => false,
-            'allow_archives'  => false,
             'allowed_types'   => '',
             'max_size_mb'     => 10,
             'multiple'        => false,
@@ -780,12 +780,12 @@ CSS;
             [
                 'key'   => 'max_size_mb',
                 'type'  => 'number',
-                'label' => __('Max. file size (MB)', 'form-forge'),
+                'label' => __('Max. file size (MB)', 'formfabricator'),
             ],
             [
                 'key'   => 'multiple',
                 'type'  => 'checkbox',
-                'label' => __('Allow multiple files', 'form-forge'),
+                'label' => __('Allow multiple files', 'formfabricator'),
             ],
         ];
     }
@@ -800,10 +800,10 @@ CSS;
         $blocked = implode(', .', self::BLOCKED_TYPES);
         $notice  = sprintf(
             // translators: %s: comma-separated list of blocked file extensions.
-            __('Blocked for security reasons: .%s. These types cannot be allowed.', 'form-forge'),
+            __('Blocked for security reasons: .%s. These types cannot be allowed.', 'formfabricator'),
             $blocked
         );
-        $nd = __('These files are shown in the PDF as a filename only and cannot be cryptographically verified.', 'form-forge');
+        $nd = __('These files are shown in the PDF as a filename only and cannot be cryptographically verified.', 'formfabricator');
         return [
             [
                 'type'  => 'notice',
@@ -813,37 +813,31 @@ CSS;
             [
                 'key'   => 'allow_images',
                 'type'  => 'checkbox',
-                'label' => __('Images (jpg, png, gif, bmp, tiff, webp)', 'form-forge'),
+                'label' => __('Images (jpg, png, gif, bmp, tiff, webp)', 'formfabricator'),
             ],
             [
                 'key'        => 'allow_documents',
                 'type'       => 'checkbox',
-                'label'      => __('Documents (pdf, doc, docx, xls, xlsx, odt, ppt, pptx, txt)', 'form-forge'),
+                'label'      => __('Documents (pdf, doc, docx, xls, xlsx, odt, ppt, pptx, txt)', 'formfabricator'),
                 'disclaimer' => $nd,
             ],
             [
                 'key'        => 'allow_audio',
                 'type'       => 'checkbox',
-                'label'      => __('Audio (mp3, ogg, wav, m4a, flac)', 'form-forge'),
+                'label'      => __('Audio (mp3, ogg, wav, m4a, flac)', 'formfabricator'),
                 'disclaimer' => $nd,
             ],
             [
                 'key'        => 'allow_video',
                 'type'       => 'checkbox',
-                'label'      => __('Video (mp4, mov, avi, wmv, mkv)', 'form-forge'),
-                'disclaimer' => $nd,
-            ],
-            [
-                'key'        => 'allow_archives',
-                'type'       => 'checkbox',
-                'label'      => __('Archives (zip, tar, gz, 7z)', 'form-forge'),
+                'label'      => __('Video (mp4, mov, avi, wmv, mkv)', 'formfabricator'),
                 'disclaimer' => $nd,
             ],
             [
                 'key'   => 'allowed_types',
                 'type'  => 'text',
-                'label' => __('Additional types', 'form-forge'),
-                'hint'  => __('e.g. .pdf,.docx', 'form-forge'),
+                'label' => __('Additional types', 'formfabricator'),
+                'hint'  => __('e.g. .pdf,.docx', 'formfabricator'),
             ],
         ];
     }

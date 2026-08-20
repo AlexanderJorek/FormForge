@@ -1,5 +1,5 @@
 /*!
- * FormForge — Form Select shortcode — show/hide logic
+ * FormFabricator — Form Select shortcode — show/hide logic
  * @copyright 2026 Alexander Jorek
  * @license   GPL-3.0-or-later
  */

@@ -1,5 +1,5 @@
 /*!
- * FormForge — Performance Debugger
+ * FormFabricator — Performance Debugger
  * @copyright 2026 Alexander Jorek
  * @license   GPL-3.0-or-later
  *
@@ -44,36 +44,39 @@ function escH(s) {
 var _timers  = []; /* { id, ms, label, repeating } */
 var _origSt  = window.setTimeout.bind(window);   /* pre-patch reference for internal use */
 var _origSi  = window.setInterval.bind(window);
-(function () {
-    var _si = window.setInterval;
-    var _st = window.setTimeout;
-    var _ci = window.clearInterval;
-    var _ct = window.clearTimeout;
+/* Only patch global timers when the overlay is active — avoids overhead on every page load. */
+if (_active) {
+    (function () {
+        var _si = window.setInterval;
+        var _st = window.setTimeout;
+        var _ci = window.clearInterval;
+        var _ct = window.clearTimeout;
 
-    window.setInterval = function (fn, ms) {
-        var id = _si.apply(this, arguments);
-        var label = (typeof fn === 'function' ? (fn.name || fn.toString().slice(0, 60)) : String(fn));
-        _timers.push({ id: id, ms: ms, label: label, repeating: true });
-        return id;
-    };
-    window.setTimeout = function (fn, ms) {
-        var id = _st.apply(this, arguments);
-        /* Only track timeouts > 800ms — short ones are noise */
-        if (ms >= 800) {
+        window.setInterval = function (fn, ms) {
+            var id = _si.apply(this, arguments);
             var label = (typeof fn === 'function' ? (fn.name || fn.toString().slice(0, 60)) : String(fn));
-            _timers.push({ id: id, ms: ms, label: label, repeating: false });
-        }
-        return id;
-    };
-    window.clearInterval = function (id) {
-        _timers = _timers.filter(function (t) { return t.id !== id; });
-        return _ci.apply(this, arguments);
-    };
-    window.clearTimeout = function (id) {
-        _timers = _timers.filter(function (t) { return t.id !== id; });
-        return _ct.apply(this, arguments);
-    };
-}());
+            _timers.push({ id: id, ms: ms, label: label, repeating: true });
+            return id;
+        };
+        window.setTimeout = function (fn, ms) {
+            var id = _st.apply(this, arguments);
+            /* Only track timeouts > 800ms — short ones are noise */
+            if (ms >= 800) {
+                var label = (typeof fn === 'function' ? (fn.name || fn.toString().slice(0, 60)) : String(fn));
+                _timers.push({ id: id, ms: ms, label: label, repeating: false });
+            }
+            return id;
+        };
+        window.clearInterval = function (id) {
+            _timers = _timers.filter(function (t) { return t.id !== id; });
+            return _ci.apply(this, arguments);
+        };
+        window.clearTimeout = function (id) {
+            _timers = _timers.filter(function (t) { return t.id !== id; });
+            return _ct.apply(this, arguments);
+        };
+    }());
+}
 
 /* ── FPS monitor ─────────────────────────────────────────────────────────── */
 var _fps = 60, _frameTimes = [], _longFrames = 0;
@@ -153,7 +156,7 @@ function buildPanel() {
     head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;' +
         'padding:8px 12px;background:#2c3338;border-radius:8px 8px 0 0;' +
         'cursor:move;user-select:none;flex-shrink:0;';
-    head.innerHTML = '<span style="font-weight:700;color:#a7aaad;"><i class="fa-solid fa-bolt" aria-hidden="true"></i> FormForge Perf</span>' +
+    head.innerHTML = '<span style="font-weight:700;color:#a7aaad;"><i class="fa-solid fa-bolt" aria-hidden="true"></i> FormFabricator Perf</span>' +
         '<span id="forge-perf-toggle" style="color:#72aee6;cursor:pointer;"><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></span>';
 
     _body = document.createElement('div');

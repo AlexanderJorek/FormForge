@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -92,7 +92,7 @@ CSS;
 
     public function getLabel(): string
     {
-        return __('GDPR Checkbox', 'form-forge');
+        return __('GDPR Checkbox', 'formfabricator');
     }
 
     // Returns false because GDPR acceptance is always mandatory — validate() enforces it unconditionally,
@@ -126,7 +126,7 @@ CSS;
         $req     = ' required aria-required="true"';
         $checked = !empty($value) ? ' checked' : '';
         $policy_url  = esc_url($config['privacy_policy_url'] ?? get_privacy_policy_url());
-        $policy_text = esc_html($config['privacy_policy_text'] ?? __('Privacy policy', 'form-forge'));
+        $policy_text = esc_html($config['privacy_policy_text'] ?? __('Privacy policy', 'formfabricator'));
 
         if ($policy_url !== '') {
             // This is framed as an acknowledgment of having read the notice (lawful under
@@ -136,7 +136,7 @@ CSS;
             // required toggle.
             $text = sprintf(
                 // translators: %1$s: privacy policy URL, %2$s: privacy policy link text.
-                __('I have read and acknowledge the <a href="%1$s" target="_blank" rel="noopener">%2$s</a>.', 'form-forge'),
+                __('I have read and acknowledge the <a href="%1$s" target="_blank" rel="noopener">%2$s</a>.', 'formfabricator'),
                 $policy_url,
                 $policy_text
             );
@@ -152,7 +152,7 @@ CSS;
             );
             $text = sprintf(
                 // translators: %s: privacy policy link text (rendered without a link since no URL is configured).
-                __('I have read and acknowledge the %s.', 'form-forge'),
+                __('I have read and acknowledge the %s.', 'formfabricator'),
                 $policy_text
             );
         }
@@ -178,7 +178,7 @@ CSS;
         // Always mandatory regardless of the 'required' config flag — the privacy notice
         // acknowledgment can't be made optional, so it errors on empty unconditionally
         if (empty($value)) {
-            return __('Please read and acknowledge the privacy policy.', 'form-forge');
+            return __('Please read and acknowledge the privacy policy.', 'formfabricator');
         }
         return true;
     }
@@ -197,13 +197,13 @@ CSS;
     public function map(mixed $value, array $config): string
     {
         if (empty($value)) {
-            return __('Privacy notice not acknowledged', 'form-forge');
+            return __('Privacy notice not acknowledged', 'formfabricator');
         }
-        $policy_text = wp_strip_all_tags((string)($config['privacy_policy_text'] ?? __('Privacy policy', 'form-forge')));
+        $policy_text = wp_strip_all_tags((string)($config['privacy_policy_text'] ?? __('Privacy policy', 'formfabricator')));
         $policy_url  = (string)($config['privacy_policy_url'] ?? get_privacy_policy_url());
         return sprintf(
             // translators: %1$s: privacy policy link text, %2$s: privacy policy URL, %3$s: acknowledgment timestamp.
-            __('Acknowledged "%1$s" (%2$s) on %3$s', 'form-forge'),
+            __('Acknowledged "%1$s" (%2$s) on %3$s', 'formfabricator'),
             $policy_text,
             $policy_url,
             current_time('mysql')
@@ -221,7 +221,7 @@ CSS;
             parent::getDefaultConfig(),
             [
             'privacy_policy_url'  => '',
-            'privacy_policy_text' => __('Privacy policy', 'form-forge'),
+            'privacy_policy_text' => __('Privacy policy', 'formfabricator'),
             ]
         );
     }
@@ -237,12 +237,12 @@ CSS;
             [
                 'key'   => 'privacy_policy_url',
                 'type'  => 'text',
-                'label' => __('Privacy URL', 'form-forge'),
+                'label' => __('Privacy URL', 'formfabricator'),
             ],
             [
                 'key'   => 'privacy_policy_text',
                 'type'  => 'text',
-                'label' => __('Privacy link text', 'form-forge'),
+                'label' => __('Privacy link text', 'formfabricator'),
             ],
         ];
     }

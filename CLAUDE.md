@@ -1,8 +1,8 @@
-# CLAUDE.md — form-forge
+# CLAUDE.md — formfabricator
 
 ## Project Goal
 
-Build a custom WordPress form plugin (`FormForge`).
+Build a custom WordPress form plugin (`FormFabricator`).
 
 ## Directory Layout
 
@@ -79,10 +79,10 @@ Static files in `assets/js/` served directly — no build step unless explicitly
 
 ### Translations
 
-`languages/form-forge.pot` (source strings) and `languages/form-forge-de_DE.po`/`.mo` (German)
+`languages/formfabricator.pot` (source strings) and `languages/formfabricator-de_DE.po`/`.mo` (German)
 are hand-maintained. There is no `msgfmt`/WP-CLI in this dev environment — to regenerate the
 `.mo` after editing a `.po` by hand, use the existing compiler, don't write a new one:
 
 ```
-php languages/compile-mo.php languages/form-forge-de_DE.po
+php languages/compile-mo.php languages/formfabricator-de_DE.po
 ```

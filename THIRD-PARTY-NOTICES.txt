@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-FormForge is licensed under the GPL-3.0-or-later (see `LICENSE`). It bundles the
+FormFabricator is licensed under the GPL-3.0-or-later (see `LICENSE`). It bundles the
 following third-party libraries in `vendor/`, each under its own
 GPL-compatible license:
 
@@ -20,7 +20,7 @@ GPL-compatible license:
 Each library's full license text is included alongside it under
 `vendor/<vendor>/<package>/LICENSE`.
 
-FormForge also bundles the following JavaScript library under `vendor/pdfjs/`
+FormFabricator also bundles the following JavaScript library under `vendor/pdfjs/`
 (placed there manually, not installed via Composer — pdf.js is an npm
 package, not a PHP one), used by the PDF Verification tool to read uploaded
 PDFs client-side before upload:
@@ -35,7 +35,7 @@ Apache-2.0 text in `vendor/pdfjs/LICENSE`. Apache-2.0 is GPL-compatible
 (one-way, per the FSF's license-compatibility list) and requires no
 relicensing to bundle here.
 
-FormForge also bundles Font Awesome Free under `assets/vendor/fontawesome/`
+FormFabricator also bundles Font Awesome Free under `assets/vendor/fontawesome/`
 (placed there manually, not installed via Composer/npm), used for admin-UI
 icons:
 

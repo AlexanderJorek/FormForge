@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -103,7 +103,7 @@ CSS;
 
     public function getLabel(): string
     {
-        return __('Checkboxes', 'form-forge');
+        return __('Checkboxes', 'formfabricator');
     }
 
     /**
@@ -204,11 +204,11 @@ CSS;
             $other_chk = in_array('__other__', array_map('strval', $selected), true) ? ' checked' : '';
             $inner .= '<label class="forge-checkbox-label">'
                 . '<input type="checkbox" id="' . esc_attr($other_id) . '" name="' . esc_attr($field_id) . '[]"'
-                . ' value="__other__"' . $other_chk . '> ' . esc_html__('Other…', 'form-forge') . '</label>';
+                . ' value="__other__"' . $other_chk . '> ' . esc_html__('Other…', 'formfabricator') . '</label>';
             $show  = $other_chk ? '' : ' style="display:none"';
             $inner .= '<input type="text" name="' . esc_attr($field_id) . '_other"'
                 . ' class="forge-input forge-other-input" value="' . esc_attr($other_text) . '"'
-                . ' placeholder="' . esc_attr__('Please specify', 'form-forge') . '"' . $show
+                . ' placeholder="' . esc_attr__('Please specify', 'formfabricator') . '"' . $show
                 . self::otherInputAttrs($config) . '>';
         }
         $inner .= '</div>';
@@ -301,9 +301,9 @@ CSS;
             $other_blank = in_array('__other__', $vals, true)
                 && trim((string)($value['__other_text__'] ?? '')) === '';
             if (empty($vals) || ($other_blank && count($vals) === 1)) {
-                $label = $config['label'] ?? __('Field', 'form-forge');
+                $label = $config['label'] ?? __('Field', 'formfabricator');
                 // translators: %s: field label.
-                return sprintf(__('%s: Please select at least one option.', 'form-forge'), esc_html($label));
+                return sprintf(__('%s: Please select at least one option.', 'formfabricator'), esc_html($label));
             }
         }
         $selected = is_array($value) ? self::selectedOptions($value) : [];
@@ -312,11 +312,11 @@ CSS;
         $max      = (int)($config['max_selections'] ?? 0);
         if ($min > 0 && $cnt < $min) {
             // translators: %d: minimum number of options that must be selected.
-            return sprintf(__('Please select at least %d option(s).', 'form-forge'), $min);
+            return sprintf(__('Please select at least %d option(s).', 'formfabricator'), $min);
         }
         if ($max > 0 && $cnt > $max) {
             // translators: %d: maximum number of options that may be selected.
-            return sprintf(__('Please select at most %d option(s).', 'form-forge'), $max);
+            return sprintf(__('Please select at most %d option(s).', 'formfabricator'), $max);
         }
         $allowed = array_map(
             static fn($o) => (string)(is_array($o) ? ($o['value'] ?? '') : $o),
@@ -325,7 +325,7 @@ CSS;
         foreach ($selected as $v) {
             if ((string)$v === '__other__') {
                 if (empty($config['other_option'])) {
-                    return __('Please select a valid option.', 'form-forge');
+                    return __('Please select a valid option.', 'formfabricator');
                 }
                 $other = is_array($value) ? trim((string)($value['__other_text__'] ?? '')) : '';
                 $check = self::validateOtherText($other, $config);
@@ -335,7 +335,7 @@ CSS;
                 continue;
             }
             if (!in_array((string)$v, $allowed, true)) {
-                return __('Please select a valid option.', 'form-forge');
+                return __('Please select a valid option.', 'formfabricator');
             }
         }
         return true;
@@ -352,15 +352,15 @@ CSS;
     {
         $selected = is_array($value) ? self::selectedOptions($value) : [];
         if (empty($selected)) {
-            return __('[No entry]', 'form-forge');
+            return __('[No entry]', 'formfabricator');
         }
         $other_text = is_array($value) ? trim((string)($value['__other_text__'] ?? '')) : '';
         $labels = [];
         foreach ($selected as $v) {
             if ((string)$v === '__other__') {
                 $labels[] = $other_text !== ''
-                    ? sprintf('%s (%s)', __('Other', 'form-forge'), $other_text)
-                    : __('[Other]', 'form-forge');
+                    ? sprintf('%s (%s)', __('Other', 'formfabricator'), $other_text)
+                    : __('[Other]', 'formfabricator');
                 continue;
             }
             $found = false;
@@ -414,45 +414,45 @@ CSS;
             [
                 'key'         => 'layout',
                 'type'        => 'bool_seg',
-                'label'       => __('Layout', 'form-forge'),
-                'false_label' => __('Vertical', 'form-forge'),
-                'true_label'  => __('Horizontal', 'form-forge'),
+                'label'       => __('Layout', 'formfabricator'),
+                'false_label' => __('Vertical', 'formfabricator'),
+                'true_label'  => __('Horizontal', 'formfabricator'),
                 'swap'        => true,
             ],
             [
                 'key'   => 'description',
                 'type'  => 'text',
-                'label' => __('Description', 'form-forge'),
+                'label' => __('Description', 'formfabricator'),
             ],
             [
                 'key'      => 'other_option',
                 'type'     => 'checkbox',
-                'label'    => __('Show "Other" option', 'form-forge'),
+                'label'    => __('Show "Other" option', 'formfabricator'),
                 'rebuild'  => true,
             ],
             [
                 'key'         => 'other_max_type',
                 'type'        => 'limit_row',
-                'label'       => __('"Other" text limit', 'form-forge'),
+                'label'       => __('"Other" text limit', 'formfabricator'),
                 'count_key'   => 'other_max_length',
                 'depends_on'  => ['other_option' => true],
             ],
             [
                 'key'   => 'options',
                 'type'  => 'options_list',
-                'label' => __('Options', 'form-forge'),
+                'label' => __('Options', 'formfabricator'),
             ],
             [
                 'key'   => 'min_selections',
                 'type'  => 'number',
-                'label' => __('Min. selection', 'form-forge'),
-                'hint'  => __('Empty = not required', 'form-forge'),
+                'label' => __('Min. selection', 'formfabricator'),
+                'hint'  => __('Empty = not required', 'formfabricator'),
             ],
             [
                 'key'   => 'max_selections',
                 'type'  => 'number',
-                'label' => __('Max. selection', 'form-forge'),
-                'hint'  => __('Empty = unlimited', 'form-forge'),
+                'label' => __('Max. selection', 'formfabricator'),
+                'hint'  => __('Empty = unlimited', 'formfabricator'),
             ],
         ];
     }

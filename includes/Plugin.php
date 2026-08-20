@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -39,7 +39,7 @@ function forge_log(string $message): void
 }
 
 /**
- * Bootstraps the FormForge plugin: loads dependencies, registers CPT, and wires all hooks.
+ * Bootstraps the FormFabricator plugin: loads dependencies, registers CPT, and wires all hooks.
  */
 class Plugin
 {
@@ -98,6 +98,8 @@ class Plugin
             'Utils/Assets.php',
             'Utils/ClientIp.php',
             'Utils/RateLimiter.php',
+            'Utils/SingleUseToken.php',
+            'Utils/AdminLock.php',
             'Utils/Sanitize.php',
         ]);
 
@@ -145,6 +147,14 @@ class Plugin
         add_action('wp_ajax_forge_forms_submit', [Form\FormProcessor::class, 'handle']);
         add_action('wp_ajax_nopriv_forge_forms_submit', [Form\FormProcessor::class, 'handle']);
 
+        /* Mints a fresh forge_nonce/forge_submission_token pair on demand. Deliberately not
+           embedded in FormRenderer's HTML (which is served to every visitor of a page-cache-
+           eligible page) — front.js calls this immediately before submit instead, so the two
+           per-visitor replay-protection values never need the page itself to be uncacheable.
+           See FormRenderer::render() and FormProcessor::handle() for the full rationale. */
+        add_action('wp_ajax_forge_forms_get_token', [self::class, 'ajaxGetToken']);
+        add_action('wp_ajax_nopriv_forge_forms_get_token', [self::class, 'ajaxGetToken']);
+
         /* IBAN → BIC lookup (proxied through WP to avoid CORS) */
         add_action('wp_ajax_forge_iban_bic', [self::class, 'ajaxIbanBic']);
         add_action('wp_ajax_nopriv_forge_iban_bic', [self::class, 'ajaxIbanBic']);
@@ -177,6 +187,12 @@ class Plugin
             wp_schedule_event(time() + HOUR_IN_SECONDS, 'hourly', 'forge_rl_sweep_expired');
         }
 
+        /* Sweeps expired forge_su_* single-use-claim rows — same rationale as the sweep above. */
+        add_action('forge_su_sweep_expired', [Utils\SingleUseToken::class, 'cronSweepExpired']);
+        if (!wp_next_scheduled('forge_su_sweep_expired')) {
+            wp_schedule_event(time() + HOUR_IN_SECONDS, 'hourly', 'forge_su_sweep_expired');
+        }
+
         /* Remove deleted forms from all FormSelect lists */
         add_action('before_delete_post', [Form\FormSelectModel::class, 'removeFormId'], 10, 1);
 
@@ -200,6 +216,38 @@ class Plugin
     }
 
     /**
+     * Mints a fresh forge_nonce/forge_submission_token pair, called by front.js right before submit
+     * so cached HTML never bakes in per-visitor values. Rate-limited per IP+form instead of nonce-guarded,
+     * since there's nothing yet to verify a nonce against.
+     *
+     * @return void
+     */
+    public static function ajaxGetToken(): void
+    {
+        $form_id = isset($_POST['form_id']) ? absint(wp_unslash($_POST['form_id'])) : 0;
+        if (!$form_id || !Form\FormModel::get($form_id)) {
+            wp_send_json_error();
+            return;
+        }
+
+        $ip  = Utils\ClientIp::resolve();
+        $key = 'token_' . $form_id . '_' . hash_hmac('sha256', $ip, wp_salt('auth'));
+        if (Utils\RateLimiter::increment($key, MINUTE_IN_SECONDS) > 20) {
+            wp_send_json_error();
+            return;
+        }
+
+        wp_send_json_success(
+            [
+            'nonce' => wp_create_nonce('forge_forms_submit_' . $form_id),
+            /* Replay-protection token, separate from the nonce above (which collides across
+               anonymous visitors). See Utils/SingleUseToken.php and FormProcessor::handle(). */
+            'token' => wp_generate_uuid4(),
+            ]
+        );
+    }
+
+    /**
      * AJAX handler that proxies IBAN/BIC lookup to openiban.com.
      *
      * @return void
@@ -217,7 +265,7 @@ class Plugin
         }
 
         // Requires a nonce minted by Utils\Assets::enqueueFront() (only emitted on pages
-        // that actually embed a FormForge form) so this endpoint can't be driven as a bare
+        // that actually embed a FormFabricator form) so this endpoint can't be driven as a bare
         // anonymous IBAN-validation/BIC-harvesting oracle against openiban.com without ever
         // having loaded a page containing a form.
         if (!check_ajax_referer('forge_iban_bic', 'nonce', false)) {
@@ -260,7 +308,7 @@ class Plugin
 
     /**
      * Locales suggested privacy-policy text is available in: 'en' (the gettext source language, always
-     * available) plus every locale for which a languages/form-forge-{locale}.mo file exists. A future
+     * available) plus every locale for which a languages/formfabricator-{locale}.mo file exists. A future
      * translation contribution (a new .po/.mo dropped into languages/) shows up here automatically — no
      * code change needed.
      *
@@ -269,8 +317,8 @@ class Plugin
     public static function availablePrivacyLanguages(): array
     {
         $langs = ['en' => 'English'];
-        foreach (glob(FORGE_FORMS_PATH . 'languages/form-forge-*.mo') ?: [] as $path) {
-            if (preg_match('/^form-forge-([A-Za-z]{2,3}(?:_[A-Za-z]{2,4})?)\.mo$/', basename($path), $m)) {
+        foreach (glob(FORGE_FORMS_PATH . 'languages/formfabricator-*.mo') ?: [] as $path) {
+            if (preg_match('/^formfabricator-([A-Za-z]{2,3}(?:_[A-Za-z]{2,4})?)\.mo$/', basename($path), $m)) {
                 $langs[$m[1]] = self::localeDisplayName($m[1]);
             }
         }
@@ -293,7 +341,7 @@ class Plugin
     }
 
     /**
-     * Raw (untranslated-container) paragraphs of the suggested privacy-policy text disclosing FormForge's two
+     * Raw (untranslated-container) paragraphs of the suggested privacy-policy text disclosing FormFabricator's two
      * third-party data flows: openiban.com (SEPA IBAN lookups) and Google reCAPTCHA (the CAPTCHA field).
      * Shared by privacyPolicyPlainText() below — one source of truth for the wording, two output formats.
      *
@@ -302,15 +350,15 @@ class Plugin
     private static function privacyPolicyParagraphs(): array
     {
         return [
-            __('SEPA Direct Debit (OpenIBAN)', 'form-forge') . "\n" . __(
+            __('SEPA Direct Debit (OpenIBAN)', 'formfabricator') . "\n" . __(
                 // phpcs:ignore Generic.Files.LineLength -- must be a single string literal for WordPress i18n tooling to extract it correctly, see WordPress.WP.I18n.NonSingularStringLiteralText
                 "If you enter an IBAN in a form, it will be transmitted to the OpenIBAN service (openiban.com) for validation and to determine the corresponding BIC. Only the IBAN you entered and the connection data required for technical transmission will be processed. This processing is carried out for the purpose of verifying the bank account information. For more information on data processing, please refer to OpenIBAN's Privacy Policy.",
-                'form-forge'
+                'formfabricator'
             ),
-            __('Google reCAPTCHA', 'form-forge') . "\n" . __(
+            __('Google reCAPTCHA', 'formfabricator') . "\n" . __(
                 // phpcs:ignore Generic.Files.LineLength -- must be a single string literal for WordPress i18n tooling to extract it correctly, see WordPress.WP.I18n.NonSingularStringLiteralText
                 "To prevent spam and fraudulent form submissions, we use Google reCAPTCHA. Among other things, the IP address, the CAPTCHA response, and other technical information are transmitted to Google and processed there to determine whether the input was made by a human. This may involve the transfer of personal data to the United States. For more information, please see Google's Privacy Policy.",
-                'form-forge'
+                'formfabricator'
             ),
         ];
     }
@@ -318,7 +366,7 @@ class Plugin
     /**
      * Suggested privacy-policy text (openiban.com + Google reCAPTCHA disclosures) as plain text, ready to
      * copy-paste directly into a privacy policy page — via the normal gettext pipeline (EN source strings,
-     * German translation shipped in languages/form-forge-de_DE.po/.mo, same as every other user-facing string
+     * German translation shipped in languages/formfabricator-de_DE.po/.mo, same as every other user-facing string
      * in this plugin). Rendered in the language the caller (currently FormSettings::render()'s "Privacy
      * Policy Text" card) asks for, not necessarily the site's current admin-UI locale — privacy-policy
      * wording is content the admin is choosing for their published policy, independent of what language they
@@ -341,8 +389,8 @@ class Plugin
      * Deliberately does NOT use switch_to_locale()/restore_previous_locale(): those mutate WP's global
      * current-locale stack (affecting date formatting, every other loaded textdomain, etc.) for the
      * whole rest of the request, and restoring via a second load_plugin_textdomain() call proved
-     * unreliable mid-request — callers ended up with 'form-forge' strings still stuck in the requested
-     * $locale afterward. Instead this saves and restores only the global $l10n['form-forge'] translation
+     * unreliable mid-request — callers ended up with 'formfabricator' strings still stuck in the requested
+     * $locale afterward. Instead this saves and restores only the global $l10n['formfabricator'] translation
      * entry that __()/_e() actually read, which can't leave any state behind beyond that one array key.
      * For $locale === 'en' this installs a NOOP_Translations object rather than just unsetting the array
      * key. Simply unsetting it re-opens the door to WordPress's own "just in time" textdomain
@@ -359,19 +407,19 @@ class Plugin
     private static function withPluginLocale(string $locale, callable $callback): string
     {
         global $l10n;
-        $had_previous = array_key_exists('form-forge', $l10n);
-        $previous     = $had_previous ? $l10n['form-forge'] : null;
+        $had_previous = array_key_exists('formfabricator', $l10n);
+        $previous     = $had_previous ? $l10n['formfabricator'] : null;
 
         if ($locale === 'en' || $locale === '') {
             if (!class_exists(\NOOP_Translations::class)) {
                 require_once ABSPATH . WPINC . '/pomo/translations.php';
             }
-            $l10n['form-forge'] = new \NOOP_Translations();
+            $l10n['formfabricator'] = new \NOOP_Translations();
         } elseif (preg_match('/^[A-Za-z]{2,3}(?:_[A-Za-z]{2,4})?$/', $locale)) {
-            unset($l10n['form-forge']);
-            $mofile = FORGE_FORMS_PATH . 'languages/form-forge-' . $locale . '.mo';
+            unset($l10n['formfabricator']);
+            $mofile = FORGE_FORMS_PATH . 'languages/formfabricator-' . $locale . '.mo';
             if (file_exists($mofile)) {
-                load_textdomain('form-forge', $mofile);
+                load_textdomain('formfabricator', $mofile);
             }
         }
 
@@ -379,9 +427,9 @@ class Plugin
             return $callback();
         } finally {
             if ($had_previous) {
-                $l10n['form-forge'] = $previous;
+                $l10n['formfabricator'] = $previous;
             } else {
-                unset($l10n['form-forge']);
+                unset($l10n['formfabricator']);
             }
         }
     }
@@ -396,12 +444,12 @@ class Plugin
         register_post_type(
             'forge_form',
             [
-            'label'               => __('Forms', 'form-forge'),
+            'label'               => __('Forms', 'formfabricator'),
             'labels'              => [
-                'name'          => __('FormForge', 'form-forge'),
-                'singular_name' => __('Form', 'form-forge'),
-                'add_new_item'  => __('Add New Form', 'form-forge'),
-                'edit_item'     => __('Edit Form', 'form-forge'),
+                'name'          => __('FormFabricator', 'formfabricator'),
+                'singular_name' => __('Form', 'formfabricator'),
+                'add_new_item'  => __('Add New Form', 'formfabricator'),
+                'edit_item'     => __('Edit Form', 'formfabricator'),
             ],
             // public/show_ui/show_in_menu/show_in_rest are all false because forms are
             // managed entirely through this plugin's own custom admin UI (Admin\FormEditor,
@@ -448,7 +496,7 @@ class Plugin
             $links['delete'] = preg_replace(
                 '/(<a\s)/i',
                 '$1onclick="return confirm(\''
-                    . esc_js(__('WARNING: Deleting the plugin will permanently delete all PDF seal keys. Make sure you have backed up your keys. Continue?', 'form-forge'))
+                    . esc_js(__('WARNING: Deleting the plugin will permanently delete all PDF seal keys. Make sure you have backed up your keys. Continue?', 'formfabricator'))
                     . '\');" ',
                 (string) $links['delete']
             );
@@ -457,7 +505,7 @@ class Plugin
     }
 
     /**
-     * Checks if the given user has a specific FormForge capability. Valid caps: view_forms, edit_forms,
+     * Checks if the given user has a specific FormFabricator capability. Valid caps: view_forms, edit_forms,
      * edit_pdf_layout, use_verifier, settings. Administrators always pass; user-specific override wins over
      * role setting.
      *
@@ -512,7 +560,7 @@ class Plugin
         }
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only routing decision (which admin page to redirect to); gated by manage_options above, no data written.
         $current_page = sanitize_text_field(wp_unslash($_GET['page'] ?? ''));
-        // Only redirect within FormForge pages, not the whole WP admin.
+        // Only redirect within FormFabricator pages, not the whole WP admin.
         if (strncmp($current_page, 'forge-forms', 11) !== 0) {
             return;
         }

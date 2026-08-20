@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -101,7 +101,7 @@ CSS;
 
     public function getLabel(): string
     {
-        return __('Page step bar', 'form-forge');
+        return __('Page step bar', 'formfabricator');
     }
 
     /**
@@ -300,7 +300,7 @@ CSS;
     public function getDefaultConfig(): array
     {
         return [
-            'label'       => __('Page step bar', 'form-forge'),
+            'label'       => __('Page step bar', 'formfabricator'),
             'show_names'  => false,
             'page_names'  => [],
             'required'    => false,
@@ -319,21 +319,21 @@ CSS;
             [
                 'type'  => 'notice',
                 'level' => 'info',
-                'text'  => __('Shows one step for every page break after this field.', 'form-forge'),
+                'text'  => __('Shows one step for every page break after this field.', 'formfabricator'),
             ],
             [
                 'key'         => 'show_names',
                 'type'        => 'bool_seg',
-                'label'       => __('Step labels', 'form-forge'),
-                'false_label' => __('Numbers only', 'form-forge'),
-                'true_label'  => __('Numbers + names', 'form-forge'),
+                'label'       => __('Step labels', 'formfabricator'),
+                'false_label' => __('Numbers only', 'formfabricator'),
+                'true_label'  => __('Numbers + names', 'formfabricator'),
                 'rebuild'     => true,
             ],
             [
                 'key'        => 'page_names',
                 'type'       => 'page_names_list',
-                'label'      => __('Page names', 'form-forge'),
-                'hint'       => __('One field per page, in order. Leave a name blank to show just the number for that page.', 'form-forge'),
+                'label'      => __('Page names', 'formfabricator'),
+                'hint'       => __('One field per page, in order. Leave a name blank to show just the number for that page.', 'formfabricator'),
                 'depends_on' => ['show_names' => true],
             ],
         ];

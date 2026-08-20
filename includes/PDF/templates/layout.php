@@ -12,12 +12,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -287,9 +287,9 @@ return [
         $metadata = $data['metadata'] ?? [];
         return '
         <div class="section-metadata">
-            <strong>' . esc_html__('Metadata', 'form-forge') . '</strong><br>
-            ' . esc_html__('Created:', 'form-forge') . ' ' . esc_html($metadata['generated'] ?? '') . '<br>
-            ' . esc_html__('Form:', 'form-forge') . ' ' . esc_html($metadata['form_name'] ?? '')
+            <strong>' . esc_html__('Metadata', 'formfabricator') . '</strong><br>
+            ' . esc_html__('Created:', 'formfabricator') . ' ' . esc_html($metadata['generated'] ?? '') . '<br>
+            ' . esc_html__('Form:', 'formfabricator') . ' ' . esc_html($metadata['form_name'] ?? '')
             . ' (ID: ' . esc_html((string) ($metadata['form_id'] ?? '')) . ')
         </div>';
     },
@@ -297,8 +297,8 @@ return [
     'legal_notice' => function (): string {
         return '
         <p class="section-legal">
-            <strong>' . esc_html__('Legal Notice:', 'form-forge') . '</strong>
-            ' . esc_html__('This document represents the original. Any change, manipulation, or modification invalidates this document. This document was issued in electronic form and must be kept exclusively in electronic form. Any printout is merely a copy and has no legal validity.', 'form-forge') . '
+            <strong>' . esc_html__('Legal Notice:', 'formfabricator') . '</strong>
+            ' . esc_html__('This document represents the original. Any change, manipulation, or modification invalidates this document. This document was issued in electronic form and must be kept exclusively in electronic form. Any printout is merely a copy and has no legal validity.', 'formfabricator') . '
         </p>';
     },
 

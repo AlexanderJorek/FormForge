@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -40,7 +40,7 @@ class TextareaField extends BaseField
 
     public function getLabel(): string
     {
-        return __('Text area', 'form-forge');
+        return __('Text area', 'formfabricator');
     }
 
     /**
@@ -127,7 +127,7 @@ class TextareaField extends BaseField
             $count = count(preg_split('/\s+/', trim((string)$value), -1, PREG_SPLIT_NO_EMPTY));
             if ($count > $max) {
                 // translators: %1$d: maximum word count allowed, %2$d: current word count.
-                return sprintf(__('Please enter at most %1$d words (currently: %2$d).', 'form-forge'), $max, $count);
+                return sprintf(__('Please enter at most %1$d words (currently: %2$d).', 'formfabricator'), $max, $count);
             }
         }
         // Server-side backstop for the char limit — render() only enforces it
@@ -136,7 +136,7 @@ class TextareaField extends BaseField
             $length = function_exists('mb_strlen') ? mb_strlen((string)$value) : strlen((string)$value);
             if ($length > $max) {
                 // translators: %1$d: maximum character count allowed, %2$d: current character count.
-                return sprintf(__('Please enter at most %1$d characters (currently: %2$d).', 'form-forge'), $max, $length);
+                return sprintf(__('Please enter at most %1$d characters (currently: %2$d).', 'formfabricator'), $max, $length);
             }
         }
         return true;
@@ -204,13 +204,13 @@ class TextareaField extends BaseField
             [
                 'key'   => 'rows',
                 'type'  => 'number',
-                'label' => __('Rows', 'form-forge'),
-                'hint'  => __('Visible height of the field (number of text rows)', 'form-forge'),
+                'label' => __('Rows', 'formfabricator'),
+                'hint'  => __('Visible height of the field (number of text rows)', 'formfabricator'),
             ],
             [
                 'key'       => 'limit_type',
                 'type'      => 'limit_row',
-                'label'     => __('Limit', 'form-forge'),
+                'label'     => __('Limit', 'formfabricator'),
                 'count_key' => 'limit_max',
             ],
             ]

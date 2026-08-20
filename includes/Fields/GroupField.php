@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -197,7 +197,7 @@ CSS;
 
     public function getLabel(): string
     {
-        return __('Field group', 'form-forge');
+        return __('Field group', 'formfabricator');
     }
 
     /**
@@ -314,7 +314,7 @@ CSS;
     public function getDefaultConfig(): array
     {
         return [
-            'label'       => __('Field group', 'form-forge'),
+            'label'       => __('Field group', 'formfabricator'),
             'description' => '',
             'required'    => false,
             'children'    => [],
@@ -333,7 +333,7 @@ CSS;
             [
                 'key'   => 'description',
                 'type'  => 'text',
-                'label' => __('Description', 'form-forge'),
+                'label' => __('Description', 'formfabricator'),
             ],
         ];
     }

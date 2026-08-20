@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -121,7 +121,7 @@ CSS;
 
     public function getLabel(): string
     {
-        return __('Dropdown', 'form-forge');
+        return __('Dropdown', 'formfabricator');
     }
 
     /**
@@ -271,7 +271,7 @@ CSS;
 
         $inner = '<select id="' . esc_attr($field_id) . '" name="' . esc_attr($field_id)
             . '" class="forge-input forge-select" autocomplete="off"' . $req . '>';
-        $inner .= '<option value="">' . esc_html__('— Please select —', 'form-forge') . '</option>';
+        $inner .= '<option value="">' . esc_html__('— Please select —', 'formfabricator') . '</option>';
         foreach ($options as $opt) {
             $opt_val   = is_array($opt) ? ($opt['value'] ?? '') : $opt;
             $opt_label = is_array($opt) ? ($opt['label'] ?? $opt_val) : $opt;
@@ -283,14 +283,14 @@ CSS;
         }
         if (!empty($config['other_option'])) {
             $other_val = is_array($value) ? '' : (string)($value ?? '');
-            $inner .= '<option value="__other__"' . selected($other_val, '__other__', false) . '>' . esc_html__('Other…', 'form-forge') . '</option>';
+            $inner .= '<option value="__other__"' . selected($other_val, '__other__', false) . '>' . esc_html__('Other…', 'formfabricator') . '</option>';
         }
         $inner .= '</select>';
         if (!empty($config['other_option'])) {
             $show  = (string)($value ?? '') === '__other__' ? '' : ' style="display:none"';
             $inner .= '<input type="text" name="' . esc_attr($field_id) . '_other"'
                 . ' class="forge-input forge-other-input" value="' . esc_attr($other_text) . '"'
-                . ' placeholder="' . esc_attr__('Please specify', 'form-forge') . '"' . $show
+                . ' placeholder="' . esc_attr__('Please specify', 'formfabricator') . '"' . $show
                 . self::otherInputAttrs($config) . '>';
         }
 
@@ -312,12 +312,12 @@ CSS;
             $value      = $value['value'] ?? '';
         }
         if ($value === '' || $value === null) {
-            return __('[No entry]', 'form-forge');
+            return __('[No entry]', 'formfabricator');
         }
         if ((string)$value === '__other__') {
             return $other_text !== ''
-                ? sprintf('%s (%s)', __('Other', 'form-forge'), $other_text)
-                : __('[Other]', 'form-forge');
+                ? sprintf('%s (%s)', __('Other', 'formfabricator'), $other_text)
+                : __('[Other]', 'formfabricator');
         }
         foreach ($config['options'] ?? [] as $opt) {
             $opt_val = is_array($opt) ? ($opt['value'] ?? '') : $opt;
@@ -347,15 +347,15 @@ CSS;
         }
         if ((string)$selected === '__other__') {
             if (empty($config['other_option'])) {
-                return __('Please select a valid option.', 'form-forge');
+                return __('Please select a valid option.', 'formfabricator');
             }
             // "Other" selected with a blank companion text field is effectively no
             // answer — don't let it satisfy a required field.
             $other = is_array($value) ? trim((string)($value['__other_text__'] ?? '')) : '';
             if (!empty($config['required']) && $other === '') {
-                $label = $config['label'] ?? __('Field', 'form-forge');
+                $label = $config['label'] ?? __('Field', 'formfabricator');
                 // translators: %s: field label.
-                return sprintf(__('%s is a required field.', 'form-forge'), esc_html($label));
+                return sprintf(__('%s is a required field.', 'formfabricator'), esc_html($label));
             }
             return self::validateOtherText($other, $config);
         }
@@ -364,7 +364,7 @@ CSS;
             $config['options'] ?? []
         );
         if (!in_array((string)$selected, $allowed, true)) {
-            return __('Please select a valid option.', 'form-forge');
+            return __('Please select a valid option.', 'formfabricator');
         }
         return true;
     }
@@ -441,25 +441,25 @@ CSS;
             [
                 'key'   => 'description',
                 'type'  => 'text',
-                'label' => __('Description', 'form-forge'),
+                'label' => __('Description', 'formfabricator'),
             ],
             [
                 'key'      => 'other_option',
                 'type'     => 'checkbox',
-                'label'    => __('Show "Other" option', 'form-forge'),
+                'label'    => __('Show "Other" option', 'formfabricator'),
                 'rebuild'  => true,
             ],
             [
                 'key'         => 'other_max_type',
                 'type'        => 'limit_row',
-                'label'       => __('"Other" text limit', 'form-forge'),
+                'label'       => __('"Other" text limit', 'formfabricator'),
                 'count_key'   => 'other_max_length',
                 'depends_on'  => ['other_option' => true],
             ],
             [
                 'key'   => 'options',
                 'type'  => 'options_list',
-                'label' => __('Options', 'form-forge'),
+                'label' => __('Options', 'formfabricator'),
             ],
         ];
     }

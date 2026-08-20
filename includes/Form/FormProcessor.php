@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -45,8 +45,18 @@ class FormProcessor
         $form_id = absint(wp_unslash($_POST['form_id'] ?? 0));
 
         if (!$form_id || !wp_verify_nonce($nonce, 'forge_forms_submit_' . $form_id)) {
-            wp_send_json_error(['message' => __('Security check failed.', 'form-forge')], 403);
+            wp_send_json_error(['message' => __('Security check failed.', 'formfabricator')], 403);
         }
+
+        /* ---- Replay-protection token ----
+           Not keyed on $nonce: an anonymous visitor's WP nonce is identical for every visitor
+           within the same ~12h tick, which would let one submitter's claim lock out everyone
+           else. This token is fresh per render instead — see FormRenderer::render(). */
+        $submission_token = sanitize_text_field(wp_unslash($_POST['forge_submission_token'] ?? ''));
+        if ($submission_token === '') {
+            wp_send_json_error(['message' => __('Security check failed.', 'formfabricator')], 403);
+        }
+        $claim_key = 'submit_' . md5($submission_token . '_' . $form_id);
 
         /* ---- Rate limit (per IP + form) to prevent replay/abuse ---- */
         $retry_after = self::rateLimitRetryAfter($form_id);
@@ -54,12 +64,12 @@ class FormProcessor
             $message = $retry_after > 60
                 ? sprintf(
                     /* translators: %d: number of minutes until the visitor can submit again */
-                    __('Too many submissions. Please try again in %d minutes.', 'form-forge'),
+                    __('Too many submissions. Please try again in %d minutes.', 'formfabricator'),
                     (int) ceil($retry_after / 60)
                 )
                 : sprintf(
                     /* translators: %d: number of seconds until the visitor can submit again */
-                    __('Too many submissions. Please try again in %d seconds.', 'form-forge'),
+                    __('Too many submissions. Please try again in %d seconds.', 'formfabricator'),
                     max(1, $retry_after)
                 );
             wp_send_json_error(['message' => $message, 'retry_after' => $retry_after], 429);
@@ -68,12 +78,12 @@ class FormProcessor
         /* ---- Load form ---- */
         $form = FormModel::get($form_id);
         if (!$form) {
-            wp_send_json_error(['message' => __('Form not found.', 'form-forge')], 404);
+            wp_send_json_error(['message' => __('Form not found.', 'formfabricator')], 404);
         }
 
         /* ---- Honeypot check (before any expensive work) ---- */
         if (!empty($_POST['forge_hp_field'])) {
-            $hp_msg = $form->settings['success_message'] ?? __('Thank you for your submission!', 'form-forge');
+            $hp_msg = $form->settings['success_message'] ?? __('Thank you for your submission!', 'formfabricator');
             wp_send_json_success(['message' => $hp_msg]);
         }
 
@@ -244,7 +254,7 @@ class FormProcessor
 
                         if (!empty($child_cfg['required']) && $val === '') {
                             // translators: %s: field label.
-                            $errors[$ekey] = sprintf(__('%s is a required field.', 'form-forge'), esc_html($child_cfg['label'] ?? $child_id));
+                            $errors[$ekey] = sprintf(__('%s is a required field.', 'formfabricator'), esc_html($child_cfg['label'] ?? $child_id));
                         } else {
                             $child_cfg['field_id'] = $child_id;
                             $result = $ch->validate($val, $child_cfg);
@@ -266,7 +276,7 @@ class FormProcessor
         }
 
         if (!empty($errors)) {
-            wp_send_json_error(['message' => __('Please correct the highlighted fields.', 'form-forge'), 'errors' => $errors], 422);
+            wp_send_json_error(['message' => __('Please correct the highlighted fields.', 'formfabricator'), 'errors' => $errors], 422);
         }
 
         /* ---- Map to human-readable for PDF/email ---- */
@@ -278,11 +288,19 @@ class FormProcessor
             unset($mapped[$hid]);
         }
 
+        /* ---- Claim the replay-protection token ----
+           Placed right before the side-effecting action, not at the top: earlier validation can
+           legitimately fail and retry without touching the claim table. claim() is atomic, so
+           concurrent requests with the same token can never both win. */
+        if (!\ForgeForms\Utils\SingleUseToken::claim($claim_key, 2 * DAY_IN_SECONDS)) {
+            wp_send_json_error(['message' => __('This submission has already been received.', 'formfabricator')], 409);
+        }
+
         /* ---- Fire submission hook (PDF generation + mail happens here) ---- */
         do_action('forge_forms_submission', $form_id, $mapped, $form);
 
         /* ---- Respond ---- */
-        $success_msg = esc_html($form->settings['success_message'] ?? __('Thank you for your submission!', 'form-forge'));
+        $success_msg = esc_html($form->settings['success_message'] ?? __('Thank you for your submission!', 'formfabricator'));
         wp_send_json_success(['message' => $success_msg]);
     }
 

@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -40,7 +40,7 @@ class NameField extends BaseField
 
     public function getLabel(): string
     {
-        return __('Name', 'form-forge');
+        return __('Name', 'formfabricator');
     }
 
     /**
@@ -101,10 +101,10 @@ CSS;
     private static function subfieldLabel(string $default_label): string
     {
         return match ($default_label) {
-            'Salutation'  => __('Salutation', 'form-forge'),
-            'First name'  => __('First name', 'form-forge'),
-            'Middle name' => __('Middle name', 'form-forge'),
-            'Last name'   => __('Last name', 'form-forge'),
+            'Salutation'  => __('Salutation', 'formfabricator'),
+            'First name'  => __('First name', 'formfabricator'),
+            'Middle name' => __('Middle name', 'formfabricator'),
+            'Last name'   => __('Last name', 'formfabricator'),
             default      => $default_label,
         };
     }
@@ -118,7 +118,7 @@ CSS;
      */
     private static function prefixOptions(): array
     {
-        return ['', __('Mr.', 'form-forge'), __('Ms.', 'form-forge'), __('Diverse', 'form-forge'), 'Dr.', 'Prof.', 'Dipl.', 'Ing.'];
+        return ['', __('Mr.', 'formfabricator'), __('Ms.', 'formfabricator'), __('Diverse', 'formfabricator'), 'Dr.', 'Prof.', 'Dipl.', 'Ing.'];
     }
 
     /**
@@ -149,6 +149,7 @@ CSS;
             $label = esc_html($label_raw);
             $ph    = esc_attr($config[$k . '_placeholder'] ?? '');
             $req   = !empty($config[$k . '_required']) ? ' required aria-required="true"' : '';
+            $ac    = esc_attr($this->autocompleteToken($k));
 
             $req_star = !empty($config[$k . '_required']) ? ' <span class="forge-required" aria-hidden="true">*</span>' : '';
             $sub_class = !empty($sf['is_select']) ? ' forge-name-sub--prefix' : '';
@@ -157,7 +158,8 @@ CSS;
             if (!empty($sf['is_select'])) {
                 $cur    = esc_attr((string)($val[$k] ?? ''));
                 $inner .= '<select name="' . esc_attr($field_id) . '[' . $k . ']"'
-                    . ' class="forge-input forge-name-prefix" aria-label="' . esc_attr($label_raw) . '"' . $req . '>';
+                    . ' class="forge-input forge-name-prefix" aria-label="' . esc_attr($label_raw) . '"'
+                    . ' autocomplete="' . $ac . '"' . $req . '>';
                 foreach (self::prefixOptions() as $opt) {
                     $inner .= '<option value="' . esc_attr($opt) . '"' . selected($cur, $opt, false) . '>'
                         . ($opt === '' ? '—' : esc_html($opt)) . '</option>';
@@ -166,7 +168,8 @@ CSS;
             } else {
                 $inner .= '<input type="text" name="' . esc_attr($field_id) . '[' . $k . ']"'
                     . ' class="forge-input" placeholder="' . $ph . '"'
-                    . ' value="' . esc_attr((string)($val[$k] ?? '')) . '"' . $req . '>';
+                    . ' value="' . esc_attr((string)($val[$k] ?? '')) . '"'
+                    . ' autocomplete="' . $ac . '"' . $req . '>';
             }
             $inner .= '<div class="forge-field-error forge-sub-error"></div>';
             $inner .= '</div>';
@@ -176,6 +179,23 @@ CSS;
         $wrapper_config             = $config;
         $wrapper_config['required'] = false;
         return $this->wrap($field_id, $wrapper_config, $inner);
+    }
+
+    /**
+     * Returns the HTML autocomplete token for a given subfield key.
+     *
+     * @param string $key Subfield key.
+     * @return string HTML autocomplete attribute value.
+     */
+    private function autocompleteToken(string $key): string
+    {
+        return match ($key) {
+            'fname'  => 'given-name',
+            'mname'  => 'additional-name',
+            'lname'  => 'family-name',
+            'prefix' => 'honorific-prefix',
+            default  => 'name',
+        };
     }
 
     /**
@@ -205,9 +225,9 @@ CSS;
         if (empty($config['expanded'])) {
             $scalar = is_array($value) ? '' : trim((string)($value ?? ''));
             if (!empty($config['required']) && $scalar === '') {
-                $label = $config['label'] ?? __('Name', 'form-forge');
+                $label = $config['label'] ?? __('Name', 'formfabricator');
                 // translators: %s: field label.
-                return sprintf(__('%s: Required field.', 'form-forge'), esc_html($label));
+                return sprintf(__('%s: Required field.', 'formfabricator'), esc_html($label));
             }
             if ($scalar !== '') {
                 $hard = self::validateTextHardCap($scalar);
@@ -250,7 +270,7 @@ CSS;
         }
         return $errors
             // translators: %s: comma-separated list of missing sub-field labels.
-            ? sprintf(__('%s: Required field.', 'form-forge'), implode(', ', $errors))
+            ? sprintf(__('%s: Required field.', 'formfabricator'), implode(', ', $errors))
             : true;
     }
 
@@ -264,10 +284,10 @@ CSS;
     public function map(mixed $value, array $config): string
     {
         if (empty($config['expanded'])) {
-            return trim((string)($value ?? '')) ?: __('[No entry]', 'form-forge');
+            return trim((string)($value ?? '')) ?: __('[No entry]', 'formfabricator');
         }
         if (!is_array($value)) {
-            return __('[No entry]', 'form-forge');
+            return __('[No entry]', 'formfabricator');
         }
         $parts = [];
         foreach (self::SUBFIELDS as $sf) {
@@ -280,7 +300,7 @@ CSS;
                 $parts[] = $v;
             }
         }
-        return $parts ? implode(' ', $parts) : __('[No entry]', 'form-forge');
+        return $parts ? implode(' ', $parts) : __('[No entry]', 'formfabricator');
     }
 
     /**
@@ -295,19 +315,19 @@ CSS;
             [
             'expanded'           => false,
             'prefix_enabled'     => false,
-            'prefix_label'       => __('Salutation', 'form-forge'),
+            'prefix_label'       => __('Salutation', 'formfabricator'),
             'prefix_placeholder' => '',
             'prefix_required'    => false,
             'fname_enabled'      => true,
-            'fname_label'        => __('First name', 'form-forge'),
+            'fname_label'        => __('First name', 'formfabricator'),
             'fname_placeholder'  => '',
             'fname_required'     => true,
             'mname_enabled'      => false,
-            'mname_label'        => __('Middle name', 'form-forge'),
+            'mname_label'        => __('Middle name', 'formfabricator'),
             'mname_placeholder'  => '',
             'mname_required'     => false,
             'lname_enabled'      => true,
-            'lname_label'        => __('Last name', 'form-forge'),
+            'lname_label'        => __('Last name', 'formfabricator'),
             'lname_placeholder'  => '',
             'lname_required'     => true,
             ]
@@ -325,27 +345,27 @@ CSS;
             [
                 'key'         => 'expanded',
                 'type'        => 'bool_seg',
-                'label'       => __('Mode', 'form-forge'),
-                'false_label' => __('Simple', 'form-forge'),
-                'true_label'  => __('Extended', 'form-forge'),
+                'label'       => __('Mode', 'formfabricator'),
+                'false_label' => __('Simple', 'formfabricator'),
+                'true_label'  => __('Extended', 'formfabricator'),
                 'rebuild'     => true,
             ],
             [
                 'key'        => 'placeholder',
                 'type'       => 'text',
-                'label'      => __('Placeholder', 'form-forge'),
+                'label'      => __('Placeholder', 'formfabricator'),
                 'depends_on' => ['expanded' => false],
             ],
             [
                 'key'        => 'description',
                 'type'       => 'text',
-                'label'      => __('Hint text', 'form-forge'),
+                'label'      => __('Hint text', 'formfabricator'),
                 'depends_on' => ['expanded' => false],
             ],
             [
                 'key'        => 'subfields',
                 'type'       => 'subfields',
-                'label'      => __('Sub-fields', 'form-forge'),
+                'label'      => __('Sub-fields', 'formfabricator'),
                 'depends_on' => ['expanded' => true],
                 // Translate labels for the builder UI (SUBFIELDS itself can't call __()).
                 'items'      => array_map(

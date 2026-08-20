@@ -1,17 +1,17 @@
 <?php
 
 /**
- * Plugin Name:       FormForge
+ * Plugin Name:       FormFabricator
  * Plugin URI:        https://github.com/AlexanderJorek/FormForge
  * Description:       Custom drag-and-drop form builder with PDF generation and email delivery.
- * Version:           1.0.1
- * Requires at least: 7.0.0
+ * Version:           1.0.2
+ * Requires at least: 6.5
  * Requires PHP:      8.1
  * Author:            Alexander Jorek
  * Author URI:        https://github.com/AlexanderJorek
  * License:           GPL-3.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-3.0.html
- * Text Domain:       form-forge
+ * Text Domain:       formfabricator
  * Domain Path:       /languages
  */
 
@@ -19,7 +19,7 @@ defined('ABSPATH') || exit;
 
 define('FORGE_FORMS_PATH', plugin_dir_path(__FILE__));
 define('FORGE_FORMS_URL', plugin_dir_url(__FILE__));
-define('FORGE_FORMS_VERSION', '1.0.1');
+define('FORGE_FORMS_VERSION', '1.0.2');
 define('FORGE_FORMS_BASENAME', plugin_basename(__FILE__));
 
 $forge_composer_autoload = FORGE_FORMS_PATH . 'vendor/autoload.php';
@@ -28,8 +28,8 @@ if (!file_exists($forge_composer_autoload)) {
         'admin_notices',
         static function (): void {
             echo '<div class="notice notice-error"><p>'
-            . '<strong>FormForge:</strong> '
-            . esc_html__('Composer autoloader not found. Run <code>composer install</code> in the plugin directory.', 'form-forge')
+            . '<strong>FormFabricator:</strong> '
+            . esc_html__('Composer autoloader not found. Run <code>composer install</code> in the plugin directory.', 'formfabricator')
             . '</p></div>';
         }
     );
@@ -47,7 +47,7 @@ require_once FORGE_FORMS_PATH . 'includes/Plugin.php';
 
 // German is reviewed and maintained by us directly in languages/. WordPress
 // otherwise prefers a community-contributed translation from a WordPress.org
-// language pack (wp-content/languages/plugins/form-forge-de_DE.mo) over our
+// language pack (wp-content/languages/plugins/formfabricator-de_DE.mo) over our
 // own bundled file, if one happens to be installed. This filter forces our
 // bundled, vetted German file to always win for de_DE specifically; every
 // other locale (including English, which needs no file — it's the source
@@ -55,8 +55,8 @@ require_once FORGE_FORMS_PATH . 'includes/Plugin.php';
 add_filter(
     'load_textdomain_mofile',
     static function (string $mofile, string $domain): string {
-        if ($domain === 'form-forge' && str_ends_with($mofile, '-de_DE.mo')) {
-            $bundled = FORGE_FORMS_PATH . 'languages/form-forge-de_DE.mo';
+        if ($domain === 'formfabricator' && str_ends_with($mofile, '-de_DE.mo')) {
+            $bundled = FORGE_FORMS_PATH . 'languages/formfabricator-de_DE.mo';
             if (file_exists($bundled)) {
                 return $bundled;
             }
@@ -71,7 +71,7 @@ add_filter(
 add_action(
     'plugins_loaded',
     static function (): void {
-        // Loads languages/form-forge-{locale}.mo, if one exists for the site's configured
+        // Loads languages/formfabricator-{locale}.mo, if one exists for the site's configured
         // language, for our own bundled translations. WordPress.org's auto-loading of
         // translations only applies to translations submitted through translate.wordpress.org
         // for a plugin hosted there; this plugin bundles its own .mo files directly (see
@@ -80,7 +80,7 @@ add_action(
         // call is still required for those bundled files to be found at all — removing it
         // would break German translations that ship with the plugin.
         // phpcs:ignore PluginCheck.CodeAnalysis.DiscouragedFunctions.load_plugin_textdomainFound -- see comment above
-        load_plugin_textdomain('form-forge', false, dirname(FORGE_FORMS_BASENAME) . '/languages');
+        load_plugin_textdomain('formfabricator', false, dirname(FORGE_FORMS_BASENAME) . '/languages');
         \ForgeForms\Plugin::init();
     }
 );

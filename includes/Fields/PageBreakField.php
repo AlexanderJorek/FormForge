@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -115,7 +115,7 @@ CSS;
 
     public function getLabel(): string
     {
-        return __('Page break', 'form-forge');
+        return __('Page break', 'formfabricator');
     }
 
     /**
@@ -189,8 +189,8 @@ CSS;
      */
     public function renderBreak(array $config, int $page): string
     {
-        $prev_label = esc_html($config['prev_btn'] ?? __('← Back', 'form-forge'));
-        $next_label = esc_html($config['next_btn'] ?? __('Next →', 'form-forge'));
+        $prev_label = esc_html($config['prev_btn'] ?? __('← Back', 'formfabricator'));
+        $next_label = esc_html($config['next_btn'] ?? __('Next →', 'formfabricator'));
         $prev_btn   = $page > 1
             ? '<button type="button" class="forge-btn forge-btn-prev">' . $prev_label . '</button>'
             : '<span></span>';
@@ -257,9 +257,9 @@ CSS;
     public function getDefaultConfig(): array
     {
         return [
-            'label'       => __('Page break', 'form-forge'),
-            'prev_btn'    => __('← Back', 'form-forge'),
-            'next_btn'    => __('Next →', 'form-forge'),
+            'label'       => __('Page break', 'formfabricator'),
+            'prev_btn'    => __('← Back', 'formfabricator'),
+            'next_btn'    => __('Next →', 'formfabricator'),
             'required'    => false,
             'description' => '',
         ];
@@ -276,12 +276,12 @@ CSS;
             [
                 'key'   => 'prev_btn',
                 'type'  => 'text',
-                'label' => __('Back button', 'form-forge'),
+                'label' => __('Back button', 'formfabricator'),
             ],
             [
                 'key'   => 'next_btn',
                 'type'  => 'text',
-                'label' => __('Next button', 'form-forge'),
+                'label' => __('Next button', 'formfabricator'),
             ],
         ];
     }

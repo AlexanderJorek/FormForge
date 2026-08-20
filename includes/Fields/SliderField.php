@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -43,6 +43,7 @@ class SliderField extends BaseField
     cursor: pointer;
     user-select: none;
     -webkit-user-select: none;
+    touch-action: none;
 }
 .forge-slider-custom:focus { outline: none; }
 .forge-slider-track {
@@ -101,7 +102,7 @@ CSS;
 
     public function getLabel(): string
     {
-        return __('Slider', 'form-forge');
+        return __('Slider', 'formfabricator');
     }
 
     /**
@@ -168,7 +169,10 @@ CSS;
                     setVal(curVal, false);
                     function startDrag(clientX) {
                         setVal(valFromX(clientX), true);
-                        function onMove(e) { setVal(valFromX(e.touches ? e.touches[0].clientX : e.clientX), true); }
+                        function onMove(e) {
+                            if (e.touches) { e.preventDefault(); }
+                            setVal(valFromX(e.touches ? e.touches[0].clientX : e.clientX), true);
+                        }
                         function onUp() {
                             document.removeEventListener('mousemove', onMove);
                             document.removeEventListener('mouseup', onUp);
@@ -177,11 +181,11 @@ CSS;
                         }
                         document.addEventListener('mousemove', onMove);
                         document.addEventListener('mouseup', onUp);
-                        document.addEventListener('touchmove', onMove, { passive: true });
+                        document.addEventListener('touchmove', onMove, { passive: false });
                         document.addEventListener('touchend', onUp);
                     }
                     track.addEventListener('mousedown',  function (e) { e.preventDefault(); startDrag(e.clientX); });
-                    track.addEventListener('touchstart', function (e) { startDrag(e.touches[0].clientX); }, { passive: true });
+                    track.addEventListener('touchstart', function (e) { e.preventDefault(); startDrag(e.touches[0].clientX); }, { passive: false });
                     var slider = wrap.querySelector('.forge-slider-custom');
                     slider.addEventListener('keydown', function (e) {
                         var delta = 0;
@@ -221,6 +225,7 @@ CSS;
                         else        to   = Math.max(v, from + step);
                         setRange(true);
                         function onMove(e) {
+                            if (e.touches) { e.preventDefault(); }
                             var v2 = valFromX(e.touches ? e.touches[0].clientX : e.clientX);
                             if (isFrom) from = Math.min(v2, to   - step);
                             else        to   = Math.max(v2, from + step);
@@ -234,13 +239,13 @@ CSS;
                         }
                         document.addEventListener('mousemove', onMove);
                         document.addEventListener('mouseup', onUp);
-                        document.addEventListener('touchmove', onMove, { passive: true });
+                        document.addEventListener('touchmove', onMove, { passive: false });
                         document.addEventListener('touchend', onUp);
                     }
                     thumbFrom.addEventListener('mousedown',  function (e) { e.preventDefault(); dragThumb(true,  e.clientX); });
                     thumbTo.addEventListener('mousedown',    function (e) { e.preventDefault(); dragThumb(false, e.clientX); });
-                    thumbFrom.addEventListener('touchstart', function (e) { dragThumb(true,  e.touches[0].clientX); }, { passive: true });
-                    thumbTo.addEventListener('touchstart',   function (e) { dragThumb(false, e.touches[0].clientX); }, { passive: true });
+                    thumbFrom.addEventListener('touchstart', function (e) { e.preventDefault(); dragThumb(true,  e.touches[0].clientX); }, { passive: false });
+                    thumbTo.addEventListener('touchstart',   function (e) { e.preventDefault(); dragThumb(false, e.touches[0].clientX); }, { passive: false });
                 }
             });
         }
@@ -350,22 +355,22 @@ CSS;
                     return $hard;
                 }
                 if (!is_numeric($v)) {
-                    return __('Please enter a valid value.', 'form-forge');
+                    return __('Please enter a valid value.', 'formfabricator');
                 }
                 $n = (float)$v;
                 if ($n < $min) {
                     // translators: %s: minimum allowed value.
-                    return sprintf(__('Minimum value: %s', 'form-forge'), $min);
+                    return sprintf(__('Minimum value: %s', 'formfabricator'), $min);
                 }
                 if ($n > $max) {
                     // translators: %s: maximum allowed value.
-                    return sprintf(__('Maximum value: %s', 'form-forge'), $max);
+                    return sprintf(__('Maximum value: %s', 'formfabricator'), $max);
                 }
             }
             $from = $value['from'] ?? null;
             $to   = $value['to']   ?? null;
             if (is_numeric($from) && is_numeric($to) && (float)$from > (float)$to) {
-                return __('The "from" value must not be greater than the "to" value.', 'form-forge');
+                return __('The "from" value must not be greater than the "to" value.', 'formfabricator');
             }
         } elseif ($value !== '' && $value !== null) {
             $hard = self::validateTextHardCap((string) $value);
@@ -373,16 +378,16 @@ CSS;
                 return $hard;
             }
             if (!is_numeric($value)) {
-                return __('Please enter a valid value.', 'form-forge');
+                return __('Please enter a valid value.', 'formfabricator');
             }
             $n = (float)$value;
             if ($n < $min) {
                 // translators: %s: minimum allowed value.
-                return sprintf(__('Minimum value: %s', 'form-forge'), $min);
+                return sprintf(__('Minimum value: %s', 'formfabricator'), $min);
             }
             if ($n > $max) {
                 // translators: %s: maximum allowed value.
-                return sprintf(__('Maximum value: %s', 'form-forge'), $max);
+                return sprintf(__('Maximum value: %s', 'formfabricator'), $max);
             }
         }
         return true;
@@ -439,7 +444,7 @@ CSS;
         if (!empty($config['ranged']) && is_array($value)) {
             return ($value['from'] ?? '') . ' – ' . ($value['to'] ?? '');
         }
-        return $value !== null && $value !== '' ? (string)$value : __('[No entry]', 'form-forge');
+        return $value !== null && $value !== '' ? (string)$value : __('[No entry]', 'formfabricator');
     }
 
     /**
@@ -473,24 +478,24 @@ CSS;
             [
                 'key'         => 'ranged',
                 'type'        => 'bool_seg',
-                'label'       => __('Mode', 'form-forge'),
-                'false_label' => __('Single', 'form-forge'),
-                'true_label'  => __('Range', 'form-forge'),
+                'label'       => __('Mode', 'formfabricator'),
+                'false_label' => __('Single', 'formfabricator'),
+                'true_label'  => __('Range', 'formfabricator'),
             ],
             [
                 'key'   => 'min',
                 'type'  => 'number',
-                'label' => __('Minimum value', 'form-forge'),
+                'label' => __('Minimum value', 'formfabricator'),
             ],
             [
                 'key'   => 'max',
                 'type'  => 'number',
-                'label' => __('Maximum value', 'form-forge'),
+                'label' => __('Maximum value', 'formfabricator'),
             ],
             [
                 'key'   => 'step',
                 'type'  => 'number',
-                'label' => __('Step size', 'form-forge'),
+                'label' => __('Step size', 'formfabricator'),
             ],
             ]
         );

@@ -25,7 +25,7 @@ define('WP_DEBUG_LOG', false);
 define('WP_DEBUG_DISPLAY', false);
 
 /**
- * FormForge PDF seal master key — a site-specific secret meant to be defined
+ * FormFabricator PDF seal master key — a site-specific secret meant to be defined
  * in wp-config.php by the site admin (see FormSettings.php / HashSeal.php).
  * It is intentionally absent from the codebase itself; every real use is
  * guarded with defined(). Stubbed here only so Intelephense can resolve it.

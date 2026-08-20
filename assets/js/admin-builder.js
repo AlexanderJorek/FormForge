@@ -1,10 +1,10 @@
 /*!
- * FormForge
+ * FormFabricator
  * @copyright 2026 Alexander Jorek
  * @license   GPL-3.0-or-later
  */
 /*
- * FormForge - Admin Builder
+ * FormFabricator - Admin Builder
  */
 (function () {
 'use strict';
@@ -78,14 +78,23 @@ function makeSortable(list, handleSel, rowSel, onReorder) {
             for (var i = 0; i < sortMids.length; i++) {
                 if (ev.clientY < sortMids[i]) { before = sortRows[i]; break; }
             }
-            before ? list.insertBefore(ph, before) : list.appendChild(ph);
+            try {
+                if (before && list.contains(before)) { list.insertBefore(ph, before); }
+                else { list.appendChild(ph); }
+            } catch (err) { /* stale node ref — skip this frame */ }
         }
 
         function onUp() {
             document.removeEventListener('pointermove', onMove);
             document.removeEventListener('pointerup', onUp);
             item.style.cssText = '';
-            ph.replaceWith(item);
+            try {
+                ph.replaceWith(item);
+            } catch (err) {
+                /* ph got detached mid-drag — fall back to appending directly */
+                if (list.contains(ph)) { list.removeChild(ph); }
+                list.appendChild(item);
+            }
             if (onReorder) { onReorder(Array.from(list.querySelectorAll(rowSel))); }
         }
 
@@ -97,6 +106,7 @@ function makeSortable(list, handleSel, rowSel, onReorder) {
 var AJAX_URL       = '/wp-admin/admin-ajax.php';
 var NONCE          = '';
 var FORM_ID        = 0;
+var FORM_SNAPSHOT   = ''; /* optimistic-concurrency token echoed back on save */
 var PALETTE_GROUPS  = [];
 var TYPE_COLOR_MAP  = {};
 var _lastRenderedFieldsJson = null; /* dirty-check cache for renderFieldList */
@@ -161,11 +171,11 @@ function showUnsavedDialog(onDiscard) {
     document.body.appendChild(backdrop);
 
     box.querySelector('.forge-guard-stay').addEventListener('click', function () {
-        document.body.removeChild(backdrop);
+        if (backdrop.parentNode) { backdrop.parentNode.removeChild(backdrop); }
     });
     box.querySelector('.forge-guard-discard').addEventListener('click', function () {
         _bypassUnload = true;
-        document.body.removeChild(backdrop);
+        if (backdrop.parentNode) { backdrop.parentNode.removeChild(backdrop); }
         onDiscard();
     });
 }
@@ -267,6 +277,7 @@ document.addEventListener('DOMContentLoaded', function () {
             AJAX_URL = el.dataset.ajaxUrl || AJAX_URL;
             NONCE    = el.dataset.nonce   || NONCE;
             FORM_ID  = fd.id              || 0;
+            FORM_SNAPSHOT = fd.snapshot   || '';
             for (var i = 0; i < pal.length; i++) PALETTE_GROUPS.push(pal[i]);
             /* Build type→color lookup from palette groups */
             for (var g = 0; g < pal.length; g++) {
@@ -3267,11 +3278,7 @@ function spHtmlEditor(parent, key, label, value, onChange, opts) {
         modeBar.appendChild(modePill);
         hdr.appendChild(modeBar);
 
-        // Sandboxed iframe (no allow-scripts) rather than an innerHTML div —
-        // this preview renders whatever the admin authoring the notification
-        // typed, and another admin later opens the same form editor and
-        // triggers this same render, so a raw innerHTML div would be a
-        // stored self-XSS vector between co-privileged admin accounts.
+        // Sandboxed iframe (no allow-scripts), not innerHTML — avoids a stored self-XSS between admin accounts.
         previewDiv = document.createElement('iframe');
         previewDiv.className = 'forge-sp-html-preview';
         previewDiv.setAttribute('sandbox', 'allow-same-origin');
@@ -3362,17 +3369,18 @@ function spHtmlFieldEditor(parent, key, label, value, onChange) {
                 onChange(v);
             }, { showToggle: false });
         } else {
+            // fragmentOnly: stores an HTML fragment, not a full document (unlike the notification-body editor).
             spRichTextEditor(contentWrap, key, '', currentValue, function (v) {
                 currentValue = v;
                 onChange(v);
-            });
+            }, { fragmentOnly: true });
         }
     }
 
     renderEditor();
 }
 
-function spRichTextEditor(parent, key, label, value, onChange) {
+function spRichTextEditor(parent, key, label, value, onChange, opts) {
     var row = document.createElement('div');
     row.className = 'forge-sp-row';
 
@@ -3424,7 +3432,10 @@ function spRichTextEditor(parent, key, label, value, onChange) {
     parent.appendChild(row);
 
     function emitChange() {
-        onChange(sanitizeRichDoc(iframe.contentDocument));
+        var out = (opts && opts.fragmentOnly)
+            ? sanitizeRichDocFragment(iframe.contentDocument)
+            : sanitizeRichDoc(iframe.contentDocument);
+        onChange(out);
         resize();
     }
 
@@ -3467,19 +3478,45 @@ function spRichTextEditor(parent, key, label, value, onChange) {
             setTimeout(function () { loadDoc(html); }, 0);
             return;
         }
-        var full = /<html[\s>]/i.test(html || '')
+        // id="forge-editor-preview-style" marks this block as display-only scaffolding for the
+        // small editor widget itself (padding/font/margin-reset so the iframe preview looks
+        // sensible) — never part of the admin's actual authored content. cleanRichDoc() strips
+        // any element carrying this id before either serialization mode runs. This matters most
+        // for the full-document path (the notification-body editor): without stripping it here,
+        // every notification email actually sent to recipients would carry this editor's own
+        // internal preview chrome (a specific 13px font/color/padding) baked into its markup,
+        // silently overriding whatever styling the admin actually intended for the email.
+        var hasHtmlDoc = /<html[\s>]/i.test(html || '');
+        var full = hasHtmlDoc
             ? html
-            : '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'
-                + 'html,body{margin:0;}'
-                + 'body{padding:10px 12px;box-sizing:border-box;'
-                + 'font-family:-apple-system,Segoe UI,Arial,sans-serif;'
-                + 'font-size:13px;line-height:1.6;color:#1d2327;}</style></head>'
+            : '<!DOCTYPE html><html><head><meta charset="utf-8"></head>'
                 + '<body>' + (html || '') + '</body></html>';
         doc.open();
         doc.write(full);
         doc.close();
         doc.designMode = 'on';
         doc.addEventListener('input', emitChange);
+
+        // Re-inject the scaffold whenever it's missing — not just for bare fragments. A
+        // previously-saved notification body is already a full <html> document by the time it's
+        // reloaded (e.g. reopening the modal, switching Code -> Visual), and since saving now
+        // correctly strips this scaffold (see above), reload has nothing to carry it forward with.
+        // Without this, the editor silently falls back to unstyled browser defaults on reload.
+        if (!doc.getElementById('forge-editor-preview-style')) {
+            var scaffold = doc.createElement('style');
+            scaffold.id = 'forge-editor-preview-style';
+            scaffold.textContent = 'html,body{margin:0;}'
+                + 'body{padding:10px 12px;box-sizing:border-box;'
+                + 'font-family:-apple-system,Segoe UI,Arial,sans-serif;'
+                + 'font-size:13px;line-height:1.6;color:#1d2327;}'
+                /* Collapse only the first child's top margin, else UA default spacing reads as a blank line. */
+                + 'body>:first-child{margin-top:0;}';
+            if (doc.head) {
+                doc.head.appendChild(scaffold);
+            } else {
+                doc.documentElement.insertBefore(scaffold, doc.body);
+            }
+        }
 
         /* Email markup is often a fixed-width table wider than the editor;
            a horizontal scrollbar would eat into clientHeight and force an
@@ -3517,7 +3554,23 @@ function spRichTextEditor(parent, key, label, value, onChange) {
 /* Strips scripts, event handlers, javascript:/vbscript: URIs, and known
  * Dark Reader artifacts from the iframe's live document, then serializes
  * it back with its doctype intact. */
-function sanitizeRichDoc(doc) {
+/* Shared cleaning pass (strips <script>, Dark Reader artifacts, on*="" handlers, javascript:/
+   vbscript: URIs) used by both serialization modes below — mutates $doc in place, returns nothing. */
+function cleanRichDoc(doc) {
+    // The editor's own display-only scaffold (see loadDoc()) — never part of the admin's actual
+    // authored content, and must not survive into either the fragment or the full-document
+    // serialization below (the latter is what notification emails are literally sent as).
+    var editorStyle = doc.getElementById('forge-editor-preview-style');
+    if (editorStyle) { editorStyle.remove(); }
+    // loadDoc() also sets overflow-x:hidden directly on <html>/<body> (inline style, not the
+    // <style id="forge-editor-preview-style"> tag above) purely so a wide email table doesn't
+    // force an unwanted vertical scrollbar in the small editor widget. That's editor scaffolding
+    // too and must not leak into the stored/sent document.
+    [doc.documentElement, doc.body].forEach(function (el) {
+        if (!el) { return; }
+        el.style.removeProperty('overflow-x');
+        if (!el.getAttribute('style')) { el.removeAttribute('style'); }
+    });
     doc.querySelectorAll('script').forEach(function (el) { el.remove(); });
     doc.querySelectorAll(
         'style.darkreader, link.darkreader, meta[name="darkreader"], .darkreader--fallback'
@@ -3533,8 +3586,32 @@ function sanitizeRichDoc(doc) {
             }
         });
     });
-    return (doc.doctype ? '<!DOCTYPE ' + doc.doctype.name + '>' : '')
-        + doc.documentElement.outerHTML;
+}
+
+/* Full-document serialization — used only by the notification-body editor, which intentionally
+   stores a complete HTML document (see MailSender::buildEmailBody()). */
+function sanitizeRichDoc(doc) {
+    // Clean a detached clone, not $doc itself — $doc is the iframe's *live*, currently-displayed
+    // document (this runs on every 'input' event while the admin is actively typing). Removing
+    // the editor's own display-only <style> from the live doc would break the visible editing
+    // surface (padding/font/margin-reset) the instant anything is typed; cleaning a clone keeps
+    // that scaffold intact for display while still keeping it out of the serialized/stored value.
+    var clone = doc.cloneNode(true);
+    cleanRichDoc(clone);
+    return (clone.doctype ? '<!DOCTYPE ' + clone.doctype.name + '>' : '')
+        + clone.documentElement.outerHTML;
+}
+
+/* Fragment-only serialization — used by editors whose stored value is an inline HTML fragment
+   rendered directly into a page/PDF/email body (e.g. HtmlField's html_content), not a full
+   document. Discards the doctype/<html>/<head> wrapper loadDoc() injects purely so the iframe
+   renders sensibly (including that function's own display-only <style> scaffold) — none of that
+   belongs in the stored value. */
+function sanitizeRichDocFragment(doc) {
+    // See sanitizeRichDoc()'s comment above — same reason to clean a clone, not the live doc.
+    var clone = doc.cloneNode(true);
+    cleanRichDoc(clone);
+    return clone.body ? clone.body.innerHTML : '';
 }
 
 /* Back-compat: migrates legacy body_html_content/body_text_content fields
@@ -4736,6 +4813,7 @@ function bindSave() {
         var payload = {
             id: FORM_ID, title: state.formName,
             fields: state.fields, notifications: state.notifications, settings: state.settings,
+            snapshot: FORM_SNAPSHOT,
         };
         var fd = new FormData();
         fd.append('action',    'forge_forms_save_form');
@@ -4744,12 +4822,13 @@ function bindSave() {
            UTF-8 JSON string into a Latin1-safe byte sequence first so field
            labels/options with non-ASCII characters (e.g. German umlauts) survive
            the round trip. PHP decodes with base64_decode() — see FormEditor.php. */
-        fd.append('form_data', btoa(unescape(encodeURIComponent(JSON.stringify(payload)))));
+        fd.append('form_data', b64JsonEncode(payload));
         fetch(AJAX_URL, { method: 'POST', body: fd })
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 btn.disabled = false;
                 if (data.success && data.data && data.data.form_id) FORM_ID = data.data.form_id;
+                if (data.success && data.data && data.data.snapshot !== undefined) FORM_SNAPSHOT = data.data.snapshot;
                 if (data.success) {
                     markClean();
                     setSaveStatus(status, 'ok');
@@ -4765,6 +4844,13 @@ function bindSave() {
 /* ================================================================
  * Form Preview
  * ================================================================ */
+
+/* base64 (via encodeURIComponent/unescape, since btoa is Latin1-only) so sanitize_*_field() on
+   the PHP side doesn't strip HTML tags out of the JSON, and non-ASCII text survives. */
+function b64JsonEncode(value) {
+    return btoa(unescape(encodeURIComponent(JSON.stringify(value))));
+}
+
 function bindPreview() {
     var btn = document.getElementById('forge-preview-btn');
     if (!btn) return;
@@ -4775,8 +4861,8 @@ function bindPreview() {
         fd.append('action',   'forge_forms_preview');
         fd.append('nonce',    NONCE);
         fd.append('form_id',  FORM_ID);
-        fd.append('fields',   JSON.stringify(state.fields));
-        fd.append('settings', JSON.stringify(state.settings));
+        fd.append('fields',   b64JsonEncode(state.fields));
+        fd.append('settings', b64JsonEncode(state.settings));
         fetch(AJAX_URL, { method: 'POST', body: fd })
             .then(function (r) { return r.json(); })
             .then(function (resp) {

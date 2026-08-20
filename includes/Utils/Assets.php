@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -24,7 +24,7 @@ namespace ForgeForms\Utils;
 defined('ABSPATH') || exit;
 
 /**
- * Enqueues front-end and admin CSS/JS assets for FormForge.
+ * Enqueues front-end and admin CSS/JS assets for FormFabricator.
  */
 class Assets
 {
@@ -87,77 +87,79 @@ class Assets
             'ibanBicUrl'   => \admin_url('admin-ajax.php'),
             'ibanBicNonce' => \wp_create_nonce('forge_iban_bic'),
             'i18n'         => [
-                'submitting'              => __('Sending…', 'form-forge'),
-                'error_server'            => __('Server error. Please try again.', 'form-forge'),
-                'field_required'          => __('This field is required.', 'form-forge'),
-                'validation_both'         => __('Please fill in all required fields and correct the invalid entries.', 'form-forge'),
-                'validation_required'     => __('Please fill in all required fields.', 'form-forge'),
-                'validation_invalid'      => __('Please enter valid data.', 'form-forge'),
-                'thank_you'               => __('Thank you!', 'form-forge'),
+                'submitting'              => __('Sending…', 'formfabricator'),
+                'error_server'            => __('Server error. Please try again.', 'formfabricator'),
+                'field_required'          => __('This field is required.', 'formfabricator'),
+                'validation_both'         => __('Please fill in all required fields and correct the invalid entries.', 'formfabricator'),
+                'validation_required'     => __('Please fill in all required fields.', 'formfabricator'),
+                'validation_invalid'      => __('Please enter valid data.', 'formfabricator'),
+                'thank_you'               => __('Thank you!', 'formfabricator'),
+                // CAPTCHA
+                'recaptcha_blocked'       => __('Could not load CAPTCHA. Please disable content blockers for this site or try another browser.', 'formfabricator'),
                 // Upload field
-                'upload_remove_prefix'    => __('Remove: ', 'form-forge'),
+                'upload_remove_prefix'    => __('Remove: ', 'formfabricator'),
                 // translators: %d: maximum number of files allowed (substituted client-side).
-                'upload_too_many'         => __('Too many files. Maximum %d allowed.', 'form-forge'),
-                'upload_no_types'         => __('No allowed file types in selection.', 'form-forge'),
-                'upload_skipped_one'      => __('1 file was skipped due to file type.', 'form-forge'),
+                'upload_too_many'         => __('Too many files. Maximum %d allowed.', 'formfabricator'),
+                'upload_no_types'         => __('No allowed file types in selection.', 'formfabricator'),
+                'upload_skipped_one'      => __('1 file was skipped due to file type.', 'formfabricator'),
                 // translators: %d: number of files skipped due to file type (substituted client-side).
-                'upload_skipped_many'     => __('%d files were skipped due to file type.', 'form-forge'),
+                'upload_skipped_many'     => __('%d files were skipped due to file type.', 'formfabricator'),
                 // translators: %1$d: total number of files submitted, %2$d: maximum allowed per submission (both substituted client-side).
-                'upload_overflow'         => __('Too many files total (%1$d). Max. %2$d per submission.', 'form-forge'),
+                'upload_overflow'         => __('Too many files total (%1$d). Max. %2$d per submission.', 'formfabricator'),
                 // Checkbox field
                 // translators: %d: minimum number of options that must be selected (substituted client-side).
-                'checkbox_min'            => __('Please select at least %d option(s).', 'form-forge'),
+                'checkbox_min'            => __('Please select at least %d option(s).', 'formfabricator'),
                 // translators: %d: maximum number of options that may be selected (substituted client-side).
-                'checkbox_max'            => __('Please select at most %d option(s).', 'form-forge'),
+                'checkbox_max'            => __('Please select at most %d option(s).', 'formfabricator'),
                 // SEPA field
-                'sepa_iban_invalid'       => __('Invalid IBAN (check digit incorrect).', 'form-forge'),
-                'sepa_iban_incomplete'    => __('Please enter a complete and valid IBAN.', 'form-forge'),
-                'sepa_bic_invalid'        => __('Please enter a valid BIC.', 'form-forge'),
-                'sepa_iban_required'      => __('IBAN is required.', 'form-forge'),
-                'sepa_bic_required'       => __('BIC is required.', 'form-forge'),
-                'sepa_holder_required'    => __('Account holder is required.', 'form-forge'),
-                'sepa_sig_required'       => __('Please sign.', 'form-forge'),
-                'sepa_looking_up'         => __('Looking up', 'form-forge'),
-                'sepa_iban_unvalidated'   => __('Could not be validated.', 'form-forge'),
-                'sepa_country_blocked'    => __('This country is not allowed.', 'form-forge'),
+                'sepa_iban_invalid'       => __('Invalid IBAN (check digit incorrect).', 'formfabricator'),
+                'sepa_iban_incomplete'    => __('Please enter a complete and valid IBAN.', 'formfabricator'),
+                'sepa_bic_invalid'        => __('Please enter a valid BIC.', 'formfabricator'),
+                'sepa_iban_required'      => __('IBAN is required.', 'formfabricator'),
+                'sepa_bic_required'       => __('BIC is required.', 'formfabricator'),
+                'sepa_holder_required'    => __('Account holder is required.', 'formfabricator'),
+                'sepa_sig_required'       => __('Please sign.', 'formfabricator'),
+                'sepa_looking_up'         => __('Looking up', 'formfabricator'),
+                'sepa_iban_unvalidated'   => __('Could not be validated.', 'formfabricator'),
+                'sepa_country_blocked'    => __('This country is not allowed.', 'formfabricator'),
                 // Phone field
-                'phone_invalid'           => __('Please enter a valid phone number.', 'form-forge'),
-                'phone_intl_required'     => __('Please enter the number with international prefix (+...).', 'form-forge'),
-                'phone_country_blocked'   => __('This phone number is not allowed for your country.', 'form-forge'),
+                'phone_invalid'           => __('Please enter a valid phone number.', 'formfabricator'),
+                'phone_intl_required'     => __('Please enter the number with international prefix (+...).', 'formfabricator'),
+                'phone_country_blocked'   => __('This phone number is not allowed for your country.', 'formfabricator'),
                 // Slider field
-                'slider_invalid_value'    => __('Please enter a valid value.', 'form-forge'),
+                'slider_invalid_value'    => __('Please enter a valid value.', 'formfabricator'),
                 // translators: %1$s: minimum allowed value, %2$s: maximum allowed value (both substituted client-side).
-                'slider_out_of_range'     => __('Value outside the allowed range (%1$s–%2$s).', 'form-forge'),
+                'slider_out_of_range'     => __('Value outside the allowed range (%1$s–%2$s).', 'formfabricator'),
                 // translators: %s: minimum allowed value (substituted client-side).
-                'slider_min'              => __('Minimum value: %s', 'form-forge'),
+                'slider_min'              => __('Minimum value: %s', 'formfabricator'),
                 // translators: %s: maximum allowed value (substituted client-side).
-                'slider_max'              => __('Maximum value: %s', 'form-forge'),
+                'slider_max'              => __('Maximum value: %s', 'formfabricator'),
                 // Text / textarea word limit
                 // translators: %1$d: maximum word count allowed, %2$d: current word count (both substituted client-side).
-                'word_limit_exceeded'     => __('Please enter at most %1$d words (currently: %2$d).', 'form-forge'),
+                'word_limit_exceeded'     => __('Please enter at most %1$d words (currently: %2$d).', 'formfabricator'),
                 // "Other" free-text word limit (Checkbox/Radio/Select, shared via BaseField::otherTextClientRule())
                 // translators: %1$d: maximum word count allowed, %2$d: current word count (both substituted client-side).
-                'other_word_limit_exceeded' => __('Please enter at most %1$d words for "Other" (currently: %2$d).', 'form-forge'),
+                'other_word_limit_exceeded' => __('Please enter at most %1$d words for "Other" (currently: %2$d).', 'formfabricator'),
                 // Website field
-                'website_invalid_url'     => __('Please enter a valid URL (e.g. https://example.com).', 'form-forge'),
+                'website_invalid_url'     => __('Please enter a valid URL (e.g. https://example.com).', 'formfabricator'),
                 // Currency field
-                'currency_invalid_amount' => __('Please enter a valid amount.', 'form-forge'),
+                'currency_invalid_amount' => __('Please enter a valid amount.', 'formfabricator'),
                 // translators: %s: minimum allowed value (substituted client-side).
-                'currency_min'            => __('Minimum value: %s', 'form-forge'),
+                'currency_min'            => __('Minimum value: %s', 'formfabricator'),
                 // translators: %s: maximum allowed value (substituted client-side).
-                'currency_max'            => __('Maximum value: %s', 'form-forge'),
+                'currency_max'            => __('Maximum value: %s', 'formfabricator'),
                 // Date field
-                'date_invalid_format'     => __('Please enter a date in DD.MM.YYYY format.', 'form-forge'),
-                'date_invalid_date'       => __('Please enter a valid date.', 'form-forge'),
+                'date_invalid_format'     => __('Please enter a date in DD.MM.YYYY format.', 'formfabricator'),
+                'date_invalid_date'       => __('Please enter a valid date.', 'formfabricator'),
                 // Email field
-                'email_invalid'           => __('Please enter a valid email address.', 'form-forge'),
-                'email_not_allowed'       => __('This email address is not allowed.', 'form-forge'),
+                'email_invalid'           => __('Please enter a valid email address.', 'formfabricator'),
+                'email_not_allowed'       => __('This email address is not allowed.', 'formfabricator'),
                 // Number field
-                'number_invalid'          => __('Please enter a valid number.', 'form-forge'),
+                'number_invalid'          => __('Please enter a valid number.', 'formfabricator'),
                 // translators: %s: minimum allowed value (substituted client-side).
-                'number_min'              => __('Minimum value: %s', 'form-forge'),
+                'number_min'              => __('Minimum value: %s', 'formfabricator'),
                 // translators: %s: maximum allowed value (substituted client-side).
-                'number_max'              => __('Maximum value: %s', 'form-forge'),
+                'number_max'              => __('Maximum value: %s', 'formfabricator'),
             ],
             ]
         );
@@ -181,7 +183,7 @@ class Assets
 
             $entry = $handler->getClientEmptyCheck();
             if (!empty($entry['fn'])) {
-                $emptyChecks[] = json_encode($type) . ':' . trim($entry['fn']);
+                $emptyChecks[] = wp_json_encode($type) . ':' . trim($entry['fn']);
             }
 
             foreach ($handler->getClientValidation() as $vEntry) {
@@ -189,17 +191,17 @@ class Assets
                 $fn   = $vEntry['fn']   ?? '';
                 if ($rule !== '' && $fn !== '' && !isset($seenRules[$rule])) {
                     $seenRules[$rule] = true;
-                    $pairs[]          = json_encode($rule) . ':' . trim($fn);
+                    $pairs[]          = wp_json_encode($rule) . ':' . trim($fn);
                 }
             }
 
             $fn = $handler->getClientInit();
             if ($fn !== '') {
-                $inits[] = json_encode($type) . ':' . trim($fn);
+                $inits[] = wp_json_encode($type) . ':' . trim($fn);
             }
 
             if ($handler->skipValidation()) {
-                $skip[] = json_encode($type);
+                $skip[] = wp_json_encode($type);
             }
         }
 
@@ -262,7 +264,7 @@ class Assets
     private static function enqueueFontAwesome(): void
     {
         \wp_enqueue_style(
-            'font-awesome',
+            'forge-forms-font-awesome',
             FORGE_FORMS_URL . 'assets/vendor/fontawesome/css/all.min.css',
             [],
             self::FONT_AWESOME_VERSION
@@ -270,7 +272,7 @@ class Assets
     }
 
     /**
-     * Enqueues admin CSS and JS for FormForge admin pages.
+     * Enqueues admin CSS and JS for FormFabricator admin pages.
      *
      * @param string $hook Current admin page hook suffix.
      */
@@ -283,7 +285,7 @@ class Assets
             \wp_enqueue_style(
                 'forge-forms-admin',
                 FORGE_FORMS_URL . 'assets/css/admin.css',
-                ['font-awesome'],
+                ['forge-forms-font-awesome'],
                 FORGE_FORMS_VERSION
             );
             self::addAdminCssVars();
@@ -307,7 +309,7 @@ class Assets
             \wp_enqueue_style(
                 'forge-forms-admin',
                 FORGE_FORMS_URL . 'assets/css/admin.css',
-                ['font-awesome'],
+                ['forge-forms-font-awesome'],
                 FORGE_FORMS_VERSION
             );
             self::addAdminCssVars();
@@ -338,44 +340,41 @@ class Assets
                 FORGE_FORMS_VERSION
             );
             self::addAdminCssVars();
-            \wp_enqueue_script(
-                'forge-pdfjs',
-                FORGE_FORMS_URL . 'vendor/pdfjs/pdf.js',
-                [],
-                FORGE_FORMS_VERSION,
-                true
-            );
-            \wp_enqueue_script(
+            /* pdf.js 6.x is ES-modules only, so verification.js registers as a script module and
+               imports pdf.mjs itself. wp_localize_script has no module equivalent, so ForgeVerifier
+               data is injected via a separate src-less classic script instead. */
+            \wp_register_script('forge-verifier-data', false, [], FORGE_FORMS_VERSION, true);
+            \wp_enqueue_script('forge-verifier-data');
+            \wp_enqueue_script_module(
                 'forge-forms-verification',
                 FORGE_FORMS_URL . 'assets/js/verification.js',
-                ['forge-pdfjs'],
-                FORGE_FORMS_VERSION,
-                true
+                [],
+                FORGE_FORMS_VERSION
             );
             \wp_localize_script(
-                'forge-forms-verification',
+                'forge-verifier-data',
                 'ForgeVerifier',
                 [
                 'ajaxUrl'     => \admin_url('admin-ajax.php'),
                 'nonce'       => \wp_create_nonce('forge_verifier_nonce'),
-                'pdfJsWorker' => FORGE_FORMS_URL . 'vendor/pdfjs/pdf.worker.js',
+                'pdfJsWorker' => FORGE_FORMS_URL . 'vendor/pdfjs/pdf.worker.mjs',
                 'i18n'        => [
-                    'loading'          => __('Loading…', 'form-forge'),
-                    'pdf_loading'      => __('Loading PDF…', 'form-forge'),
+                    'loading'          => __('Loading…', 'formfabricator'),
+                    'pdf_loading'      => __('Loading PDF…', 'formfabricator'),
                     // translators: %1$d: current page number, %2$d: total page count (both substituted client-side).
-                    'page_reading'     => __('Reading page %1$d of %2$d…', 'form-forge'),
-                    'text_extracted'   => __('Text extracted — server analyzing…', 'form-forge'),
+                    'page_reading'     => __('Reading page %1$d of %2$d…', 'formfabricator'),
+                    'text_extracted'   => __('Text extracted — server analyzing…', 'formfabricator'),
                     // translators: %1$d: seconds remaining before this PDF's verification request is sent (substituted client-side).
-                    'queued'           => __('Waiting in queue (%1$ds)…', 'form-forge'),
-                    'rate_limited_retry' => __('Rate limited — retrying…', 'form-forge'),
-                    'processing'       => __('Processing response…', 'form-forge'),
-                    'done'             => __('Done', 'form-forge'),
+                    'queued'           => __('Waiting in queue (%1$ds)…', 'formfabricator'),
+                    'rate_limited_retry' => __('Rate limited — retrying…', 'formfabricator'),
+                    'processing'       => __('Processing response…', 'formfabricator'),
+                    'done'             => __('Done', 'formfabricator'),
                     // translators: %d: HTTP status code (substituted client-side).
-                    'server_error'     => __('Server error (HTTP %d)', 'form-forge'),
-                    'network_error'    => __('Network error', 'form-forge'),
-                    'pdf_load_error'   => __('PDF load error: ', 'form-forge'),
-                    'error_prefix'     => __('Error: ', 'form-forge'),
-                    'unknown_error'    => __('Unknown server error', 'form-forge'),
+                    'server_error'     => __('Server error (HTTP %d)', 'formfabricator'),
+                    'network_error'    => __('Network error', 'formfabricator'),
+                    'pdf_load_error'   => __('PDF load error: ', 'formfabricator'),
+                    'error_prefix'     => __('Error: ', 'formfabricator'),
+                    'unknown_error'    => __('Unknown server error', 'formfabricator'),
                 ],
                 ]
             );

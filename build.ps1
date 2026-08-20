@@ -37,6 +37,11 @@ foreach ($rel in $nestedExclude) {
     if (Test-Path $path) { Remove-Item -Force $path }
 }
 
+# WordPress.org manages translations via translate.wordpress.org — .po/.mo files must not ship
+# in the plugin package (the .pot source template is kept; it carries no translated content).
+Get-ChildItem -Path (Join-Path $stageDir 'languages') -Include '*.po', '*.mo' -Recurse -Force -ErrorAction SilentlyContinue |
+    Remove-Item -Force
+
 Write-Host "Installing production-only dependencies (composer install --no-dev)..." -ForegroundColor Cyan
 Push-Location $stageDir
 try {
@@ -69,23 +74,41 @@ Copy-Item -Path (Join-Path $root 'vendor\pdfjs') -Destination (Join-Path $stageD
 
 # mpdf/mpdf ships ~80 TTF/OTF font files (DejaVu, FreeFont, and many others for
 # scripts like Devanagari/Khmer/Syriac/etc, ~88MB total) covering every font it
-# ever might need. FormForge only ever selects one of 4 families — see the
+# ever might need. FormForge only ever *selects* one of 4 families — see the
 # font_family match in includes/PDF/templates/layout.php ('dejavusans' [default],
 # 'dejavuserif', 'dejavusansmono', 'freemono') — and mPDF's autoScriptToLang/
 # autoLangToFont/useSubstitutions are all left at their default of false in
-# Generator.php's $mpdf_config, so mPDF never auto-switches to a different font
-# family for unsupported scripts; it never touches any font file outside these 4
-# families, regardless of what text a form submission contains. Trimming this
+# Generator.php's $mpdf_config, so mPDF never auto-*switches* to a different font
+# family for unsupported scripts.
+#
+# CORRECTION (2026-08-20): an earlier version of this comment claimed that meant
+# mPDF "never touches any font file outside these 4 families" — that turned out
+# to be wrong and caused a real production failure ("Cannot find TTF TrueType
+# font file DejaVuSerifCondensed.ttf") the first time a submission actually
+# exercised it. useSubstitutions genuinely does default to false (verified
+# against vendor/mpdf/mpdf/src/Mpdf.php directly), but that's a different
+# mechanism (missing-glyph fallback) from what actually fired here: mPDF's own
+# built-in font-alias tables (vendor/mpdf/mpdf/src/Config/FontVariables.php,
+# 'serif_fonts'/'sans_fonts') list the Condensed variant of each DejaVu family
+# *before* the plain one, and that alias table is consulted independently of
+# useSubstitutions/autoScriptToLang whenever mPDF resolves a font by role rather
+# than by our literal $forge_font family name. Rather than chase every internal
+# mPDF alias path that could reach a "trimmed away" file, keep the Condensed
+# companions too — they're cheap (~2.5MB combined for both families) next to the
+# ~85MB this step actually saves (which is almost entirely the CJK/Devanagari/
+# Khmer/Syriac/etc script fonts FormForge has no path to ever request). Trimming
 # ONLY in the staged release build (never the working vendor/, which a plain
 # `composer install` would just restore anyway, and which stays full for local
-# testing) cuts ~85MB of dead weight from what actually ships. If you add a fifth
-# selectable PDF font, add its files to $keepFonts below or this step will delete
-# them and PDF generation will fatal on "font file not found."
+# testing). If you add a fifth selectable PDF font, add its files to $keepFonts
+# below or this step will delete them and PDF generation will fatal on "font
+# file not found."
 Write-Host "Trimming unused mPDF font files..." -ForegroundColor Cyan
 $fontsDir = Join-Path $stageDir 'vendor\mpdf\mpdf\ttfonts'
 $keepFonts = @(
     'DejaVuSans.ttf', 'DejaVuSans-Bold.ttf', 'DejaVuSans-Oblique.ttf', 'DejaVuSans-BoldOblique.ttf',
+    'DejaVuSansCondensed.ttf', 'DejaVuSansCondensed-Bold.ttf', 'DejaVuSansCondensed-Oblique.ttf', 'DejaVuSansCondensed-BoldOblique.ttf',
     'DejaVuSerif.ttf', 'DejaVuSerif-Bold.ttf', 'DejaVuSerif-Italic.ttf', 'DejaVuSerif-BoldItalic.ttf',
+    'DejaVuSerifCondensed.ttf', 'DejaVuSerifCondensed-Bold.ttf', 'DejaVuSerifCondensed-Italic.ttf', 'DejaVuSerifCondensed-BoldItalic.ttf',
     'DejaVuSansMono.ttf', 'DejaVuSansMono-Bold.ttf', 'DejaVuSansMono-Oblique.ttf', 'DejaVuSansMono-BoldOblique.ttf',
     'FreeMono.ttf', 'FreeMonoBold.ttf', 'FreeMonoOblique.ttf', 'FreeMonoBoldOblique.ttf',
     'DejaVuinfo.txt', 'GNUFreeFontinfo.txt'

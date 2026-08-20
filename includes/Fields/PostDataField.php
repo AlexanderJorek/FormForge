@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -40,7 +40,7 @@ class PostDataField extends BaseField
 
     public function getLabel(): string
     {
-        return __('Post data', 'form-forge');
+        return __('Post data', 'formfabricator');
     }
 
     /**
@@ -82,37 +82,53 @@ class PostDataField extends BaseField
             if (!in_array($key, self::ALLOWED_FIELDS, true)) {
                 continue;
             }
-            $val = match ($key) {
-                'post_title'  => get_the_title($post?->ID ?? 0),
-                'post_url'    => get_permalink($post?->ID ?? 0),
-                'post_id'     => (string)($post?->ID ?? ''),
-                'post_author' => get_the_author(),
-                default       => '',
-            };
+            $val = self::resolveField($key, $post);
             $out .= '<input type="hidden" name="' . esc_attr($field_id) . '[' . esc_attr($key) . ']"'
                 . ' id="' . esc_attr($field_id . '_' . $key) . '"'
                 . ' value="' . esc_attr($val) . '">';
         }
+        // extractValue() needs this to re-derive values server-side, where global $post is unset.
+        $out .= '<input type="hidden" name="' . esc_attr($field_id) . '[_source_post_id]"'
+            . ' value="' . esc_attr((string)($post?->ID ?? '')) . '">';
         return $out;
     }
 
     /**
-     * Regenerates the post-data array from the current post, ignoring any client-submitted value — this is server-authoritative metadata and must never be trusted from $_POST.
+     * Resolves one post-metadata value for $post. Uses get_the_author_meta() (explicit user ID)
+     * instead of get_the_author(), which depends on Loop state extractValue() can't rely on.
+     *
+     * @param string       $key  One of self::ALLOWED_FIELDS.
+     * @param \WP_Post|null $post The resolved post to read from.
+     */
+    private static function resolveField(string $key, ?\WP_Post $post): string
+    {
+        return match ($key) {
+            'post_title'  => get_the_title($post?->ID ?? 0),
+            'post_url'    => (string)get_permalink($post?->ID ?? 0),
+            'post_id'     => (string)($post?->ID ?? ''),
+            'post_author' => $post ? get_the_author_meta('display_name', (int)$post->post_author) : '',
+            default       => '',
+        };
+    }
+
+    /**
+     * Regenerates post metadata server-side; only _source_post_id is trusted from $_POST, and
+     * only after validation via get_post() (global $post is unset during admin-ajax.php).
      *
      * @param string $field_id The field element ID.
      */
     public function extractValue(string $field_id): mixed
     {
-        global $post;
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- form-wide nonce already verified in FormProcessor::handle(); _source_post_id is validated via get_post() below.
+        $submitted   = $_POST[$field_id] ?? null;
+        $source_id   = is_array($submitted) && isset($submitted['_source_post_id'])
+            ? absint(wp_unslash($submitted['_source_post_id']))
+            : 0;
+        $post = $source_id ? get_post($source_id) : null;
+
         $out = [];
         foreach (self::ALLOWED_FIELDS as $key) {
-            $out[$key] = match ($key) {
-                'post_title'  => get_the_title($post?->ID ?? 0),
-                'post_url'    => get_permalink($post?->ID ?? 0),
-                'post_id'     => (string)($post?->ID ?? ''),
-                'post_author' => get_the_author(),
-                default       => '',
-            };
+            $out[$key] = self::resolveField($key, $post);
         }
         return $out;
     }
@@ -126,7 +142,7 @@ class PostDataField extends BaseField
     public function map(mixed $value, array $config): string
     {
         if (!is_array($value) || empty($value)) {
-            return __('[No entry]', 'form-forge');
+            return __('[No entry]', 'formfabricator');
         }
         $selected = (array)($config['post_field'] ?? ['post_title']);
         $filtered = array_intersect_key($value, array_flip($selected));
@@ -141,7 +157,7 @@ class PostDataField extends BaseField
     public function getDefaultConfig(): array
     {
         return [
-            'label'       => __('Post data', 'form-forge'),
+            'label'       => __('Post data', 'formfabricator'),
             'post_field'  => ['post_title'],
             'description' => '',
         ];
@@ -158,9 +174,9 @@ class PostDataField extends BaseField
             [
                 'key'    => 'post_field',
                 'type'   => 'pill_multi',
-                'label'  => __('Post field', 'form-forge'),
+                'label'  => __('Post field', 'formfabricator'),
                 'values' => ['post_title', 'post_url', 'post_id', 'post_author'],
-                'labels' => [__('Title', 'form-forge'), __('URL', 'form-forge'), __('ID', 'form-forge'), __('Author', 'form-forge')],
+                'labels' => [__('Title', 'formfabricator'), __('URL', 'formfabricator'), __('ID', 'formfabricator'), __('Author', 'formfabricator')],
             ],
         ];
     }

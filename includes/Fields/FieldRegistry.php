@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -243,12 +243,12 @@ class FieldRegistry
     private static function translateGroupLabel(string $group): string
     {
         return match ($group) {
-            'input'    => __('Input', 'form-forge'),
-            'choice'   => __('Choice', 'form-forge'),
-            'personal' => __('Personal', 'form-forge'),
-            'advanced' => __('Advanced', 'form-forge'),
-            'layout'   => __('Layout', 'form-forge'),
-            'system'   => __('System', 'form-forge'),
+            'input'    => __('Input', 'formfabricator'),
+            'choice'   => __('Choice', 'formfabricator'),
+            'personal' => __('Personal', 'formfabricator'),
+            'advanced' => __('Advanced', 'formfabricator'),
+            'layout'   => __('Layout', 'formfabricator'),
+            'system'   => __('System', 'formfabricator'),
             default    => self::GROUP_META[$group]['label'] ?? $group,
         };
     }

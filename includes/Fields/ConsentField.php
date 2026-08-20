@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -92,7 +92,7 @@ CSS;
 
     public function getLabel(): string
     {
-        return __('Consent', 'form-forge');
+        return __('Consent', 'formfabricator');
     }
 
     /**
@@ -117,7 +117,7 @@ CSS;
     {
         $req     = !empty($config['required']) ? ' required aria-required="true"' : '';
         $checked = !empty($value) ? ' checked' : '';
-        $text    = wp_kses_post($config['consent_text'] ?? __('I agree.', 'form-forge'));
+        $text    = wp_kses_post($config['consent_text'] ?? __('I agree.', 'formfabricator'));
 
         $inner = '<label class="forge-consent-label">'
             . '<input type="checkbox" id="' . esc_attr($field_id)
@@ -138,9 +138,9 @@ CSS;
     public function validate(mixed $value, array $config): bool|string
     {
         if (!empty($config['required']) && empty($value)) {
-            $label = $config['label'] ?? __('Consent', 'form-forge');
+            $label = $config['label'] ?? __('Consent', 'formfabricator');
             // translators: %s: field label.
-            return sprintf(__('%s is required.', 'form-forge'), esc_html($label));
+            return sprintf(__('%s is required.', 'formfabricator'), esc_html($label));
         }
         return true;
     }
@@ -158,12 +158,12 @@ CSS;
     public function map(mixed $value, array $config): string
     {
         if (empty($value) || $value === '0') {
-            return __('Not agreed', 'form-forge');
+            return __('Not agreed', 'formfabricator');
         }
-        $consent_text = wp_strip_all_tags((string)($config['consent_text'] ?? __('I agree to the terms.', 'form-forge')));
+        $consent_text = wp_strip_all_tags((string)($config['consent_text'] ?? __('I agree to the terms.', 'formfabricator')));
         return sprintf(
             // translators: %1$s: consent text shown to the user, %2$s: agreement timestamp.
-            __('Agreed to "%1$s" on %2$s', 'form-forge'),
+            __('Agreed to "%1$s" on %2$s', 'formfabricator'),
             $consent_text,
             current_time('mysql')
         );
@@ -176,7 +176,7 @@ CSS;
      */
     public function getDefaultConfig(): array
     {
-        return array_merge(parent::getDefaultConfig(), ['consent_text' => __('I agree to the terms.', 'form-forge')]);
+        return array_merge(parent::getDefaultConfig(), ['consent_text' => __('I agree to the terms.', 'formfabricator')]);
     }
 
     /**
@@ -190,14 +190,14 @@ CSS;
             [
                 'key'         => 'consent_text',
                 'type'        => 'textarea',
-                'label'       => __('Consent text', 'form-forge'),
+                'label'       => __('Consent text', 'formfabricator'),
                 // GDPR Art. 7(1)/Art. 4(11): valid consent must be specific and
                 // informed. A generic placeholder left unedited by the site owner
                 // doesn't name what's being agreed to, so warn at config time
                 // rather than only flagging it in a security review.
                 'description' => __(
                     'Be specific about what the visitor is agreeing to (e.g. name the processing purpose) — a generic phrase like "I agree to the terms" is not valid, informed consent under GDPR.',
-                    'form-forge'
+                    'formfabricator'
                 ),
             ],
         ];

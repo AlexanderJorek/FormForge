@@ -5,12 +5,12 @@
  *
  * PHP Version 8.1
  *
- * @category  FormForge
- * @package   FormForge
+ * @category  FormFabricator
+ * @package   FormFabricator
  * @author    Alexander Jorek
  * @copyright 2026 Alexander Jorek
  * @license   https://www.gnu.org/licenses/gpl-3.0.html GPL-3.0-or-later
- * @version   1.0.1
+ * @version   1.0.2
  * @link      https://github.com/AlexanderJorek/FormForge
  *
  * This program is free software; you can redistribute it and/or
@@ -41,7 +41,67 @@ class FormEditor
         \add_action('admin_menu', [self::class, 'menu']);
         \add_action('wp_ajax_forge_forms_save_form', [self::class, 'ajaxSave']);
         \add_action('wp_ajax_forge_forms_preview', [self::class, 'ajaxPreview']);
+        \add_action('wp_ajax_forge_forms_unlock_form', [self::class, 'ajaxUnlock']);
         \add_filter('admin_body_class', [self::class, 'bodyClass']);
+        \add_filter('heartbeat_received', [self::class, 'heartbeatReceived'], 10, 2);
+    }
+
+    /**
+     * Wires the editor page into WP core's native post-locking mechanism via Heartbeat.
+     *
+     * @param array $response Heartbeat response payload being built.
+     * @param array $data     Data sent by the client in this heartbeat tick.
+     * @return array Modified heartbeat response.
+     */
+    public static function heartbeatReceived(array $response, array $data): array
+    {
+        if (empty($data['forge_forms_lock'])) {
+            return $response;
+        }
+        $form_id = absint($data['forge_forms_lock']);
+        $post    = $form_id ? get_post($form_id) : null;
+        if (!$post || $post->post_type !== 'forge_form' || !\ForgeForms\Plugin::userCan('edit_forms')) {
+            return $response;
+        }
+        $lock_owner = wp_check_post_lock($form_id);
+        if ($lock_owner && (int) $lock_owner !== get_current_user_id()) {
+            $user = get_userdata($lock_owner);
+            $response['forge_forms_lock_conflict'] = $user ? $user->display_name : __('another user', 'formfabricator');
+        } else {
+            wp_set_post_lock($form_id);
+        }
+        return $response;
+    }
+
+    /**
+     * Releases the post-lock this user holds, fired via sendBeacon() on tab close/navigation.
+     *
+     * @return void
+     */
+    public static function ajaxUnlock(): void
+    {
+        if (!\ForgeForms\Plugin::userCan('edit_forms')) {
+            \wp_send_json_error(['message' => 'Forbidden'], 403);
+        }
+        \check_ajax_referer('forge_forms_admin_nonce', 'nonce');
+
+        $form_id = absint(\wp_unslash($_POST['form_id'] ?? 0));
+        $post    = $form_id ? \get_post($form_id) : null;
+        if (!$post || $post->post_type !== 'forge_form') {
+            \wp_send_json_error(['message' => 'Invalid form_id'], 400);
+        }
+
+        // Only release a lock this same user currently holds — never a forged/stale beacon.
+        $lock = \get_post_meta($form_id, '_edit_lock', true);
+        if ($lock !== '') {
+            $lock_parts = explode(':', (string) $lock);
+            $lock_owner = isset($lock_parts[1]) ? (int) $lock_parts[1] : 0;
+            if ($lock_owner === \get_current_user_id()) {
+                \delete_post_meta($form_id, '_edit_lock');
+            }
+        }
+
+        \wp_send_json_success();
     }
 
     /**
@@ -69,8 +129,8 @@ class FormEditor
         if (\ForgeForms\Plugin::userCan('edit_forms')) {
             \add_submenu_page(
                 'forge-forms',
-                __('FormForge Editor', 'form-forge'),
-                __('New Form', 'form-forge'),
+                __('FormFabricator Editor', 'formfabricator'),
+                __('New Form', 'formfabricator'),
                 'read',
                 'forge-forms-editor',
                 [self::class, 'render']
@@ -86,7 +146,7 @@ class FormEditor
     public static function render(): void
     {
         if (!\ForgeForms\Plugin::userCan('edit_forms')) {
-            \wp_die(esc_html__('Permission denied.', 'form-forge'));
+            \wp_die(esc_html__('Permission denied.', 'formfabricator'));
         }
 
         $perf_mode   = defined('WP_DEBUG') && WP_DEBUG && current_user_can('manage_options');
@@ -97,6 +157,7 @@ class FormEditor
         $form    = $form_id ? FormModel::get($form_id) : null;
         $palette = FieldRegistry::paletteGroups();
 
+        $lock_owner_name = '';
         if ($form) {
             $form_data = [
                 'id'            => $form->id,
@@ -104,19 +165,31 @@ class FormEditor
                 'fields'        => $form->fields,
                 'notifications' => $form->notifications,
                 'settings'      => $form->settings,
+                'snapshot'      => FormModel::snapshot($form->id),
             ];
+
+            $lock_owner = wp_check_post_lock($form->id);
+            if ($lock_owner) {
+                $lock_owner_user = get_userdata($lock_owner);
+                $lock_owner_name = $lock_owner_user ? $lock_owner_user->display_name : __('another user', 'formfabricator');
+            } else {
+                wp_set_post_lock($form->id);
+            }
         } else {
             $form_data = [
                 'id'            => 0,
-                'title'         => __('New Form', 'form-forge'),
+                'title'         => __('New Form', 'formfabricator'),
                 'fields'        => [],
                 'notifications' => [self::defaultNotification()],
                 'settings'      => [
-                    'submit_label'    => __('Submit', 'form-forge'),
-                    'success_message' => __('Thank you for your submission!', 'form-forge'),
+                    'submit_label'    => __('Submit', 'formfabricator'),
+                    'success_message' => __('Thank you for your submission!', 'formfabricator'),
                 ],
+                'snapshot'      => '',
             ];
         }
+
+        \wp_enqueue_script('heartbeat');
 
         $nonce    = \wp_create_nonce('forge_forms_admin_nonce');
         $data_form    = \wp_json_encode($form_data, JSON_HEX_APOS | JSON_HEX_QUOT);
@@ -145,8 +218,8 @@ class FormEditor
                 'formId'      => $form_id,
                 'fieldCount'  => count($form_data['fields']),
                 'i18n'        => [
-                    'toggleShow' => __('Show performance overlay', 'form-forge'),
-                    'toggleHide' => __('Hide performance overlay', 'form-forge'),
+                    'toggleShow' => __('Show performance overlay', 'formfabricator'),
+                    'toggleHide' => __('Hide performance overlay', 'formfabricator'),
                 ],
             ]);
         }
@@ -165,25 +238,33 @@ class FormEditor
                 <div id="forge-canvas-header">
                     <div id="forge-header-brand">
                         <i class="fa-solid fa-table-list"></i>
-                        <span>FormForge</span>
+                        <span>FormFabricator</span>
                     </div>
                     <div id="forge-header-divider"></div>
                     <input id="forge-form-name" type="text" value="" />
                     <span id="forge-save-status"></span>
+                    <?php if ($lock_owner_name !== '') : ?>
+                    <span id="forge-lock-notice" class="forge-ss--err">
+                        <?php
+                        // translators: %s: display name of the user currently editing this form.
+                        echo esc_html(sprintf(__('Currently being edited by %s. Saving may conflict.', 'formfabricator'), $lock_owner_name));
+                        ?>
+                    </span>
+                    <?php endif; ?>
                     <?php if ($perf_mode) : ?>
-                    <button id="forge-perf-btn" type="button" title="<?php echo esc_attr__('Performance Overlay', 'form-forge'); ?>">
+                    <button id="forge-perf-btn" type="button" title="<?php echo esc_attr__('Performance Overlay', 'formfabricator'); ?>">
                         <i class="fa-solid fa-gauge-high"></i>
                     </button>
                     <?php endif; ?>
-                    <button id="forge-preview-btn" type="button" title="<?php echo esc_attr__('Preview', 'form-forge'); ?>">
-                        <i class="fa-solid fa-eye"></i> <?php echo esc_html__('Preview', 'form-forge'); ?>
+                    <button id="forge-preview-btn" type="button" title="<?php echo esc_attr__('Preview', 'formfabricator'); ?>">
+                        <i class="fa-solid fa-eye"></i> <?php echo esc_html__('Preview', 'formfabricator'); ?>
                     </button>
-                    <button id="forge-save-btn" type="button"><?php esc_html_e('Save', 'form-forge'); ?></button>
+                    <button id="forge-save-btn" type="button"><?php esc_html_e('Save', 'formfabricator'); ?></button>
                 </div>
 
                 <div id="forge-canvas-tabs">
-                    <button class="forge-tab-btn forge-tab-active" data-tab="forge-fields-panel"><?php esc_html_e('Fields', 'form-forge'); ?></button>
-                    <button class="forge-tab-btn" data-tab="forge-notifications-panel"><?php esc_html_e('Notifications', 'form-forge'); ?></button>
+                    <button class="forge-tab-btn forge-tab-active" data-tab="forge-fields-panel"><?php esc_html_e('Fields', 'formfabricator'); ?></button>
+                    <button class="forge-tab-btn" data-tab="forge-notifications-panel"><?php esc_html_e('Notifications', 'formfabricator'); ?></button>
                 </div>
 
                 <div id="forge-fields-panel" class="forge-tab-panel forge-panel-active">
@@ -191,7 +272,7 @@ class FormEditor
                     <div id="forge-submit-preview-bar"></div>
                     <div id="forge-add-field-bar">
                         <button id="forge-add-field-btn" type="button">
-                            <i class="fa-solid fa-plus"></i> <?php esc_html_e('Add Field', 'form-forge'); ?>
+                            <i class="fa-solid fa-plus"></i> <?php esc_html_e('Add Field', 'formfabricator'); ?>
                         </button>
                     </div>
                 </div>
@@ -266,6 +347,47 @@ class FormEditor
             resize(); init(); requestAnimationFrame(draw);
         }());
         </script>
+        <?php if ($form) : ?>
+        <script>
+        var formId = <?php echo (int) $form->id; ?>;
+        (function ($) {
+            if (!$ || !$.fn || !$(document).on) { return; }
+            $(document).on('heartbeat-send', function (e, data) {
+                data.forge_forms_lock = formId;
+            });
+            $(document).on('heartbeat-tick', function (e, data) {
+                if (data.forge_forms_lock_conflict) {
+                    var notice = document.getElementById('forge-lock-notice');
+                    var msg = <?php echo wp_json_encode(__('Currently being edited by %s. Saving may conflict.', 'formfabricator')); ?>
+                        .replace('%s', data.forge_forms_lock_conflict);
+                    if (notice) {
+                        notice.textContent = msg;
+                        notice.style.display = '';
+                    } else {
+                        var status = document.getElementById('forge-save-status');
+                        if (status && status.parentNode) {
+                            var span = document.createElement('span');
+                            span.id = 'forge-lock-notice';
+                            span.className = 'forge-ss--err';
+                            span.textContent = msg;
+                            status.parentNode.insertBefore(span, status.nextSibling);
+                        }
+                    }
+                }
+            });
+        }(window.jQuery));
+        /* sendBeacon (not fetch/XHR) survives the page actually unloading. */
+        window.addEventListener('pagehide', function () {
+            if (!navigator.sendBeacon) { return; }
+            var body = new URLSearchParams({
+                action: 'forge_forms_unlock_form',
+                nonce: <?php echo wp_json_encode($nonce); ?>,
+                form_id: String(formId)
+            });
+            navigator.sendBeacon(<?php echo wp_json_encode(admin_url('admin-ajax.php')); ?>, body);
+        });
+        </script>
+        <?php endif; ?>
         <?php
     }
 
@@ -283,26 +405,41 @@ class FormEditor
 
         $form_id = isset($_POST['form_id']) ? absint(wp_unslash($_POST['form_id'])) : 0;
 
-        $settings_override = [];
-        if (!empty($_POST['settings'])) {
-            $raw_s = json_decode(\ForgeForms\Utils\Sanitize::str(sanitize_textarea_field(\wp_unslash($_POST['settings']))), true);
-            if (is_array($raw_s)) {
-                $settings_override = self::sanitizeSettings($raw_s);
+        // Catches so a field-handler exception (e.g. malformed HTML block) returns a JSON error
+        // instead of breaking WP's response entirely.
+        try {
+            // base64-wrapped like ajaxSave()'s 'form_data', so sanitize_*_field() doesn't strip tags out of embedded HTML.
+            $settings_override = [];
+            if (!empty($_POST['settings'])) {
+                $decoded_s = base64_decode(\ForgeForms\Utils\Sanitize::str(sanitize_text_field(\wp_unslash($_POST['settings']))), true);
+                $raw_s = ($decoded_s !== false) ? json_decode($decoded_s, true) : null;
+                if (is_array($raw_s)) {
+                    $settings_override = self::sanitizeSettings($raw_s);
+                }
             }
-        }
 
-        /* Use live editor fields when posted; fall back to saved DB state. */
-        $fields_override = null;
-        if (!empty($_POST['fields'])) {
-            $raw_f = json_decode(\ForgeForms\Utils\Sanitize::str(sanitize_textarea_field(\wp_unslash($_POST['fields']))), true);
-            if (is_array($raw_f)) {
-                $fields_override = self::sanitizeFields($raw_f);
+            /* Use live editor fields when posted; fall back to saved DB state. */
+            $fields_override = null;
+            if (!empty($_POST['fields'])) {
+                $decoded_f = base64_decode(\ForgeForms\Utils\Sanitize::str(sanitize_text_field(\wp_unslash($_POST['fields']))), true);
+                $raw_f = ($decoded_f !== false) ? json_decode($decoded_f, true) : null;
+                if (is_array($raw_f)) {
+                    $fields_override = self::sanitizeFields($raw_f);
+                }
             }
-        }
 
-        $html = \ForgeForms\Form\FormRenderer::render($form_id, $settings_override, $fields_override);
+            $html = \ForgeForms\Form\FormRenderer::render($form_id, $settings_override, $fields_override);
+        } catch (\Throwable $e) {
+            \ForgeForms\forge_log('ForgeForms FormEditor::ajaxPreview: ' . get_class($e) . ' — ' . $e->getMessage());
+            \wp_send_json_error(
+                [
+                'message' => __('Could not build the preview — one of the fields may contain content the editor could not process (check any HTML blocks for malformed markup).', 'formfabricator'),
+                ],
+                500
+            );
+        }
         if (!$html) {
-            \wp_send_json_error(['message' => __('Form not found.', 'form-forge')], 404);
+            \wp_send_json_error(['message' => __('Form not found.', 'formfabricator')], 404);
         }
 
         /* Collect all field-specific CSS (mirrors Assets::enqueueFront). */
@@ -361,7 +498,7 @@ class FormEditor
 
         $globals = 'window.ForgeForms={'
             . 'ajaxUrl:"",ibanBicUrl:"",'
-            . 'i18n:{submitting:' . \wp_json_encode(__('Sending…', 'form-forge')) . ',error_server:' . \wp_json_encode(__('Server error.', 'form-forge')) . '}'
+            . 'i18n:{submitting:' . \wp_json_encode(__('Sending…', 'formfabricator')) . ',error_server:' . \wp_json_encode(__('Server error.', 'formfabricator')) . '}'
             . '};';
         if (!empty($inits)) {
             $globals .= 'window.ForgeFieldInits={' . implode(',', $inits) . '};';
@@ -419,7 +556,7 @@ class FormEditor
             . '<span class="fpt-slider"></span>'
             . '</label>'
             . '<label class="fpt-label" for="fpt-skip-required">'
-            . '<strong>' . esc_html__('Ignore required fields', 'form-forge') . '</strong>'
+            . '<strong>' . esc_html__('Ignore required fields', 'formfabricator') . '</strong>'
             . '</label>'
             . '</div>'
             . '</div>';
@@ -458,7 +595,7 @@ window.fetch = function (url, opts) {
 
         $page = '<!DOCTYPE html><html lang="' . esc_attr(str_replace('_', '-', get_locale())) . '"><head>'
             . '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-            . '<title>' . esc_html__('Preview', 'form-forge') . '</title>'
+            . '<title>' . esc_html__('Preview', 'formfabricator') . '</title>'
             // phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedStylesheet -- standalone preview HTML document returned via wp_send_json_success(), not rendered through the WP page pipeline (no wp_head/wp_footer to enqueue into); Font Awesome is this plugin's own vendored local asset (FORGE_FORMS_URL . 'assets/vendor/fontawesome/css/all.min.css'), not an external/offloaded resource.
             . '<link rel="stylesheet" href="'
             . \esc_url(FORGE_FORMS_URL . 'assets/vendor/fontawesome/css/all.min.css')
@@ -512,38 +649,75 @@ window.fetch = function (url, opts) {
 
         $form_id       = (int)($raw['id'] ?? 0);
         $raw_title     = $raw['title'] ?? '';
-        $sanitized_notifications = self::sanitizeNotifications(is_array($raw['notifications'] ?? null) ? $raw['notifications'] : []);
-        $result    = FormModel::save(
-            [
-            'title'         => \sanitize_text_field(is_string($raw_title) ? $raw_title : ''),
-            'fields'        => self::sanitizeFields(is_array($raw['fields'] ?? null) ? $raw['fields'] : []),
-            'notifications' => $sanitized_notifications,
-            'settings'      => self::sanitizeSettings(is_array($raw['settings'] ?? null) ? $raw['settings'] : []),
-            ],
-            $form_id,
-            true
-        );
+        $expected_snapshot = \sanitize_text_field(is_string($raw['snapshot'] ?? null) ? $raw['snapshot'] : '');
 
-        if (\is_wp_error($result)) {
-            \wp_send_json_error(['message' => $result->get_error_message()], 500);
-        }
-
-        /* Save PDF attachment settings from notifications */
-        $pdf_settings = \get_option('forge_forms_pdf_settings', []);
-        foreach ($sanitized_notifications as $notif) {
-            $slug = $notif['slug'] ?? '';
-            if ($slug) {
-                $pdf_settings[$result . '|' . $slug] = !empty($notif['attach_pdf']) ? 1 : 0;
+        // Post-locking as a second line of defense alongside the snapshot-hash check below.
+        if ($form_id > 0) {
+            $lock_owner = wp_check_post_lock($form_id);
+            if ($lock_owner && (int) $lock_owner !== get_current_user_id()) {
+                $user = get_userdata($lock_owner);
+                \wp_send_json_error(
+                    [
+                    'message' => sprintf(
+                        /* translators: %s: display name of the user currently editing this form. */
+                        __('This form is currently locked for editing by %s.', 'formfabricator'),
+                        $user ? $user->display_name : __('another user', 'formfabricator')
+                    ),
+                    ],
+                    409
+                );
             }
         }
-        \update_option('forge_forms_pdf_settings', $pdf_settings);
 
-        \wp_send_json_success(
-            [
-            'message' => __('Form saved.', 'form-forge'),
-            'form_id' => $result,
-            ]
-        );
+        // Catches so a field-handler exception (e.g. malformed HTML block) returns a JSON error
+        // instead of breaking WP's response entirely.
+        try {
+            $sanitized_notifications = self::sanitizeNotifications(is_array($raw['notifications'] ?? null) ? $raw['notifications'] : []);
+            $result = FormModel::save(
+                [
+                'title'         => \sanitize_text_field(is_string($raw_title) ? $raw_title : ''),
+                'fields'        => self::sanitizeFields(is_array($raw['fields'] ?? null) ? $raw['fields'] : []),
+                'notifications' => $sanitized_notifications,
+                'settings'      => self::sanitizeSettings(is_array($raw['settings'] ?? null) ? $raw['settings'] : []),
+                ],
+                $form_id,
+                true,
+                $expected_snapshot
+            );
+
+            if (\is_wp_error($result)) {
+                $status = $result->get_error_code() === 'conflict' ? 409 : 500;
+                \wp_send_json_error(['message' => $result->get_error_message()], $status);
+            }
+
+            wp_set_post_lock($result);
+
+            /* Save PDF attachment settings from notifications */
+            $pdf_settings = \get_option('forge_forms_pdf_settings', []);
+            foreach ($sanitized_notifications as $notif) {
+                $slug = $notif['slug'] ?? '';
+                if ($slug) {
+                    $pdf_settings[$result . '|' . $slug] = !empty($notif['attach_pdf']) ? 1 : 0;
+                }
+            }
+            \update_option('forge_forms_pdf_settings', $pdf_settings);
+
+            \wp_send_json_success(
+                [
+                'message'  => __('Form saved.', 'formfabricator'),
+                'form_id'  => $result,
+                'snapshot' => FormModel::snapshot((int) $result),
+                ]
+            );
+        } catch (\Throwable $e) {
+            \ForgeForms\forge_log('ForgeForms FormEditor::ajaxSave: ' . get_class($e) . ' — ' . $e->getMessage());
+            \wp_send_json_error(
+                [
+                'message' => __('Could not save this form — one of the fields may contain content the editor could not process (check any HTML blocks for malformed markup). Please review the fields and try again.', 'formfabricator'),
+                ],
+                500
+            );
+        }
     }
 
     /**
@@ -706,9 +880,9 @@ window.fetch = function (url, opts) {
         }
 
         return [
-            'submit_label'      => \sanitize_text_field(\ForgeForms\Utils\Sanitize::str($settings['submit_label']    ?? '', __('Submit', 'form-forge'))),
-            'submit_working'    => \sanitize_text_field(\ForgeForms\Utils\Sanitize::str($settings['submit_working']   ?? '', __('Sending…', 'form-forge'))),
-            'success_message'   => \wp_kses_post(\ForgeForms\Utils\Sanitize::str($settings['success_message']         ?? '', __('Thank you!', 'form-forge'))),
+            'submit_label'      => \sanitize_text_field(\ForgeForms\Utils\Sanitize::str($settings['submit_label']    ?? '', __('Submit', 'formfabricator'))),
+            'submit_working'    => \sanitize_text_field(\ForgeForms\Utils\Sanitize::str($settings['submit_working']   ?? '', __('Sending…', 'formfabricator'))),
+            'success_message'   => \wp_kses_post(\ForgeForms\Utils\Sanitize::str($settings['success_message']         ?? '', __('Thank you!', 'formfabricator'))),
             'submit_conditions' => [
                 'enabled' => !empty($settings['submit_conditions']['enabled']),
                 'match'   => in_array($settings['submit_conditions']['match'] ?? '', ['all', 'any'], true)
@@ -890,39 +1064,86 @@ window.fetch = function (url, opts) {
             'link'  => ['rel' => true, 'href' => true, 'type' => true, 'media' => true],
 
             // Layout & content — HTML-email-safe subset.
-            'table'  => ['style' => true, 'width' => true, 'height' => true, 'border' => true,
-                         'cellpadding' => true, 'cellspacing' => true, 'align' => true,
-                         'bgcolor' => true, 'role' => true],
-            'thead'  => [],
-            'tbody'  => [],
-            'tfoot'  => [],
-            'tr'     => ['style' => true, 'align' => true, 'valign' => true, 'bgcolor' => true],
-            'td'     => ['style' => true, 'align' => true, 'valign' => true, 'width' => true,
-                         'height' => true, 'colspan' => true, 'rowspan' => true, 'bgcolor' => true],
-            'th'     => ['style' => true, 'align' => true, 'valign' => true, 'width' => true,
-                         'height' => true, 'colspan' => true, 'rowspan' => true, 'bgcolor' => true],
-            'div'    => ['style' => true, 'align' => true],
-            'span'   => ['style' => true],
-            'p'      => ['style' => true, 'align' => true],
-            'a'      => ['style' => true, 'href' => true, 'title' => true, 'target' => true, 'rel' => true],
-            'img'    => ['style' => true, 'src' => true, 'alt' => true, 'title' => true,
-                         'width' => true, 'height' => true, 'align' => true, 'border' => true],
-            'br'     => [],
-            'hr'     => ['style' => true],
-            'strong' => [],
-            'em'     => [],
-            'b'      => [],
-            'i'      => [],
-            'u'      => [],
-            'ul'     => ['style' => true],
-            'ol'     => ['style' => true],
-            'li'     => ['style' => true],
-            'h1'     => ['style' => true, 'align' => true],
-            'h2'     => ['style' => true, 'align' => true],
-            'h3'     => ['style' => true, 'align' => true],
-            'h4'     => ['style' => true, 'align' => true],
-            'h5'     => ['style' => true, 'align' => true],
-            'h6'     => ['style' => true, 'align' => true],
+            'table'    => ['style' => true, 'width' => true, 'height' => true, 'border' => true,
+                           'cellpadding' => true, 'cellspacing' => true, 'align' => true,
+                           'bgcolor' => true, 'role' => true, 'class' => true, 'id' => true],
+            'caption'  => ['style' => true, 'class' => true],
+            'colgroup' => ['style' => true, 'class' => true],
+            'col'      => ['style' => true, 'span' => true, 'width' => true],
+            'thead'    => ['style' => true, 'class' => true],
+            'tbody'    => ['style' => true, 'class' => true],
+            'tfoot'    => ['style' => true, 'class' => true],
+            'tr'       => ['style' => true, 'align' => true, 'valign' => true, 'bgcolor' => true, 'class' => true, 'id' => true],
+            'td'       => ['style' => true, 'align' => true, 'valign' => true, 'width' => true,
+                           'height' => true, 'colspan' => true, 'rowspan' => true, 'bgcolor' => true,
+                           'class' => true, 'id' => true, 'scope' => true],
+            'th'       => ['style' => true, 'align' => true, 'valign' => true, 'width' => true,
+                           'height' => true, 'colspan' => true, 'rowspan' => true, 'bgcolor' => true,
+                           'class' => true, 'id' => true, 'scope' => true],
+            'div'      => ['style' => true, 'align' => true, 'class' => true, 'id' => true],
+            'span'     => ['style' => true, 'class' => true, 'id' => true],
+            'p'        => ['style' => true, 'align' => true, 'class' => true, 'id' => true],
+            'a'        => ['style' => true, 'href' => true, 'title' => true, 'target' => true,
+                           'rel' => true, 'class' => true, 'id' => true],
+            'img'      => ['style' => true, 'src' => true, 'alt' => true, 'title' => true,
+                           'width' => true, 'height' => true, 'align' => true, 'border' => true,
+                           'class' => true, 'id' => true],
+            'br'       => [],
+            'hr'       => ['style' => true, 'class' => true],
+            'strong'   => ['style' => true],
+            'em'       => ['style' => true],
+            'b'        => ['style' => true],
+            'i'        => ['style' => true],
+            'u'        => ['style' => true],
+            'mark'     => ['style' => true, 'class' => true],
+            'small'    => ['style' => true],
+            'del'      => ['style' => true, 'cite' => true],
+            'ins'      => ['style' => true, 'cite' => true],
+            'sup'      => ['style' => true],
+            'sub'      => ['style' => true],
+            'ul'       => ['style' => true, 'class' => true, 'id' => true],
+            'ol'       => ['style' => true, 'class' => true, 'id' => true],
+            'li'       => ['style' => true, 'class' => true, 'id' => true],
+            'dl'       => ['style' => true, 'class' => true],
+            'dt'       => ['style' => true],
+            'dd'       => ['style' => true],
+            'h1'       => ['style' => true, 'align' => true, 'class' => true, 'id' => true],
+            'h2'       => ['style' => true, 'align' => true, 'class' => true, 'id' => true],
+            'h3'       => ['style' => true, 'align' => true, 'class' => true, 'id' => true],
+            'h4'       => ['style' => true, 'align' => true, 'class' => true, 'id' => true],
+            'h5'       => ['style' => true, 'align' => true, 'class' => true, 'id' => true],
+            'h6'       => ['style' => true, 'align' => true, 'class' => true, 'id' => true],
+            'blockquote' => ['style' => true, 'class' => true, 'cite' => true],
+            'pre'      => ['style' => true, 'class' => true],
+            'code'     => ['style' => true, 'class' => true],
+            'kbd'      => ['style' => true],
+            'samp'     => ['style' => true],
+            'var'      => ['style' => true],
+            'cite'     => ['style' => true],
+            'abbr'     => ['style' => true, 'title' => true],
+            'time'     => ['style' => true, 'datetime' => true],
+            'q'        => ['style' => true, 'cite' => true],
+            'details'  => ['style' => true, 'class' => true, 'open' => true],
+            'summary'  => ['style' => true],
+            'progress' => ['style' => true, 'value' => true, 'max' => true],
+            'meter'    => ['style' => true, 'value' => true, 'min' => true, 'max' => true,
+                           'low' => true, 'high' => true, 'optimum' => true],
+            'section'  => ['style' => true, 'class' => true, 'id' => true],
+            'header'   => ['style' => true, 'class' => true, 'id' => true],
+            'footer'   => ['style' => true, 'class' => true, 'id' => true],
+            'article'  => ['style' => true, 'class' => true, 'id' => true],
+            'aside'    => ['style' => true, 'class' => true, 'id' => true],
+            'nav'      => ['style' => true, 'class' => true, 'id' => true],
+            'address'  => ['style' => true, 'class' => true],
+            'form'     => ['style' => true, 'class' => true, 'id' => true, 'action' => true, 'method' => true],
+            'label'    => ['style' => true, 'class' => true, 'for' => true],
+            'input'    => ['style' => true, 'class' => true, 'id' => true, 'type' => true, 'name' => true,
+                           'value' => true, 'placeholder' => true, 'checked' => true, 'disabled' => true],
+            'select'   => ['style' => true, 'class' => true, 'id' => true, 'name' => true, 'multiple' => true],
+            'option'   => ['value' => true, 'selected' => true],
+            'textarea' => ['style' => true, 'class' => true, 'id' => true, 'name' => true, 'rows' => true, 'cols' => true],
+            'button'   => ['style' => true, 'class' => true, 'id' => true, 'type' => true],
+            'noscript' => [],
         ];
 
         // Email layouts commonly need CSS properties that WP core's default
@@ -1003,14 +1224,14 @@ window.fetch = function (url, opts) {
     {
         return [
             'slug'             => 'notification-1',
-            'name'             => __('Notification 1', 'form-forge'),
+            'name'             => __('Notification 1', 'formfabricator'),
             'recipient_mode'   => 'single',
             'to'               => \get_option('admin_email', ''),
             'routing_rules'    => [],
             'routing_fallback' => '',
-            'subject'          => __('New Entry: {form_title}', 'form-forge'),
+            'subject'          => __('New Entry: {form_title}', 'formfabricator'),
             'body'             =>
-                __('A new entry has been received.<br><br>{all_fields}', 'form-forge'),
+                __('A new entry has been received.<br><br>{all_fields}', 'formfabricator'),
             'from_name'        => '{site_name}',
             'from_email'       => '{admin_email}',
             'reply_to'         => '{email}',
@@ -1036,371 +1257,371 @@ window.fetch = function (url, opts) {
         return [
             'i18n' => [
                 /* Defaults seeded into a brand-new form (state.formName / state.settings) */
-                'defaultFormName'  => __('New Form', 'form-forge'),
-                'submitLabel'      => __('Submit', 'form-forge'),
-                'submitWorking'    => __('Sending…', 'form-forge'),
-                'successMessage'   => __('Thank you for your submission!', 'form-forge'),
+                'defaultFormName'  => __('New Form', 'formfabricator'),
+                'submitLabel'      => __('Submit', 'formfabricator'),
+                'submitWorking'    => __('Sending…', 'formfabricator'),
+                'successMessage'   => __('Thank you for your submission!', 'formfabricator'),
 
                 /* Unsaved-changes guard modal */
-                'unsavedTitle' => __('Unsaved changes', 'form-forge'),
-                'unsavedBody'  => __('This form has unsaved changes. Leave anyway?', 'form-forge'),
-                'stay'         => __('Stay', 'form-forge'),
-                'leave'        => __('Leave', 'form-forge'),
+                'unsavedTitle' => __('Unsaved changes', 'formfabricator'),
+                'unsavedBody'  => __('This form has unsaved changes. Leave anyway?', 'formfabricator'),
+                'stay'         => __('Stay', 'formfabricator'),
+                'leave'        => __('Leave', 'formfabricator'),
 
                 /* Number-field validation rule dropdown */
-                'validationNone'             => __('None', 'form-forge'),
-                'validationIntegersOnly'     => __('Integers only', 'form-forge'),
-                'validationPositiveNumbers'  => __('Positive numbers', 'form-forge'),
-                'validationPositiveIntegers' => __('Positive integers', 'form-forge'),
+                'validationNone'             => __('None', 'formfabricator'),
+                'validationIntegersOnly'     => __('Integers only', 'formfabricator'),
+                'validationPositiveNumbers'  => __('Positive numbers', 'formfabricator'),
+                'validationPositiveIntegers' => __('Positive integers', 'formfabricator'),
 
                 /* Condition-rule operator dropdown (field/submit-button conditions) */
-                'opEquals'      => __('is equal to', 'form-forge'),
-                'opNotEquals'   => __('is not equal to', 'form-forge'),
-                'opContains'    => __('contains', 'form-forge'),
-                'opNotContains' => __('does not contain', 'form-forge'),
-                'opEmpty'       => __('is empty', 'form-forge'),
-                'opNotEmpty'    => __('is not empty', 'form-forge'),
-                'opGreater'     => __('is greater than', 'form-forge'),
-                'opLess'        => __('is less than', 'form-forge'),
+                'opEquals'      => __('is equal to', 'formfabricator'),
+                'opNotEquals'   => __('is not equal to', 'formfabricator'),
+                'opContains'    => __('contains', 'formfabricator'),
+                'opNotContains' => __('does not contain', 'formfabricator'),
+                'opEmpty'       => __('is empty', 'formfabricator'),
+                'opNotEmpty'    => __('is not empty', 'formfabricator'),
+                'opGreater'     => __('is greater than', 'formfabricator'),
+                'opLess'        => __('is less than', 'formfabricator'),
 
                 /* Field list / rows */
-                'noFieldsFound'       => __('No fields found.', 'form-forge'),
-                'noFieldsYetTitle'    => __('No fields yet', 'form-forge'),
-                'addFirstFieldHtml'   => __('Add your first field via', 'form-forge'),
-                'noLabel'             => __('(no label)', 'form-forge'),
-                'edit'                => __('Edit', 'form-forge'),
-                'duplicate'           => __('Duplicate', 'form-forge'),
-                'remove'              => __('Remove', 'form-forge'),
-                'copied'              => __('copied', 'form-forge'),
-                'fieldGroupType'      => __('Field group', 'form-forge'),
-                'addFieldsToGroup'    => __('Add fields to group', 'form-forge'),
-                'settingsLabel'       => __('Settings', 'form-forge'),
-                'conditionsActive'    => __('Conditions active', 'form-forge'),
+                'noFieldsFound'       => __('No fields found.', 'formfabricator'),
+                'noFieldsYetTitle'    => __('No fields yet', 'formfabricator'),
+                'addFirstFieldHtml'   => __('Add your first field via', 'formfabricator'),
+                'noLabel'             => __('(no label)', 'formfabricator'),
+                'edit'                => __('Edit', 'formfabricator'),
+                'duplicate'           => __('Duplicate', 'formfabricator'),
+                'remove'              => __('Remove', 'formfabricator'),
+                'copied'              => __('copied', 'formfabricator'),
+                'fieldGroupType'      => __('Field group', 'formfabricator'),
+                'addFieldsToGroup'    => __('Add fields to group', 'formfabricator'),
+                'settingsLabel'       => __('Settings', 'formfabricator'),
+                'conditionsActive'    => __('Conditions active', 'formfabricator'),
 
                 /* Field picker modal */
-                'addFieldTitle'    => __('Add field', 'form-forge'),
-                'searchFieldType'  => __('Search field type…', 'form-forge'),
+                'addFieldTitle'    => __('Add field', 'formfabricator'),
+                'searchFieldType'  => __('Search field type…', 'formfabricator'),
 
                 /* Field settings modal */
-                'fieldSettingsTitle' => __('Field settings', 'form-forge'),
-                'copyFieldId'        => __('Copy field ID', 'form-forge'),
-                'tabGeneral'         => __('General', 'form-forge'),
-                'tabAdvanced'        => __('Advanced', 'form-forge'),
-                'tabConditions'      => __('Conditions', 'form-forge'),
-                'done'               => __('Done', 'form-forge'),
-                'editFieldSuffix'    => __('Edit', 'form-forge'),
-                'labelField'         => __('Label', 'form-forge'),
-                'hideLabel'          => __('Hide label', 'form-forge'),
-                'requiredField'      => __('Required field', 'form-forge'),
-                'noOtherFields'      => __('(no other fields)', 'form-forge'),
-                'valueWord'          => __('Value', 'form-forge'),
-                'urlPlaceholder'     => __('https://…', 'form-forge'),
-                'mediaLibrary'       => __('Media library', 'form-forge'),
-                'useButtonLabel'     => __('Use', 'form-forge'),
-                'imageUrlPrompt'     => __('Image URL:', 'form-forge'),
-                'linkUrlPrompt'      => __('Enter link URL:', 'form-forge'),
+                'fieldSettingsTitle' => __('Field settings', 'formfabricator'),
+                'copyFieldId'        => __('Copy field ID', 'formfabricator'),
+                'tabGeneral'         => __('General', 'formfabricator'),
+                'tabAdvanced'        => __('Advanced', 'formfabricator'),
+                'tabConditions'      => __('Conditions', 'formfabricator'),
+                'done'               => __('Done', 'formfabricator'),
+                'editFieldSuffix'    => __('Edit', 'formfabricator'),
+                'labelField'         => __('Label', 'formfabricator'),
+                'hideLabel'          => __('Hide label', 'formfabricator'),
+                'requiredField'      => __('Required field', 'formfabricator'),
+                'noOtherFields'      => __('(no other fields)', 'formfabricator'),
+                'valueWord'          => __('Value', 'formfabricator'),
+                'urlPlaceholder'     => __('https://…', 'formfabricator'),
+                'mediaLibrary'       => __('Media library', 'formfabricator'),
+                'useButtonLabel'     => __('Use', 'formfabricator'),
+                'imageUrlPrompt'     => __('Image URL:', 'formfabricator'),
+                'linkUrlPrompt'      => __('Enter link URL:', 'formfabricator'),
 
                 /* Rich-text toolbar (spRichTextEditor) command tooltips */
-                'rtBold'          => __('Bold', 'form-forge'),
-                'rtItalic'        => __('Italic', 'form-forge'),
-                'rtUnderline'     => __('Underline', 'form-forge'),
-                'rtBulletList'    => __('List', 'form-forge'),
-                'rtNumberedList'  => __('Numbered list', 'form-forge'),
-                'rtLink'          => __('Link', 'form-forge'),
+                'rtBold'          => __('Bold', 'formfabricator'),
+                'rtItalic'        => __('Italic', 'formfabricator'),
+                'rtUnderline'     => __('Underline', 'formfabricator'),
+                'rtBulletList'    => __('List', 'formfabricator'),
+                'rtNumberedList'  => __('Numbered list', 'formfabricator'),
+                'rtLink'          => __('Link', 'formfabricator'),
 
                 /* Country/calling-code tag remove buttons, rating icon pill */
-                'removeAriaLabel' => __('Remove', 'form-forge'),
-                'wholeValues'     => __('Whole values', 'form-forge'),
-                'halfValues'      => __('Half values', 'form-forge'),
-                'pagePrefix'         => __('Page ', 'form-forge'),
-                'useEmailsHint'      => __('Use in emails:', 'form-forge'),
-                'fieldIdLabel'       => __('Field ID', 'form-forge'),
+                'removeAriaLabel' => __('Remove', 'formfabricator'),
+                'wholeValues'     => __('Whole values', 'formfabricator'),
+                'halfValues'      => __('Half values', 'formfabricator'),
+                'pagePrefix'         => __('Page ', 'formfabricator'),
+                'useEmailsHint'      => __('Use in emails:', 'formfabricator'),
+                'fieldIdLabel'       => __('Field ID', 'formfabricator'),
 
                 /* Advanced tab */
-                'validationSection'      => __('Validation', 'form-forge'),
-                'validationRule'         => __('Validation rule', 'form-forge'),
-                'autocompleteSection'    => __('Browser autocomplete', 'form-forge'),
-                'enableBrowserFill'      => __('Enable browser autofill', 'form-forge'),
-                'autocompleteValue'      => __('Autocomplete value', 'form-forge'),
-                'autocompleteValueHint'  => __('E.g. "name", "email", "tel". Empty = browser default.', 'form-forge'),
-                'appearanceSection'      => __('Appearance', 'form-forge'),
-                'cssClasses'             => __('CSS class(es)', 'form-forge'),
-                'separateClassesHint'    => __('Separate multiple classes with spaces.', 'form-forge'),
+                'validationSection'      => __('Validation', 'formfabricator'),
+                'validationRule'         => __('Validation rule', 'formfabricator'),
+                'autocompleteSection'    => __('Browser autocomplete', 'formfabricator'),
+                'enableBrowserFill'      => __('Enable browser autofill', 'formfabricator'),
+                'autocompleteValue'      => __('Autocomplete value', 'formfabricator'),
+                'autocompleteValueHint'  => __('E.g. "name", "email", "tel". Empty = browser default.', 'formfabricator'),
+                'appearanceSection'      => __('Appearance', 'formfabricator'),
+                'cssClasses'             => __('CSS class(es)', 'formfabricator'),
+                'separateClassesHint'    => __('Separate multiple classes with spaces.', 'formfabricator'),
 
                 /* SEPA / phone advanced blocks */
-                'countryFilter'      => __('Country filter', 'form-forge'),
-                'countryList'        => __('Country list', 'form-forge'),
-                'off'                => __('Off', 'form-forge'),
-                'allowed'            => __('Allowed', 'form-forge'),
-                'disallowed'         => __('Disallowed', 'form-forge'),
-                'formatValidation'   => __('Format validation', 'form-forge'),
-                'phoneAnyFormatHint' => __('Any valid format: min. 7 digits, optionally with + and country code.', 'form-forge'),
-                'any'                => __('Any', 'form-forge'),
-                'countriesMode'      => __('Countries', 'form-forge'),
-                'dialCodes'          => __('Dial codes', 'form-forge'),
+                'countryFilter'      => __('Country filter', 'formfabricator'),
+                'countryList'        => __('Country list', 'formfabricator'),
+                'off'                => __('Off', 'formfabricator'),
+                'allowed'            => __('Allowed', 'formfabricator'),
+                'disallowed'         => __('Disallowed', 'formfabricator'),
+                'formatValidation'   => __('Format validation', 'formfabricator'),
+                'phoneAnyFormatHint' => __('Any valid format: min. 7 digits, optionally with + and country code.', 'formfabricator'),
+                'any'                => __('Any', 'formfabricator'),
+                'countriesMode'      => __('Countries', 'formfabricator'),
+                'dialCodes'          => __('Dial codes', 'formfabricator'),
 
                 /* Conditions tab (per-field and submit-button) */
-                'condShow'          => __('Show', 'form-forge'),
-                'condHide'          => __('Hide', 'form-forge'),
-                'condSentenceField' => __('this field when', 'form-forge'),
-                'condAll'           => __('all', 'form-forge'),
-                'condAny'           => __('any', 'form-forge'),
-                'condSentenceTail'  => __('of the following conditions match:', 'form-forge'),
-                'addCondition'      => __('Add condition', 'form-forge'),
-                'removeCondition'   => __('Remove condition', 'form-forge'),
-                'removeRule'        => __('Remove rule', 'form-forge'),
-                'addRule'           => __('Add rule', 'form-forge'),
-                'chooseOption'      => __('Choose option', 'form-forge'),
-                'modeOption'        => __('Option', 'form-forge'),
-                'modeValue'         => __('Value', 'form-forge'),
-                'noFields'          => __('(no fields)', 'form-forge'),
+                'condShow'          => __('Show', 'formfabricator'),
+                'condHide'          => __('Hide', 'formfabricator'),
+                'condSentenceField' => __('this field when', 'formfabricator'),
+                'condAll'           => __('all', 'formfabricator'),
+                'condAny'           => __('any', 'formfabricator'),
+                'condSentenceTail'  => __('of the following conditions match:', 'formfabricator'),
+                'addCondition'      => __('Add condition', 'formfabricator'),
+                'removeCondition'   => __('Remove condition', 'formfabricator'),
+                'removeRule'        => __('Remove rule', 'formfabricator'),
+                'addRule'           => __('Add rule', 'formfabricator'),
+                'chooseOption'      => __('Choose option', 'formfabricator'),
+                'modeOption'        => __('Option', 'formfabricator'),
+                'modeValue'         => __('Value', 'formfabricator'),
+                'noFields'          => __('(no fields)', 'formfabricator'),
 
                 /* Country / calling-code tag pickers */
-                'searchCountry'  => __('Search and add country…', 'form-forge'),
-                'searchDialCode' => __('Search dial code (+49)…', 'form-forge'),
+                'searchCountry'  => __('Search and add country…', 'formfabricator'),
+                'searchDialCode' => __('Search dial code (+49)…', 'formfabricator'),
 
                 /* Select/radio/checkbox option editor */
-                'preselected'            => __('Preselected', 'form-forge'),
-                'optionLabelPlaceholder' => __('Label', 'form-forge'),
-                'optionValuePlaceholder' => __('value', 'form-forge'),
-                'addOption'              => __('Add option', 'form-forge'),
+                'preselected'            => __('Preselected', 'formfabricator'),
+                'optionLabelPlaceholder' => __('Label', 'formfabricator'),
+                'optionValuePlaceholder' => __('value', 'formfabricator'),
+                'addOption'              => __('Add option', 'formfabricator'),
 
                 /* Textarea/text character-limit unit toggle */
-                'unitChars' => __('Characters', 'form-forge'),
-                'unitWords' => __('Words', 'form-forge'),
+                'unitChars' => __('Characters', 'formfabricator'),
+                'unitWords' => __('Words', 'formfabricator'),
 
                 /* Rich text / HTML editors */
-                'modeCode'    => __('Code', 'form-forge'),
-                'modePreview' => __('Preview', 'form-forge'),
-                'modeVisual'  => __('Visual', 'form-forge'),
+                'modeCode'    => __('Code', 'formfabricator'),
+                'modePreview' => __('Preview', 'formfabricator'),
+                'modeVisual'  => __('Visual', 'formfabricator'),
 
                 /* Time field */
-                'formatLabel' => __('Format', 'form-forge'),
-                'format24h'   => __('24h', 'form-forge'),
-                'format12h'   => __('12h (AM/PM)', 'form-forge'),
-                'prefillNow'  => __('Prefill now', 'form-forge'),
+                'formatLabel' => __('Format', 'formfabricator'),
+                'format24h'   => __('24h', 'formfabricator'),
+                'format12h'   => __('12h (AM/PM)', 'formfabricator'),
+                'prefillNow'  => __('Prefill now', 'formfabricator'),
 
                 /* Sub-fields accordion (Name, Address, SEPA, …) */
-                'subfieldsSection' => __('Subfields', 'form-forge'),
-                'enableSubfield'   => __('Enable subfield', 'form-forge'),
-                'placeholderLabel' => __('Placeholder', 'form-forge'),
+                'subfieldsSection' => __('Subfields', 'formfabricator'),
+                'enableSubfield'   => __('Enable subfield', 'formfabricator'),
+                'placeholderLabel' => __('Placeholder', 'formfabricator'),
 
                 /* Notifications list + modal */
-                'noNotificationsHtml' => __('No notifications yet. Click', 'form-forge'),
-                'addNotification'     => __('Add notification', 'form-forge'),
-                'notificationPrefix'  => __('Notification ', 'form-forge'),
-                'routingActive'       => __('Routing active', 'form-forge'),
-                'noName'              => __('(no name)', 'form-forge'),
-                'notificationPlaceholder' => __('Notification', 'form-forge'),
-                'tabRecipient'        => __('Recipient', 'form-forge'),
-                'tabContent'          => __('Content', 'form-forge'),
-                'tabSender'           => __('Sender', 'form-forge'),
-                'recipientMode'       => __('Recipient mode', 'form-forge'),
-                'modeDirect'          => __('Direct', 'form-forge'),
-                'modeRouting'         => __('Routing', 'form-forge'),
-                'activeLabel'         => __('Active', 'form-forge'),
-                'singleModeHint'      => __('All entries are sent to a fixed address.', 'form-forge'),
-                'routingModeHint'     => __('The email address is chosen based on field conditions.', 'form-forge'),
-                'toEmail'             => __('To (email)', 'form-forge'),
-                'arrowTo'             => __('→ To:', 'form-forge'),
-                'emailPlaceholder'    => __('Email', 'form-forge'),
-                'fallbackEmail'       => __('Fallback email', 'form-forge'),
-                'fallbackEmailHint'   => __('Used when no rule matches', 'form-forge'),
-                'subject'             => __('Subject', 'form-forge'),
-                'message'             => __('Message', 'form-forge'),
-                'attachments'         => __('Attachments', 'form-forge'),
-                'attachPdf'           => __('Attach generated PDF', 'form-forge'),
-                'attachPdfHint'       => __('The completed form is attached as a PDF document.', 'form-forge'),
-                'attachUploads'       => __('Attach uploaded files', 'form-forge'),
-                'attachUploadsHint'   => __('All file uploads from the form are forwarded as attachments.', 'form-forge'),
-                'fromName'            => __('Sender name', 'form-forge'),
-                'defaultSiteNameHint' => __('{site_name} for default value', 'form-forge'),
-                'fromEmail'           => __('Sender email address', 'form-forge'),
-                'defaultAdminEmailHint' => __('{admin_email} for default value', 'form-forge'),
-                'replyTo'             => __('Reply-to email', 'form-forge'),
-                'emptyMeansSenderEmail' => __('Empty = sender email', 'form-forge'),
-                'ccEmails'            => __('CC emails', 'form-forge'),
-                'bccEmails'           => __('BCC emails', 'form-forge'),
-                'separateWithSemicolon' => __('Separate multiple with semicolons', 'form-forge'),
+                'noNotificationsHtml' => __('No notifications yet. Click', 'formfabricator'),
+                'addNotification'     => __('Add notification', 'formfabricator'),
+                'notificationPrefix'  => __('Notification ', 'formfabricator'),
+                'routingActive'       => __('Routing active', 'formfabricator'),
+                'noName'              => __('(no name)', 'formfabricator'),
+                'notificationPlaceholder' => __('Notification', 'formfabricator'),
+                'tabRecipient'        => __('Recipient', 'formfabricator'),
+                'tabContent'          => __('Content', 'formfabricator'),
+                'tabSender'           => __('Sender', 'formfabricator'),
+                'recipientMode'       => __('Recipient mode', 'formfabricator'),
+                'modeDirect'          => __('Direct', 'formfabricator'),
+                'modeRouting'         => __('Routing', 'formfabricator'),
+                'activeLabel'         => __('Active', 'formfabricator'),
+                'singleModeHint'      => __('All entries are sent to a fixed address.', 'formfabricator'),
+                'routingModeHint'     => __('The email address is chosen based on field conditions.', 'formfabricator'),
+                'toEmail'             => __('To (email)', 'formfabricator'),
+                'arrowTo'             => __('→ To:', 'formfabricator'),
+                'emailPlaceholder'    => __('Email', 'formfabricator'),
+                'fallbackEmail'       => __('Fallback email', 'formfabricator'),
+                'fallbackEmailHint'   => __('Used when no rule matches', 'formfabricator'),
+                'subject'             => __('Subject', 'formfabricator'),
+                'message'             => __('Message', 'formfabricator'),
+                'attachments'         => __('Attachments', 'formfabricator'),
+                'attachPdf'           => __('Attach generated PDF', 'formfabricator'),
+                'attachPdfHint'       => __('The completed form is attached as a PDF document.', 'formfabricator'),
+                'attachUploads'       => __('Attach uploaded files', 'formfabricator'),
+                'attachUploadsHint'   => __('All file uploads from the form are forwarded as attachments.', 'formfabricator'),
+                'fromName'            => __('Sender name', 'formfabricator'),
+                'defaultSiteNameHint' => __('{site_name} for default value', 'formfabricator'),
+                'fromEmail'           => __('Sender email address', 'formfabricator'),
+                'defaultAdminEmailHint' => __('{admin_email} for default value', 'formfabricator'),
+                'replyTo'             => __('Reply-to email', 'formfabricator'),
+                'emptyMeansSenderEmail' => __('Empty = sender email', 'formfabricator'),
+                'ccEmails'            => __('CC emails', 'formfabricator'),
+                'bccEmails'           => __('BCC emails', 'formfabricator'),
+                'separateWithSemicolon' => __('Separate multiple with semicolons', 'formfabricator'),
 
                 /* Submit button preview + settings modal */
-                'submitButtonTitle'       => __('Submit button', 'form-forge'),
-                'tabLabels'               => __('Labeling', 'form-forge'),
-                'buttonLabel'             => __('Label', 'form-forge'),
-                'buttonLabelHint'         => __('Visible text of the button', 'form-forge'),
-                'workingLabel'            => __('Label while sending', 'form-forge'),
-                'workingLabelHint'        => __('Shown while the submission is in progress', 'form-forge'),
-                'successMessageLabel'     => __('Success message', 'form-forge'),
-                'successMessageHint'      => __('Message shown after a successful submission', 'form-forge'),
-                'showButtonWhen'          => __('Show button when', 'form-forge'),
-                'conditionsMatchSuffix'   => __('of the conditions match:', 'form-forge'),
-                'configureButton'         => __('Configure button', 'form-forge'),
-                'visibilityConditionsActive' => __('Visibility: conditions active', 'form-forge'),
-                'conditionalBadge'        => __('conditional', 'form-forge'),
+                'submitButtonTitle'       => __('Submit button', 'formfabricator'),
+                'tabLabels'               => __('Labeling', 'formfabricator'),
+                'buttonLabel'             => __('Label', 'formfabricator'),
+                'buttonLabelHint'         => __('Visible text of the button', 'formfabricator'),
+                'workingLabel'            => __('Label while sending', 'formfabricator'),
+                'workingLabelHint'        => __('Shown while the submission is in progress', 'formfabricator'),
+                'successMessageLabel'     => __('Success message', 'formfabricator'),
+                'successMessageHint'      => __('Message shown after a successful submission', 'formfabricator'),
+                'showButtonWhen'          => __('Show button when', 'formfabricator'),
+                'conditionsMatchSuffix'   => __('of the conditions match:', 'formfabricator'),
+                'configureButton'         => __('Configure button', 'formfabricator'),
+                'visibilityConditionsActive' => __('Visibility: conditions active', 'formfabricator'),
+                'conditionalBadge'        => __('conditional', 'formfabricator'),
 
                 /* Save / preview status messages */
-                'saving'         => __('Saving…', 'form-forge'),
-                'saved'          => __('Saved', 'form-forge'),
-                'errorGeneric'   => __('Error', 'form-forge'),
-                'unknownError'   => __('Unknown error', 'form-forge'),
-                'serverError'    => __('Server error', 'form-forge'),
-                'previewLabel'   => __('Preview', 'form-forge'),
-                'previewFailed'  => __('Preview failed.', 'form-forge'),
-                'networkError'   => __('Network error.', 'form-forge'),
+                'saving'         => __('Saving…', 'formfabricator'),
+                'saved'          => __('Saved', 'formfabricator'),
+                'errorGeneric'   => __('Error', 'formfabricator'),
+                'unknownError'   => __('Unknown error', 'formfabricator'),
+                'serverError'    => __('Server error', 'formfabricator'),
+                'previewLabel'   => __('Preview', 'formfabricator'),
+                'previewFailed'  => __('Preview failed.', 'formfabricator'),
+                'networkError'   => __('Network error.', 'formfabricator'),
             ],
 
             /* SEPA "Länderfilter" country-tag picker (IBAN-capable countries). Reuses the
                exact same __() msgids as SepaField::ibanCountryOptions() — same list, same
                English source text — except 'SC' (Seychelles), which that list doesn't
                contain and is new here. Reusing msgids means these already have German
-               translations in languages/form-forge-de_DE.po. */
+               translations in languages/formfabricator-de_DE.po. */
             'countryNames' => [
-                'AD' => __('Andorra', 'form-forge'),
-                'AE' => __('United Arab Emirates', 'form-forge'),
-                'AL' => __('Albania', 'form-forge'),
-                'AT' => __('Austria', 'form-forge'),
-                'AZ' => __('Azerbaijan', 'form-forge'),
-                'BA' => __('Bosnia and Herzegovina', 'form-forge'),
-                'BE' => __('Belgium', 'form-forge'),
-                'BG' => __('Bulgaria', 'form-forge'),
-                'BH' => __('Bahrain', 'form-forge'),
-                'BR' => __('Brazil', 'form-forge'),
-                'CH' => __('Switzerland', 'form-forge'),
-                'CR' => __('Costa Rica', 'form-forge'),
-                'CY' => __('Cyprus', 'form-forge'),
-                'CZ' => __('Czechia', 'form-forge'),
-                'DE' => __('Germany', 'form-forge'),
-                'DJ' => __('Djibouti', 'form-forge'),
-                'DK' => __('Denmark', 'form-forge'),
-                'DO' => __('Dominican Republic', 'form-forge'),
-                'EE' => __('Estonia', 'form-forge'),
-                'EG' => __('Egypt', 'form-forge'),
-                'ES' => __('Spain', 'form-forge'),
-                'FI' => __('Finland', 'form-forge'),
-                'FR' => __('France', 'form-forge'),
-                'GB' => __('United Kingdom', 'form-forge'),
-                'GE' => __('Georgia', 'form-forge'),
-                'GI' => __('Gibraltar', 'form-forge'),
-                'GL' => __('Greenland', 'form-forge'),
-                'GR' => __('Greece', 'form-forge'),
-                'GT' => __('Guatemala', 'form-forge'),
-                'HR' => __('Croatia', 'form-forge'),
-                'HU' => __('Hungary', 'form-forge'),
-                'IE' => __('Ireland', 'form-forge'),
-                'IL' => __('Israel', 'form-forge'),
-                'IQ' => __('Iraq', 'form-forge'),
-                'IS' => __('Iceland', 'form-forge'),
-                'IT' => __('Italy', 'form-forge'),
-                'JO' => __('Jordan', 'form-forge'),
-                'KW' => __('Kuwait', 'form-forge'),
-                'KZ' => __('Kazakhstan', 'form-forge'),
-                'LB' => __('Lebanon', 'form-forge'),
-                'LC' => __('St. Lucia', 'form-forge'),
-                'LI' => __('Liechtenstein', 'form-forge'),
-                'LT' => __('Lithuania', 'form-forge'),
-                'LU' => __('Luxembourg', 'form-forge'),
-                'LV' => __('Latvia', 'form-forge'),
-                'LY' => __('Libya', 'form-forge'),
-                'MA' => __('Morocco', 'form-forge'),
-                'MC' => __('Monaco', 'form-forge'),
-                'MD' => __('Moldova', 'form-forge'),
-                'ME' => __('Montenegro', 'form-forge'),
-                'MK' => __('North Macedonia', 'form-forge'),
-                'MR' => __('Mauritania', 'form-forge'),
-                'MT' => __('Malta', 'form-forge'),
-                'MU' => __('Mauritius', 'form-forge'),
-                'NI' => __('Nicaragua', 'form-forge'),
-                'NL' => __('Netherlands', 'form-forge'),
-                'NO' => __('Norway', 'form-forge'),
-                'PK' => __('Pakistan', 'form-forge'),
-                'PL' => __('Poland', 'form-forge'),
-                'PT' => __('Portugal', 'form-forge'),
-                'QA' => __('Qatar', 'form-forge'),
-                'RO' => __('Romania', 'form-forge'),
-                'RS' => __('Serbia', 'form-forge'),
-                'SA' => __('Saudi Arabia', 'form-forge'),
-                'SC' => __('Seychelles', 'form-forge'),
-                'SE' => __('Sweden', 'form-forge'),
-                'SI' => __('Slovenia', 'form-forge'),
-                'SK' => __('Slovakia', 'form-forge'),
-                'SM' => __('San Marino', 'form-forge'),
-                'SV' => __('El Salvador', 'form-forge'),
-                'TN' => __('Tunisia', 'form-forge'),
-                'TR' => __('Turkey', 'form-forge'),
-                'UA' => __('Ukraine', 'form-forge'),
-                'VA' => __('Vatican City', 'form-forge'),
-                'VG' => __('British Virgin Islands', 'form-forge'),
-                'XK' => __('Kosovo', 'form-forge'),
+                'AD' => __('Andorra', 'formfabricator'),
+                'AE' => __('United Arab Emirates', 'formfabricator'),
+                'AL' => __('Albania', 'formfabricator'),
+                'AT' => __('Austria', 'formfabricator'),
+                'AZ' => __('Azerbaijan', 'formfabricator'),
+                'BA' => __('Bosnia and Herzegovina', 'formfabricator'),
+                'BE' => __('Belgium', 'formfabricator'),
+                'BG' => __('Bulgaria', 'formfabricator'),
+                'BH' => __('Bahrain', 'formfabricator'),
+                'BR' => __('Brazil', 'formfabricator'),
+                'CH' => __('Switzerland', 'formfabricator'),
+                'CR' => __('Costa Rica', 'formfabricator'),
+                'CY' => __('Cyprus', 'formfabricator'),
+                'CZ' => __('Czechia', 'formfabricator'),
+                'DE' => __('Germany', 'formfabricator'),
+                'DJ' => __('Djibouti', 'formfabricator'),
+                'DK' => __('Denmark', 'formfabricator'),
+                'DO' => __('Dominican Republic', 'formfabricator'),
+                'EE' => __('Estonia', 'formfabricator'),
+                'EG' => __('Egypt', 'formfabricator'),
+                'ES' => __('Spain', 'formfabricator'),
+                'FI' => __('Finland', 'formfabricator'),
+                'FR' => __('France', 'formfabricator'),
+                'GB' => __('United Kingdom', 'formfabricator'),
+                'GE' => __('Georgia', 'formfabricator'),
+                'GI' => __('Gibraltar', 'formfabricator'),
+                'GL' => __('Greenland', 'formfabricator'),
+                'GR' => __('Greece', 'formfabricator'),
+                'GT' => __('Guatemala', 'formfabricator'),
+                'HR' => __('Croatia', 'formfabricator'),
+                'HU' => __('Hungary', 'formfabricator'),
+                'IE' => __('Ireland', 'formfabricator'),
+                'IL' => __('Israel', 'formfabricator'),
+                'IQ' => __('Iraq', 'formfabricator'),
+                'IS' => __('Iceland', 'formfabricator'),
+                'IT' => __('Italy', 'formfabricator'),
+                'JO' => __('Jordan', 'formfabricator'),
+                'KW' => __('Kuwait', 'formfabricator'),
+                'KZ' => __('Kazakhstan', 'formfabricator'),
+                'LB' => __('Lebanon', 'formfabricator'),
+                'LC' => __('St. Lucia', 'formfabricator'),
+                'LI' => __('Liechtenstein', 'formfabricator'),
+                'LT' => __('Lithuania', 'formfabricator'),
+                'LU' => __('Luxembourg', 'formfabricator'),
+                'LV' => __('Latvia', 'formfabricator'),
+                'LY' => __('Libya', 'formfabricator'),
+                'MA' => __('Morocco', 'formfabricator'),
+                'MC' => __('Monaco', 'formfabricator'),
+                'MD' => __('Moldova', 'formfabricator'),
+                'ME' => __('Montenegro', 'formfabricator'),
+                'MK' => __('North Macedonia', 'formfabricator'),
+                'MR' => __('Mauritania', 'formfabricator'),
+                'MT' => __('Malta', 'formfabricator'),
+                'MU' => __('Mauritius', 'formfabricator'),
+                'NI' => __('Nicaragua', 'formfabricator'),
+                'NL' => __('Netherlands', 'formfabricator'),
+                'NO' => __('Norway', 'formfabricator'),
+                'PK' => __('Pakistan', 'formfabricator'),
+                'PL' => __('Poland', 'formfabricator'),
+                'PT' => __('Portugal', 'formfabricator'),
+                'QA' => __('Qatar', 'formfabricator'),
+                'RO' => __('Romania', 'formfabricator'),
+                'RS' => __('Serbia', 'formfabricator'),
+                'SA' => __('Saudi Arabia', 'formfabricator'),
+                'SC' => __('Seychelles', 'formfabricator'),
+                'SE' => __('Sweden', 'formfabricator'),
+                'SI' => __('Slovenia', 'formfabricator'),
+                'SK' => __('Slovakia', 'formfabricator'),
+                'SM' => __('San Marino', 'formfabricator'),
+                'SV' => __('El Salvador', 'formfabricator'),
+                'TN' => __('Tunisia', 'formfabricator'),
+                'TR' => __('Turkey', 'formfabricator'),
+                'UA' => __('Ukraine', 'formfabricator'),
+                'VA' => __('Vatican City', 'formfabricator'),
+                'VG' => __('British Virgin Islands', 'formfabricator'),
+                'XK' => __('Kosovo', 'formfabricator'),
             ],
 
             /* Phone-field "Vorwahlen" (calling code) tag picker. These are dial-code
                region labels, not ISO country names, so they're a distinct set of new
                msgids from countryNames above (some cover multiple countries, e.g. +1). */
             'phoneCodes' => [
-                '+1'   => __('USA / Canada', 'form-forge'),
-                '+7'   => __('Russia', 'form-forge'),
-                '+20'  => __('Egypt', 'form-forge'),
-                '+27'  => __('South Africa', 'form-forge'),
-                '+30'  => __('Greece', 'form-forge'),
-                '+31'  => __('Netherlands', 'form-forge'),
-                '+32'  => __('Belgium', 'form-forge'),
-                '+33'  => __('France', 'form-forge'),
-                '+34'  => __('Spain', 'form-forge'),
-                '+36'  => __('Hungary', 'form-forge'),
-                '+39'  => __('Italy', 'form-forge'),
-                '+40'  => __('Romania', 'form-forge'),
-                '+41'  => __('Switzerland', 'form-forge'),
-                '+43'  => __('Austria', 'form-forge'),
-                '+44'  => __('United Kingdom', 'form-forge'),
-                '+45'  => __('Denmark', 'form-forge'),
-                '+46'  => __('Sweden', 'form-forge'),
-                '+47'  => __('Norway', 'form-forge'),
-                '+48'  => __('Poland', 'form-forge'),
-                '+49'  => __('Germany', 'form-forge'),
-                '+51'  => __('Peru', 'form-forge'),
-                '+52'  => __('Mexico', 'form-forge'),
-                '+54'  => __('Argentina', 'form-forge'),
-                '+55'  => __('Brazil', 'form-forge'),
-                '+56'  => __('Chile', 'form-forge'),
-                '+57'  => __('Colombia', 'form-forge'),
-                '+61'  => __('Australia', 'form-forge'),
-                '+62'  => __('Indonesia', 'form-forge'),
-                '+63'  => __('Philippines', 'form-forge'),
-                '+64'  => __('New Zealand', 'form-forge'),
-                '+65'  => __('Singapore', 'form-forge'),
-                '+66'  => __('Thailand', 'form-forge'),
-                '+81'  => __('Japan', 'form-forge'),
-                '+82'  => __('South Korea', 'form-forge'),
-                '+84'  => __('Vietnam', 'form-forge'),
-                '+86'  => __('China', 'form-forge'),
-                '+90'  => __('Turkey', 'form-forge'),
-                '+91'  => __('India', 'form-forge'),
-                '+92'  => __('Pakistan', 'form-forge'),
-                '+94'  => __('Sri Lanka', 'form-forge'),
-                '+98'  => __('Iran', 'form-forge'),
-                '+212' => __('Morocco', 'form-forge'),
-                '+213' => __('Algeria', 'form-forge'),
-                '+216' => __('Tunisia', 'form-forge'),
-                '+220' => __('Gambia', 'form-forge'),
-                '+234' => __('Nigeria', 'form-forge'),
-                '+254' => __('Kenya', 'form-forge'),
-                '+351' => __('Portugal', 'form-forge'),
-                '+352' => __('Luxembourg', 'form-forge'),
-                '+353' => __('Ireland', 'form-forge'),
-                '+354' => __('Iceland', 'form-forge'),
-                '+356' => __('Malta', 'form-forge'),
-                '+357' => __('Cyprus', 'form-forge'),
-                '+358' => __('Finland', 'form-forge'),
-                '+359' => __('Bulgaria', 'form-forge'),
-                '+370' => __('Lithuania', 'form-forge'),
-                '+371' => __('Latvia', 'form-forge'),
-                '+372' => __('Estonia', 'form-forge'),
-                '+380' => __('Ukraine', 'form-forge'),
-                '+385' => __('Croatia', 'form-forge'),
-                '+386' => __('Slovenia', 'form-forge'),
-                '+420' => __('Czechia', 'form-forge'),
-                '+421' => __('Slovakia', 'form-forge'),
-                '+423' => __('Liechtenstein', 'form-forge'),
+                '+1'   => __('USA / Canada', 'formfabricator'),
+                '+7'   => __('Russia', 'formfabricator'),
+                '+20'  => __('Egypt', 'formfabricator'),
+                '+27'  => __('South Africa', 'formfabricator'),
+                '+30'  => __('Greece', 'formfabricator'),
+                '+31'  => __('Netherlands', 'formfabricator'),
+                '+32'  => __('Belgium', 'formfabricator'),
+                '+33'  => __('France', 'formfabricator'),
+                '+34'  => __('Spain', 'formfabricator'),
+                '+36'  => __('Hungary', 'formfabricator'),
+                '+39'  => __('Italy', 'formfabricator'),
+                '+40'  => __('Romania', 'formfabricator'),
+                '+41'  => __('Switzerland', 'formfabricator'),
+                '+43'  => __('Austria', 'formfabricator'),
+                '+44'  => __('United Kingdom', 'formfabricator'),
+                '+45'  => __('Denmark', 'formfabricator'),
+                '+46'  => __('Sweden', 'formfabricator'),
+                '+47'  => __('Norway', 'formfabricator'),
+                '+48'  => __('Poland', 'formfabricator'),
+                '+49'  => __('Germany', 'formfabricator'),
+                '+51'  => __('Peru', 'formfabricator'),
+                '+52'  => __('Mexico', 'formfabricator'),
+                '+54'  => __('Argentina', 'formfabricator'),
+                '+55'  => __('Brazil', 'formfabricator'),
+                '+56'  => __('Chile', 'formfabricator'),
+                '+57'  => __('Colombia', 'formfabricator'),
+                '+61'  => __('Australia', 'formfabricator'),
+                '+62'  => __('Indonesia', 'formfabricator'),
+                '+63'  => __('Philippines', 'formfabricator'),
+                '+64'  => __('New Zealand', 'formfabricator'),
+                '+65'  => __('Singapore', 'formfabricator'),
+                '+66'  => __('Thailand', 'formfabricator'),
+                '+81'  => __('Japan', 'formfabricator'),
+                '+82'  => __('South Korea', 'formfabricator'),
+                '+84'  => __('Vietnam', 'formfabricator'),
+                '+86'  => __('China', 'formfabricator'),
+                '+90'  => __('Turkey', 'formfabricator'),
+                '+91'  => __('India', 'formfabricator'),
+                '+92'  => __('Pakistan', 'formfabricator'),
+                '+94'  => __('Sri Lanka', 'formfabricator'),
+                '+98'  => __('Iran', 'formfabricator'),
+                '+212' => __('Morocco', 'formfabricator'),
+                '+213' => __('Algeria', 'formfabricator'),
+                '+216' => __('Tunisia', 'formfabricator'),
+                '+220' => __('Gambia', 'formfabricator'),
+                '+234' => __('Nigeria', 'formfabricator'),
+                '+254' => __('Kenya', 'formfabricator'),
+                '+351' => __('Portugal', 'formfabricator'),
+                '+352' => __('Luxembourg', 'formfabricator'),
+                '+353' => __('Ireland', 'formfabricator'),
+                '+354' => __('Iceland', 'formfabricator'),
+                '+356' => __('Malta', 'formfabricator'),
+                '+357' => __('Cyprus', 'formfabricator'),
+                '+358' => __('Finland', 'formfabricator'),
+                '+359' => __('Bulgaria', 'formfabricator'),
+                '+370' => __('Lithuania', 'formfabricator'),
+                '+371' => __('Latvia', 'formfabricator'),
+                '+372' => __('Estonia', 'formfabricator'),
+                '+380' => __('Ukraine', 'formfabricator'),
+                '+385' => __('Croatia', 'formfabricator'),
+                '+386' => __('Slovenia', 'formfabricator'),
+                '+420' => __('Czechia', 'formfabricator'),
+                '+421' => __('Slovakia', 'formfabricator'),
+                '+423' => __('Liechtenstein', 'formfabricator'),
             ],
         ];
     }
